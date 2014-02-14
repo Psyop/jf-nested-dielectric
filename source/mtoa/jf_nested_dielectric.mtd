@@ -1,0 +1,29 @@
+# ------------------------------------------------------------------
+# JF Nested Dielectric By Jonah Friedman
+# 1.0
+# Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
+# Open sourced under the 3 clause BSD license, see license.txt
+
+[node jf_nested_dielectric]
+    desc                    STRING      "Nested Dielectric Shader"
+    maya.name               STRING      "jf_nested_dielectric"
+    maya.classification     STRING      "shader/surface"
+    maya.id                 INT         0x67993104
+    
+        
+    # AOVs
+    [attr aov_direct_refraction]
+        aov.type                INT     0x05
+        default STRING ""
+    [attr aov_indirect_refraction]
+        aov.type                INT     0x05
+        default STRING "refraction"
+    [attr aov_direct_specular]
+        aov.type                INT     0x05
+        default STRING "direct_specular"
+    [attr aov_indirect_specular]
+        aov.type                INT     0x05
+        default STRING "indirect_specular"
+
+
+

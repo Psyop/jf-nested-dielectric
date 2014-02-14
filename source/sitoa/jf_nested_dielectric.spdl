@@ -1,0 +1,1341 @@
+# ------------------------------------------------------------------
+# JF Nested Dielectric By Jonah Friedman
+# 1.0
+# Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
+# Open sourced under the 3 clause BSD license, see license.txt
+
+
+
+SPDL
+Version = "2.0.0.0";
+Reference = "{c3127da1-7956-42d9-a172-296e168b84c9}";
+PropertySet "jf_nested_dielectric_pset"
+{
+	Parameter "out" output
+	{
+		GUID = "{333B39EC-ADD2-49D0-B56F-0CDFC635FC4F}";
+		Type = color;
+	}
+	Parameter "mediumPriority" input
+	{
+		GUID = "{8635604F-64A3-4F0C-87A2-8C76C64D80CF}";
+		Type = integer;
+		Texturable = on;
+		Value Minimum = 0;
+		Value Maximum = 32;
+	}
+	Parameter "mediumIOR" input
+	{
+		GUID = "{2575D67D-4844-4639-856E-4C28E0DD9AFC}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.33;
+		Value Minimum = 0.001;
+	}
+	Parameter "mediumTransmittance" input
+	{
+		GUID = "{4601295C-CB0E-43FE-A523-75D272088AA7}";
+		Type = color;
+		Texturable = on;
+		Value = 1.0 1.0 1.0;
+	}
+	Parameter "mediumTransmittance_scale" input
+	{
+		GUID = "{D315F6F5-E85B-4BA5-8BF2-99684747D6D5}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.0;	
+		Value Minimum = 0.0;
+	}
+	Parameter "polarize" input
+	{
+		GUID = "{825411e5-fb4f-4e61-a67b-05d5f141f255}";
+		Type = boolean;
+		Texturable = off;
+		Value = off;
+	}
+	Parameter "polarization_angle" input
+	{
+		GUID = "{e9f316a7-d4a3-4118-8f6c-363f27202330}";
+		Type = scalar;
+		Texturable = off;
+		Value = 0.0;
+	}
+	Parameter "refraction_scale" input
+	{
+		GUID = "{b703df87-8462-48d5-a54b-146585a1dad9}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.0;
+		Value Minimum = 0.0;
+	}
+	Parameter "btdf" input
+	{
+		GUID = "{55cb2ee4-0643-4de8-9bb6-3418042b7ba0}";
+		Type = string;
+		Texturable = on;
+		Value = "cook_torrance";
+	}
+	Parameter "indirect_refraction" input
+	{
+		GUID = "{45599a28-f271-4618-a0be-cec81513c256}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.0;
+		Value Minimum = 0.0;
+	}
+	Parameter "refraction_roughness_u" input
+	{
+		GUID = "{dab47ced-ec8b-4aec-b406-57d683109e78}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "refraction_roughness_v" input
+	{
+		GUID = "{dc8178f5-b1b8-45a7-b22b-4b99eab3b639}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "direct_refraction" input
+	{
+		GUID = "{4c574ce3-1a8d-4b11-a881-aedd7e8f9e4c}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.0;
+		Value Minimum = 0.0;
+	}
+	Parameter "dr_roughnessOffset" input
+	{
+		GUID = "{ef405ee5-2729-4bfa-ae11-2a034cac470d}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.05;
+	}
+	Parameter "dr_roughnessDepthMultiplier" input
+	{
+		GUID = "{dd83cc11-9f96-4409-a665-054dfe4c51de}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.0;
+		Value Minimum = 0.0;
+	}
+	Parameter "dr_roughnessDepthAdder" input
+	{
+		GUID = "{112366e4-7f89-4324-93c8-97689e6ad1c4}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "dr_use_refraction_btdf" input
+	{
+		GUID = "{ea09b619-8dbd-4278-b1be-180f584524fe}";
+		Type = boolean;
+		Texturable = on;
+		Value = on;
+	}
+	Parameter "dr_btdf" input
+	{
+		GUID = "{f92cfa66-3d21-4143-b37a-15034b43db2e}";
+		Type = string;
+		Texturable = on;
+		Value = "cook_torrance";
+	}
+	Parameter "dr_roughness_u" input
+	{
+		GUID = "{da10b2ac-5a24-40c7-9c06-296442e9ef1a}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "dr_roughness_v" input
+	{
+		GUID = "{0c732c90-008e-41e9-8f8e-e0aea107f8f7}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "dr_second_scale" input
+	{
+		GUID = "{aa3771cc-3552-447d-a7d1-6985e6efc415}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "dr_second_roughnessMultiplier" input
+	{
+		GUID = "{d2234a93-2cb1-4aa3-a204-28f580fa9b0f}";
+		Type = scalar;
+		Texturable = on;
+		Value = 2.0;
+		Value Minimum = 0.0;
+	}
+	Parameter "disperse" input
+	{
+		GUID = "{95388a5d-2422-4360-94c0-5d17a2317722}";
+		Type = boolean;
+		Texturable = on;
+		Value = off;
+	}
+	Parameter "dispersion" input
+	{
+		GUID = "{6d6aaba8-a11f-4584-8f42-40f2dd4ea629}";
+		Type = scalar;
+		Texturable = off;
+		Value = 0.03;
+		Value Minimum = 0.0;
+	}
+	Parameter "spectral_distribution" input
+	{
+		GUID = "{7e03f466-b23c-4711-887f-6dcdbce19131}";
+		Type = string;
+		Texturable = off;
+		Value = "daylight";
+	}
+	Parameter "spectral_gamut" input
+	{
+		GUID = "{821ee1bc-a1d5-4507-a4dd-9045b7977136}";
+		Type = string;
+		Texturable = off;
+		Value = "sRGB";
+	}
+	Parameter "spectral_clamp_negative_colors" input
+	{
+		GUID = "{8b1defb1-b4ad-4639-a26f-54c293eb1ffe}";
+		Type = boolean;
+		Texturable = off;
+		Value = off;
+	}
+	Parameter "spectral_saturation" input
+	{
+		GUID = "{8b759ee1-0484-4940-9120-6971317833d3}";
+		Type = scalar;
+		Texturable = off;
+		Value = 1.0;
+	}
+	Parameter "specular_scale" input
+	{
+		GUID = "{cc954910-6d8b-4bd3-8c16-61eeb7112194}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.0;
+		Value Minimum = 0.0;
+	}
+	Parameter "brdf" input
+	{
+		GUID = "{E2C7B211-98CC-4751-9F8F-E76EA163895F}";
+		Type = string;
+		Texturable = on;
+		Value = "cook_torrance";
+	}
+	Parameter "direct_specular" input
+	{
+		GUID = "{df49ea8a-02a1-4e40-ab78-d1c59846fcfb}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.0;
+		Value Minimum = 0.0;
+	}
+	Parameter "indirect_specular" input
+	{
+		GUID = "{87f06dcd-b6bb-4e6e-ad90-6fdb79dd00fe}";
+		Type = scalar;
+		Texturable = on;
+		Value = 1.0;
+		Value Minimum = 0.0;
+	}
+	Parameter "specular_roughness_u" input
+	{
+		GUID = "{2A16C3CC-1304-4089-B033-4EFBEF08FA70}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "specular_roughness_v" input
+	{
+		GUID = "{3F917D84-315D-4670-A296-DFABB7BE68B8}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "blur_anisotropic_poles" input
+	{
+		GUID = "{a704ba5e-9ee5-4ea6-9eb2-23b1bfeafa2d}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.0;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "specular_ray_type" input
+	{
+		GUID = "{6e5839ad-96af-4866-93f8-f6092900db14}";
+		Type = string;
+		Texturable = on;
+		Value = "Glossy";
+	}
+	Parameter "enable_internal_reflections" input
+	{
+		GUID = "{54f40a0f-a108-408c-87b8-e0199e4b356d}";
+		Type = boolean;
+		Texturable = on;
+		Value = on;
+	}
+	Parameter "russian_roulette_probability" input
+	{
+		GUID = "{a258f572-6405-45f1-baf1-f072bcf28ed0}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.5;
+		Value Minimum = 0.0;
+		Value Maximum = 1.0;
+	}
+	Parameter "energy_cutoff_exponent" input
+	{
+		GUID = "{0be9d507-66b1-4165-a213-ff055d129c28}";
+		Type = integer;
+		Texturable = on;
+		Value = -5;
+		Value Minimum = -16;
+		Value Maximum = -2;
+	}
+	Parameter "ward_tangent" input
+	{
+		GUID = "{27a97908-3d59-4a3f-8ce3-5caa825c2c66}";
+		Type = vector;
+		Texturable = on;
+		Value = 0.0 1.0 0.0;
+	}
+	Parameter "refract_skydomes" input
+	{
+		GUID = "{c6617b1d-467a-43d2-92f5-61e168b8fa63}";
+		Type = boolean;
+		Texturable = on;
+		Value = off;
+	}
+	Parameter "refract_skies" input
+	{
+		GUID = "{4efbbde2-6d57-4510-8b2b-194e8b7344cd}";
+		Type = boolean;
+		Texturable = on;
+		Value = on;
+	}
+	Parameter "reflect_skydomes" input
+	{
+		GUID = "{7cb46100-c306-4bd5-be67-3dccf319a90c}";
+		Type = boolean;
+		Texturable = on;
+		Value = on;
+	}
+	Parameter "reflect_skies" input
+	{
+		GUID = "{3c31bcd1-d532-41cb-a6bb-0faf270280d1}";
+		Type = boolean;
+		Texturable = on;
+		Value = on;
+	}
+	Parameter "emission_at_interfaces" input
+	{
+		GUID = "{1b61cd22-a259-4ffe-a2c9-9f5a8e565307}";
+		Type = color;
+		Texturable = on;
+		Value = 0.0 0.0 0.0;
+	}
+	Parameter "emission_at_exits" input
+	{
+		GUID = "{dc6e0b47-f4c0-4779-9ab9-594b7b783fd0}";
+		Type = color;
+		Texturable = on;
+		Value = 0.0 0.0 0.0;
+	}
+	Parameter "emission_at_entrances" input
+	{
+		GUID = "{7266fbcd-1966-4b70-95cf-15dd30c8a803}";
+		Type = color;
+		Texturable = on;
+		Value = 0.0 0.0 0.0;
+	}
+	Parameter "shadow_mode" input
+	{
+		GUID = "{220ce4b9-46bc-41cb-b073-d40898b68174}";
+		Type = string;
+		Texturable = on;
+		Value = "transmit_and_outer_fresnels";
+	}
+	Parameter "caustic_mode" input
+	{
+		GUID = "{e07e40d0-2826-4cbb-a0d4-abb331b31602}";
+		Type = integer;
+		Texturable = on;
+		Value = 0;
+	}
+	Parameter "caustic_refractions_direct" input
+	{
+		GUID = "{090b3b45-7a0c-4a1b-a27a-e56bae1fe189}";
+		Type = boolean;
+		Texturable = on;
+		Value = on;
+	}
+	Parameter "caustic_dr_roughness_offset" input
+	{
+		GUID = "{0e8c34c2-7d6f-4d6e-952d-a0ef4b77317f}";
+		Type = scalar;
+		Texturable = on;
+		Value = 0.1;
+	}
+	Parameter "caustic_refractions_indirect" input
+	{
+		GUID = "{8de071c9-abf3-43b8-b183-2ed3506e3e07}";
+		Type = boolean;
+		Texturable = on;
+		Value = off;
+	}
+	Parameter "caustic_TIR" input
+	{
+		GUID = "{15d502d2-bd30-4312-961c-54aaf6996b4f}";
+		Type = boolean;
+		Texturable = on;
+		Value = off;
+	}
+	Parameter "caustic_internal_speculars" input
+	{
+		GUID = "{8bcb2cb2-b739-45bf-8caa-143ee77f5533}";
+		Type = boolean;
+		Texturable = on;
+		Value = off;
+	}
+	Parameter "caustic_dispersion" input
+	{
+		GUID = "{74100b42-dca9-465b-90e8-5b62414c4d5d}";
+		Type = boolean;
+		Texturable = on;
+		Value = off;
+	}
+	Parameter "caustic_specular_direct" input
+	{
+		GUID = "{f705fd4e-f039-4a95-9377-74d1978caea3}";
+		Type = boolean;
+		Texturable = on;
+		Value = off;
+	}
+	Parameter "caustic_specular_indirect" input
+	{
+		GUID = "{109448c0-fa0e-42b0-b6fb-e4c852fff998}";
+		Type = boolean;
+		Texturable = on;
+		Value = off;
+	}
+	Parameter "caustic_max_distance" input
+	{
+		GUID = "{0459ccf3-b9de-4a9c-8275-7d0f3ab9efb9}";
+		Type = scalar;
+		Texturable = on;
+		Value = -1.0;
+	}
+	Parameter "aov_direct_refraction" input
+	{
+		GUID = "{0adb4d6c-bfaf-44b0-bb6b-ad12cc1398f3}";
+		Type = string;
+		value = "Arnold_Direct_Refraction";
+	}
+	Parameter "aov_indirect_refraction" input
+	{
+		GUID = "{1c18abe9-ff6b-4aeb-a2c1-834c566872c5}";
+		Type = string;
+		value = "Arnold_Refraction";
+	}
+	Parameter "aov_direct_specular" input
+	{
+		GUID = "{7aa2a3af-b233-42dd-8470-9050e19491ff}";
+		Type = string;
+		value = "Arnold_Direct_Specular";
+	}
+	Parameter "aov_indirect_specular" input
+	{
+		GUID = "{f007fb6f-b461-408c-9f6d-a98e47e390bb}";
+		Type = string;
+		value = "Arnold_Indirect_Specular";
+	}
+}
+
+MetaShader "jf_nested_dielectric_meta"
+{
+	Name = "JF Nested Dielectric";
+	Type = material;
+	Renderer "arnold render"
+	{
+		Name = "jf_nested_dielectric";
+		FileName = "jf_nested_dielectric";
+		Options
+		{
+			"version" = 1;
+		}
+	}
+}
+
+Defaults
+{
+	# integers
+	mediumPriority
+	{
+		Name = "Medium Priority";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	energy_cutoff_exponent
+	{
+		Name = "Energy Cutof Exponent";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+
+	#colors
+	mediumTransmittance
+	{
+		Name = "Medium Transmittance";
+		UIType = "rgb";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	emission_at_interfaces
+	{
+		Name = "Emission at Interfaces";
+		UIType = "rgb";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	emission_at_exits
+	{
+		Name = "Emission At Exits";
+		UIType = "rgb";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	emission_at_entrances
+	{
+		Name = "Emission At Entrances";
+		UIType = "rgb";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+
+	# scales
+	refraction_scale
+	{
+		Name = "Refraction Scale";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	indirect_refraction
+	{
+		Name = "Indirect Refraction Scale";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	direct_refraction
+	{
+		Name = "Direct Refraction Scale";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	dr_second_scale
+	{
+		Name = "Second Lobe Scale";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	specular_scale
+	{
+		Name = "Specular Scale";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	direct_specular
+	{
+		Name = "Direct Specular";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	indirect_specular
+	{
+		Name = "Indirect Specular";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+
+	# roughnesses
+	refraction_roughness_u
+	{
+		Name = "Roughness U";
+		UIRange = 0.0 to 0.1;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	refraction_roughness_v
+	{
+		Name = "Roughness V";
+		UIRange = 0.0 to 0.1;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	dr_roughness_u
+	{
+		Name = "Roughness U";
+		UIRange = 0.0 to 0.1;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	dr_roughness_v
+	{
+		Name = "Roughness V";
+		UIRange = 0.0 to 0.1;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	specular_roughness_u
+	{
+		Name = "Roughness U";
+		UIRange = 0.0 to 0.3;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	specular_roughness_v
+	{
+		Name = "Roughness V";
+		UIRange = 0.0 to 0.3;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+
+	# roughness modifiers
+	dr_roughnessOffset
+	{
+		Name = "Roughness Offset";
+		UIRange = 0.0 to 0.1;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	dr_roughnessDepthAdder
+	{
+		Name = "Add roughness with Ray Depth";
+		UIRange = 0.0 to 0.1;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_dr_roughness_offset
+	{
+		Name = "Direct Refraction Roughness Offset";
+		UIRange = 0.0 to 0.1;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+
+	dr_roughnessDepthMultiplier
+	{
+		Name = "Multiply roughness with Ray Depth";
+		UIRange = 1.0 to 2.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	dr_second_roughnessMultiplier
+	{
+		Name = "Second Lobe Roughness Multiplier";
+		UIRange = 1.0 to 5.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+
+
+	# misc scalars
+	mediumIOR
+	{
+		Name = "Medium IOR";
+		UIRange = 0.001 to 5.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	mediumTransmittance_scale
+	{
+		Name = "Transmittance Scale";
+		UIRange = 0.001 to 5.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	polarization_angle
+	{
+		Name = "Polarization Angle";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	dispersion
+	{
+		Name = "Dispersion";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	spectral_saturation
+	{
+		Name = "Saturation";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_max_distance
+	{
+		Name = "Max Distance";
+		UIRange = 0.0 to 20.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	blur_anisotropic_poles
+	{
+		Name = "Blur Anisotropic Poles";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	russian_roulette_probability
+	{
+		Name = "Probability of Reflection";
+		UIRange = 0.0 to 1.0;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+
+	# booleans
+	polarize
+	{
+		Name = "Polarize";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	disperse
+	{
+		Name = "Disperse";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	spectral_clamp_negative_colors
+	{
+		Name = "Clamp Negative Colors";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	dr_use_refraction_btdf
+	{
+		Name = "Use Refraction BTDF";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	enable_internal_reflections
+	{
+		Name = "Internal Reflections";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	refract_skydomes
+	{
+		Name = "Refract Skydome Lights (Direct Refraction)";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	refract_skies
+	{
+		Name = "Refract Skies (Environment shaders)";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	reflect_skydomes
+	{
+		Name = "Reflect Skydome Lights (Direct Specular)";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	reflect_skies
+	{
+		Name = "Reflect Skies (Environment shaders)";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_refractions_direct
+	{
+		Name = "Direct Refractions";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_refractions_indirect
+	{
+		Name = "Indirect Refractions";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_TIR
+	{
+		Name = "TIR";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_internal_speculars
+	{
+		Name = "Internal Weak Speculars";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_dispersion
+	{
+		Name = "Dispersion";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_specular_direct
+	{
+		Name = "Direct Speculars";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	caustic_specular_indirect
+	{
+		Name = "Indirect Speculars";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+
+
+	# not a real enum until there is something to enumerate
+	caustic_mode
+	{
+		Name = "Caustic Mode";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			"Ray Traced" = 0;
+		}
+	}
+
+	# const char *  enum_shadow_modes[] =
+	# {
+	# 	"black",
+	# 	"transmit_only",
+	# 	"transmit_and_outer_fresnels",
+	# 	"transmit_and_all_fresnels",
+	# 	NULL
+	# };
+	# const char * enum_gamuts[] = 
+	# {
+	# 	"sRGB",
+	# 	"AdobeRGB",
+	# 	"WideGamut",
+	# 	"ProPhotoRGB",
+	# 	"ACES",
+	# 	NULL
+	# };
+	# const char * enum_spectra[] = 
+	# {
+	# 	"full",
+	# 	"daylight",
+	# 	"bluesky",
+	# 	"sunset",
+	# 	"LED",
+	# 	"flourescent",
+	# 	"sodium",
+	# 	NULL
+	# };
+	# const char *  enum_specular_raytypes[] =
+	# {
+	# 	"Glossy",
+	# 	"Reflected",
+	# 	NULL
+	# };
+	# const char *  enum_brdfs[] =
+	# {
+	# 	"stretched_phong",
+	# 	"cook_torrance",
+	# 	"ward_rayTangent",
+	# 	"ward_userTangent",
+	# 	NULL
+	# };
+
+	# enums
+	specular_ray_type
+	{
+		Name = "Specular Ray Type";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			"Glossy Ray" = "Glossy";
+			"Reflected Ray" = "Reflected";
+		}
+	}
+	shadow_mode
+	{
+		Name = "Shadow Mode";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			"Black Shadows (Physically correct with Caustics)" = "black";
+			"Transmission Only" = "transmit_only";
+			"Transmission and Outside Fresnels" = "transmit_and_outer_fresnels";
+			"Transmission and All Fresnels" = "transmit_and_all_fresnels";
+		}
+	}
+	spectral_distribution
+	{
+		Name = "Spectral Distribution";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			"Full Spectrum" = "full";
+			"Daylight" = "daylight";
+			"Blue Sky" = "bluesky";
+			"Sunset" = "sunset";
+			"LED" = "LED";
+			"Flourescent" = "flourescent";
+			"Sodium" = "sodium";
+		}
+	}
+
+	spectral_gamut
+	{
+		Name = "Gamut";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			"sRGB (and R.709)" = "sRGB";
+			"AdobeRGB" = "AdobeRGB";
+			"Wide Gamut" = "WideGamut";
+			"ProPhoto RGB" = "ProPhotoRGB";
+			"ACES" = "ACES";
+		}
+	}
+	btdf
+	{
+		Name = "BTDF";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			"Stretched Phong" = "stretched_phong";
+			"Cook-Torrance" = "cook_torrance";
+			"Ward-Deur - Ray-derived tangents" = "ward_rayTangent";
+			"Ward-Deur - User Tangents" = "ward_userTangent";
+		}
+	}
+	dr_btdf
+	{
+		Name = "BTDF";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			"Stretched Phong" = "stretched_phong";
+			"Cook-Torrance" = "cook_torrance";
+			"Ward-Deur - Ray-derived tangents" = "ward_rayTangent";
+			"Ward-Deur - User Tangents" = "ward_userTangent";
+		}
+	}
+	brdf
+	{
+		Name = "BRDF";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			"Stretched Phong" = "stretched_phong";
+			"Cook-Torrance" = "cook_torrance";
+			"Ward-Deur - Ray-derived tangents" = "ward_rayTangent";
+			"Ward-Deur - User Tangents" = "ward_userTangent";
+		}
+	}
+
+	aov_direct_refraction
+	{
+		Name = "Direct Refraction";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+	}
+	aov_indirect_refraction
+	{
+		Name = "Indirect Refraction";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+	}
+	aov_direct_specular
+	{
+		Name = "Direct Specular";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+	}
+	aov_indirect_specular
+	{
+		Name = "Indirect Specular";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+	}
+
+}
+
+Layout "Default"
+{
+	Tab "Basics"
+	{
+		Group "Basic Dielectric Properties"
+		{
+			mediumPriority;
+			mediumIOR;
+		}
+		Group "Transmission"
+		{
+			mediumTransmittance;
+			mediumTransmittance_scale;
+		}
+		Group "Fresnel Properties"
+		{
+			polarize;
+			polarization_angle;
+		}
+	}
+	Tab "Refraction"
+	{
+		refraction_scale;
+		Group "BTDF"
+		{	
+			btdf;
+			refraction_roughness_u;
+			refraction_roughness_v;
+		}
+		Group "Indirect Refraction"
+		{
+			indirect_refraction;
+		}
+		Group "Direct Refraction"
+		{	
+			direct_refraction;
+			Group "BTDF"
+			{	
+				dr_use_refraction_btdf;
+				dr_roughnessOffset;
+				dr_btdf;
+				dr_roughness_u;
+				dr_roughness_v;
+				Group "Depth Based Roughness Modification"
+				{
+					dr_roughnessDepthMultiplier;
+					dr_roughnessDepthAdder;
+				}
+			}
+			Group "Second Lobe"
+			{
+				dr_second_scale;
+				dr_second_roughnessMultiplier;
+			}
+		}
+	}
+	Tab "Dispersion"
+	{
+		disperse;
+		dispersion;
+		Group "Spectral Conversion"
+		{
+			spectral_distribution;
+			spectral_gamut;
+			spectral_clamp_negative_colors;
+			spectral_saturation;
+#			spectral_white_factor;
+		}
+	}
+	Tab "Specular"
+	{
+		specular_scale;
+		Group "BRDF"
+		{	
+			brdf;
+			specular_roughness_u;
+			specular_roughness_v;
+		}
+		Group "Components"
+		{	
+			direct_specular;
+			indirect_specular;
+		}
+		Group "Ray Type (For trace depth and ray switches)"
+		{
+			specular_ray_type;
+		}
+	}
+	Tab "Other"
+	{	
+		Group "Optimization"
+		{
+			enable_internal_reflections;
+			Group "Russian Roullete (unbiased and noisy)"
+			{
+				russian_roulette_probability;
+			}
+			Group "Energy Cutoff (biased, 10^exponent)"
+			{
+				energy_cutoff_exponent;
+			}
+		}
+		Group "Anisotropy"
+		{
+			blur_anisotropic_poles;
+			ward_tangent;
+		}
+		Group "Refracted Sky Behaviors"
+		{
+			refract_skydomes;
+			refract_skies;		
+		}
+		Group "Reflected Sky Behaviors"
+		{
+			reflect_skydomes;
+			reflect_skies;	
+		}
+		Group "Emission"
+		{
+			emission_at_interfaces;
+			emission_at_exits;
+			emission_at_entrances;
+		}
+	}
+	Tab "Shadows and Caustics"
+	{		
+		Group "Shadow"
+		{	
+			shadow_mode;
+		}
+		Group "Caustics"
+		{
+			caustic_mode;
+			Group "Refracted"
+			{
+				caustic_refractions_direct;
+				caustic_dr_roughness_offset;
+				caustic_refractions_indirect;
+				caustic_TIR;
+				caustic_internal_speculars;
+				caustic_dispersion;
+			}
+			Group "Reflected"
+			{
+				caustic_specular_direct;
+				caustic_specular_indirect;
+			}
+			Group "Falloff"
+			{
+				caustic_max_distance;
+			}
+		}
+	}
+	Tab "Render Channels"
+	{
+		Group "AOVs"
+		{	
+			aov_direct_refraction;
+			aov_indirect_refraction;
+			aov_direct_specular;
+			aov_indirect_specular;
+		}
+	}
+}
+
+Layout "RenderTree"
+{
+	Tab "Basics"
+	{
+		Group "Basic Dielectric Properties"
+		{
+			mediumPriority;
+			mediumIOR;
+		}
+		Group "Transmission"
+		{
+			mediumTransmittance;
+			mediumTransmittance_scale;
+		}
+		Group "Fresnel Properties"
+		{
+			polarize;
+			polarization_angle;
+		}
+	}
+	Group "Refraction"
+	{
+		refraction_scale;
+		Group "BTDF"
+		{	
+			btdf;
+			refraction_roughness_u;
+			refraction_roughness_v;
+		}
+		Group "Indirect Refraction"
+		{
+			indirect_refraction;
+		}
+		Group "Direct Refraction"
+		{	
+			direct_refraction;
+			Group "BTDF"
+			{	
+				dr_use_refraction_btdf;
+				dr_roughnessOffset;
+				dr_btdf;
+				dr_roughness_u;
+				dr_roughness_v;
+				Group "Depth Based Roughness Modification"
+				{
+					dr_roughnessDepthMultiplier;
+					dr_roughnessDepthAdder;
+				}
+			}
+			Group "Second Lobe"
+			{
+				dr_second_scale;
+				dr_second_roughnessMultiplier;
+			}
+		}
+	}
+	Group "Dispersion"
+	{
+		disperse;
+		dispersion;
+	}
+	Group "Specular"
+	{
+		specular_scale;
+		Group "BRDF"
+		{	
+			brdf;
+			specular_roughness_u;
+			specular_roughness_v;
+		}
+		Group "Components"
+		{	
+			direct_specular;
+			indirect_specular;
+		}
+		Group "Ray Type"
+		{	
+			specular_ray_type;
+		}
+	}
+	Group "Other"
+	{	
+		Group "Optomization"
+		{
+			enable_internal_reflections;
+			Group "Russian Roullete (unbiased and noisy)"
+			{
+				russian_roulette_probability;
+			}
+			Group "Energy Cutoff (biased, 10^exponent)"
+			{
+				energy_cutoff_exponent;
+			}			
+		}
+		Group "Anisotropy"
+		{
+			blur_anisotropic_poles;
+			ward_tangent;
+		}
+		Group "Refracted Sky Behaviors"
+		{
+			refract_skydomes;
+			refract_skies;		
+		}
+		Group "Reflected Sky Behaviors"
+		{
+			reflect_skydomes;
+			reflect_skies;	
+		}
+		Group "Emission"
+		{
+			emission_at_interfaces;
+			emission_at_exits;
+			emission_at_entrances;
+		}
+	}
+	Group "Shadows and Caustics"
+	{		
+		Group "Shadow"
+		{	
+			shadow_mode;
+		}
+		Group "Caustics"
+		{
+			Group "Refracted"
+			{
+				caustic_refractions_direct;
+				caustic_dr_roughness_offset;
+				caustic_refractions_indirect;
+				caustic_TIR;
+				caustic_internal_speculars;
+				caustic_dispersion;
+			}
+			Group "Reflected"
+			{
+				caustic_specular_direct;
+				caustic_specular_indirect;
+			}
+			Group "Falloff"
+			{
+				caustic_max_distance;
+			}
+		}
+	}
+}
+
+Logic
+{
+	Sub btdf_Onchanged()
+		pset.refraction_roughness_v.Enable( pset.btdf.value = "ward_userTangent" or pset.btdf.value = "ward_rayTangent")
+	End Sub
+
+	Sub dr_btdf_Onchanged()
+		pset.dr_roughness_v.Enable( dr_use_refraction_btdf.Value = False and ( pset.dr_btdf.value = "ward_userTangent" or pset.dr_btdf.value = "ward_rayTangent") )
+	End Sub
+
+	Sub dr_use_refraction_btdf_Onchanged()
+		pset.dr_roughnessOffset.Enable( dr_use_refraction_btdf.Value )
+		pset.dr_btdf.Enable( dr_use_refraction_btdf.Value = False )
+		pset.dr_roughness_u.Enable( dr_use_refraction_btdf.Value = False )
+		pset.dr_roughness_v.Enable( dr_use_refraction_btdf.Value = False and ( pset.dr_btdf.value = "ward_userTangent" or pset.dr_btdf.value = "ward_rayTangent") )
+	End Sub
+
+	Sub brdf_Onchanged()
+		pset.specular_roughness_v.Enable(pset.brdf.value = "ward_userTangent" or pset.brdf.value = "ward_rayTangent")
+	End Sub
+
+	Sub OnInit	
+		Dim oRenderChannels
+		Set oRenderChannels = ActiveProject.ActiveScene.PassContainer.Properties( "Scene Render Options" ).RenderChannels
+		
+		If TypeName(oRenderChannels) = "Nothing" Then
+			LogMessage "Scene Render Options property not found. Can't enumerate render channels.", siError
+			Exit Sub
+		End If
+		If oRenderChannels.Count = 0 Then
+			LogMessage "No render channels defined.", siError
+			Exit Sub
+		End If
+
+		Dim		idx
+		ReDim oChannelList( oRenderChannels.Count * 2 + 1 )
+		
+		idx = 0
+		for each oChannel in oRenderChannels
+			If oChannel.ChannelType = siRenderChannelColorType And oChannel.UserDefined Then
+				oChannelList( idx * 2 + 0 ) = oChannel.Name
+				oChannelList( idx * 2 + 1 ) = oChannel.Name
+				idx = idx + 1
+			End If
+		next
+		
+		ReDim Preserve oChannelList( idx * 2 - 1 )
+		
+		Dim oChannelCombo
+		Set oChannelCombo = PPG.PPGLayout.Item( "aov_direct_refraction" )
+		oChannelCombo.UIItems = oChannelList
+		Set oChannelCombo = PPG.PPGLayout.Item( "aov_indirect_refraction" )
+		oChannelCombo.UIItems = oChannelList
+		Set oChannelCombo = PPG.PPGLayout.Item( "aov_direct_specular" )
+		oChannelCombo.UIItems = oChannelList
+		Set oChannelCombo = PPG.PPGLayout.Item( "aov_indirect_specular" )
+		oChannelCombo.UIItems = oChannelList
+
+		btdf_Onchanged
+		dr_btdf_Onchanged
+		dr_use_refraction_btdf_Onchanged
+		brdf_Onchanged
+		PPG.Refresh
+	End Sub
+}
+
+Plugin = Shader
+{
+	FileName = "jf_nested_dielectric";
+}
+
