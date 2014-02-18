@@ -124,7 +124,7 @@ typedef struct Ray_State_Datatype{
 
 	mediaFloatStruct media_blurAnisotropicPoles;
 
-	spectral_LUT * spectral_LUT;
+	spectral_LUT * spectral_LUT_;
 	float energy_cutoff;
 	bool polarized;
 	AtVector polarizationVector;
@@ -140,7 +140,7 @@ struct ShaderData{
 	std::string aov_indirect_refraction;
 	std::string aov_direct_specular;
 	std::string aov_indirect_specular;
-	spectral_LUT spectral_LUT;
+	spectral_LUT spectral_LUT_;
 	AtVector polarizationVector; 
 };
 

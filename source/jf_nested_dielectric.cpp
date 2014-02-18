@@ -237,7 +237,7 @@ node_update
 		const int gamut_selection = AiNodeGetInt(node, "spectral_gamut");
 		const float saturation = AiNodeGetFlt(node, "spectral_saturation");
 		const bool clamp = AiNodeGetBool(node, "spectral_clamp_negative_colors");
-		data->spectral_LUT = build_nonuniform_spectral_LUT(spectrum_selection, gamut_selection, saturation, clamp, AI_RGB_WHITE);
+		data->spectral_LUT_ = build_nonuniform_spectral_LUT(spectrum_selection, gamut_selection, saturation, clamp, AI_RGB_WHITE);
 	}
 	const bool polarize = AiNodeGetBool(node, "polarize");
 	if (polarize)
@@ -541,7 +541,7 @@ shader_evaluate
 	{
 		// already monochromatic means don't disperse, just keep the existing wavelength and trace that way
 		if ( RayState->media_disperse.v[m_cMatID] )
-			RayState->spectral_LUT = &data->spectral_LUT; // copy over the pointer to the spectral LUT
+			RayState->spectral_LUT_ = &data->spectral_LUT_; // copy over the pointer to the spectral LUT
 
 		if (RayState->media_disperse.v[m2])
 			do_disperse = RayState->media_disperse.v[m2];
@@ -903,7 +903,7 @@ shader_evaluate
 								const float LUT_value = fmod( (float) (dispersal_seed + dispersion_sample[0]), 1.0f );
 
 								float cWavelength; 
-								get_interpolated_LUT_value( RayState->spectral_LUT, LUT_value, &cWavelength, &monochromaticColor);
+								get_interpolated_LUT_value( RayState->spectral_LUT_, LUT_value, &cWavelength, &monochromaticColor);
 								RayState->ray_monochromatic = true;
 								RayState->ray_wavelength = cWavelength;
 
