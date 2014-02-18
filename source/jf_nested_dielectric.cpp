@@ -237,7 +237,7 @@ node_update
 		const int gamut_selection = AiNodeGetInt(node, "spectral_gamut");
 		const float saturation = AiNodeGetFlt(node, "spectral_saturation");
 		const bool clamp = AiNodeGetBool(node, "spectral_clamp_negative_colors");
-		data->spectral_LUT = build_nonuniform_spectral_LUT(spectrum_selection, gamut_selection, saturation, clamp, AI_RGB_WHITE);
+		data->spectral_LUT_ = build_nonuniform_spectral_LUT(spectrum_selection, gamut_selection, saturation, clamp, AI_RGB_WHITE);
 	}
 	const bool polarize = AiNodeGetBool(node, "polarize");
 	if (polarize)
@@ -415,7 +415,7 @@ shader_evaluate
 
 	if (RayState->polarized)
 	{
-		cPolarizationTerm = abs( AiV3Dot(sg->Nf, RayState->polarizationVector ));
+		cPolarizationTerm = std::abs( AiV3Dot(sg->Nf, RayState->polarizationVector ));
 	}
 
 	// ---------------------------------------------------//
@@ -541,7 +541,7 @@ shader_evaluate
 	{
 		// already monochromatic means don't disperse, just keep the existing wavelength and trace that way
 		if ( RayState->media_disperse.v[m_cMatID] )
-			RayState->spectral_LUT = &data->spectral_LUT; // copy over the pointer to the spectral LUT
+			RayState->spectral_LUT_ = &data->spectral_LUT_; // copy over the pointer to the spectral LUT
 
 		if (RayState->media_disperse.v[m2])
 			do_disperse = RayState->media_disperse.v[m2];
@@ -762,9 +762,9 @@ shader_evaluate
 
 		bool energySignificant;
 
-		if (   abs( RayState->ray_energy.r ) < RayState->energy_cutoff
-			&& abs( RayState->ray_energy.g ) < RayState->energy_cutoff
-			&& abs( RayState->ray_energy.b ) < RayState->energy_cutoff
+		if (   std::abs( RayState->ray_energy.r ) < RayState->energy_cutoff
+			&& std::abs( RayState->ray_energy.g ) < RayState->energy_cutoff
+			&& std::abs( RayState->ray_energy.b ) < RayState->energy_cutoff
 			)
 		{
 			energySignificant = false;
@@ -898,12 +898,12 @@ shader_evaluate
 								if (dispersal_seed < 0.0f)
 								{
 									// The job of a dispersal seed is to fix any correlations, but still allow stratefied sampling to work in batches of samples.
-									dispersal_seed =  ( abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
+									dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
 								}
 								const float LUT_value = fmod( (float) (dispersal_seed + dispersion_sample[0]), 1.0f );
 
 								float cWavelength; 
-								get_interpolated_LUT_value( RayState->spectral_LUT, LUT_value, &cWavelength, &monochromaticColor);
+								get_interpolated_LUT_value( RayState->spectral_LUT_, LUT_value, &cWavelength, &monochromaticColor);
 								RayState->ray_monochromatic = true;
 								RayState->ray_wavelength = cWavelength;
 
@@ -1461,6 +1461,6 @@ node_loader
 	node->output_type  = AI_TYPE_RGBA;
 	node->name					  = "jf_nested_dielectric";
 	node->node_type  = AI_NODE_SHADER;
-	strcpy_s(node->version, AI_VERSION);
+	strcpy(node->version, AI_VERSION);
 	return true;
 }
