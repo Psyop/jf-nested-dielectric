@@ -14,6 +14,10 @@ Based on the 2002 paper by Charles M. Schmidt and Brian Budge, Simple Nested Die
 in Ray Traced Images available here: 
 	http://graphics.idav.ucdavis.edu/~bcbudge/deep/research/nested_dielectrics.pdf
 
+Contributors:
+	Benoit Leveau
+	Vladimir Jankijevic
+
 Special Thanks To: 
 	Andy Jones
 	Tony Barbieri
