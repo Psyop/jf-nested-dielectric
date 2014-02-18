@@ -415,7 +415,7 @@ shader_evaluate
 
 	if (RayState->polarized)
 	{
-		cPolarizationTerm = fabs( AiV3Dot(sg->Nf, RayState->polarizationVector ));
+		cPolarizationTerm = std::abs( AiV3Dot(sg->Nf, RayState->polarizationVector ));
 	}
 
 	// ---------------------------------------------------//
@@ -762,9 +762,9 @@ shader_evaluate
 
 		bool energySignificant;
 
-		if (   fabs( RayState->ray_energy.r ) < RayState->energy_cutoff
-			&& fabs( RayState->ray_energy.g ) < RayState->energy_cutoff
-			&& fabs( RayState->ray_energy.b ) < RayState->energy_cutoff
+		if (   std::abs( RayState->ray_energy.r ) < RayState->energy_cutoff
+			&& std::abs( RayState->ray_energy.g ) < RayState->energy_cutoff
+			&& std::abs( RayState->ray_energy.b ) < RayState->energy_cutoff
 			)
 		{
 			energySignificant = false;
@@ -898,7 +898,7 @@ shader_evaluate
 								if (dispersal_seed < 0.0f)
 								{
 									// The job of a dispersal seed is to fix any correlations, but still allow stratefied sampling to work in batches of samples.
-									dispersal_seed =  ( fabs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
+									dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
 								}
 								const float LUT_value = fmod( (float) (dispersal_seed + dispersion_sample[0]), 1.0f );
 

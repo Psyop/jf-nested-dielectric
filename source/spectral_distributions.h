@@ -273,9 +273,9 @@ spectral_wavelength_LUT build_spectral_wavelength_LUT( const spectral_distrib *d
 
 		for( int subdiv_index = 0; subdiv_index < subdiv_distrib_point_num; subdiv_index++ )
 		{			
-			const float distance = fabs( search_value - subdiv_distrib_iterative.values[subdiv_index] ); // difference between this index and search value
-			const float distance_prev = (subdiv_index != 0) ? fabs(search_value - subdiv_distrib_iterative.values[subdiv_index - 1]): distance + 10.0f; // difference between previous index and search value
-			const float distance_next = (subdiv_index != subdiv_distrib_point_num - 1) ? fabs(search_value - subdiv_distrib_iterative.values[subdiv_index + 1]) : distance + 10.0f; // difference between next index and search value
+			const float distance = std::abs( search_value - subdiv_distrib_iterative.values[subdiv_index] ); // difference between this index and search value
+			const float distance_prev = (subdiv_index != 0) ? std::abs(search_value - subdiv_distrib_iterative.values[subdiv_index - 1]): distance + 10.0f; // difference between previous index and search value
+			const float distance_next = (subdiv_index != subdiv_distrib_point_num - 1) ? std::abs(search_value - subdiv_distrib_iterative.values[subdiv_index + 1]) : distance + 10.0f; // difference between next index and search value
 
 			if (distance < distance_next) //next index is worse and not better
 			{
