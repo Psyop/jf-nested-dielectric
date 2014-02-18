@@ -1461,6 +1461,6 @@ node_loader
 	node->output_type  = AI_TYPE_RGBA;
 	node->name					  = "jf_nested_dielectric";
 	node->node_type  = AI_NODE_SHADER;
-	strcpy_s(node->version, AI_VERSION);
+	strcpy(node->version, AI_VERSION);
 	return true;
 }
