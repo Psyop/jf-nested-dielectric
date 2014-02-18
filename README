@@ -10,6 +10,10 @@ Builds on other platforms have not been attempted but would be very welcome addi
 
 Contributions, questions, and suggestions are also welcomed. 
 
+Based on the 2002 paper by Charles M. Schmidt and Brian Budge, Simple Nested Dielectrics 
+in Ray Traced Images available here: 
+	http://graphics.idav.ucdavis.edu/~bcbudge/deep/research/nested_dielectrics.pdf
+
 Special Thanks To: 
 	Andy Jones
 	Tony Barbieri
@@ -17,5 +21,5 @@ Special Thanks To:
 	Todd Akita
 	Nisa Foster
 		
-See license.txt for full text of BSD 3-Clause license.
+See license.txt for license.
 
