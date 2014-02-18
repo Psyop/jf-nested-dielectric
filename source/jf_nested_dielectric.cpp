@@ -665,7 +665,7 @@ shader_evaluate
 		{
 			// caustic controls
 
-			if (sg->Rt = AI_RAY_DIFFUSE)
+			if (sg->Rt == AI_RAY_DIFFUSE)
 			{
 				const float caustic_max_distance = AiShaderEvalParamFlt(p_caustic_max_distance);
 				if (caustic_max_distance > ZERO_EPSILON)
