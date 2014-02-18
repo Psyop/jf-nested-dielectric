@@ -281,7 +281,7 @@ void blurAnisotropicPoles( float *  roughnessU, float * roughnessV, float * blur
 {
 	const float averagedRoughness = ( *roughnessU + *roughnessV ) / 2.0f ;
 	const float tDotN = AiV3Dot(AiV3Normalize( *raw_tangent ), *normal) ;
-	const float blendValue = pow( abs( tDotN ),  ( 1.0f / *blurAmount ) - 1.0f ) ;  // power function: ^0 = 1 for fully blurry, ^ high for not blurry at all)
+	const float blendValue = pow( fabs( tDotN ),  ( 1.0f / *blurAmount ) - 1.0f ) ;  // power function: ^0 = 1 for fully blurry, ^ high for not blurry at all)
 
 	*roughnessU = ( *roughnessU * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
 	*roughnessV = ( *roughnessV * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
