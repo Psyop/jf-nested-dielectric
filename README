@@ -5,9 +5,9 @@ Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman
 By Jonah Friedman
 jfriedman@psyop.tv
 
-Binaries are provided for Windows 64. Linux builds by Vladimir Jankijevic and 
-Benoit Leveau provided as well. Source code is provided for everyone else. 
-Builds on other platforms would be very welcome additions! 
+Binaries builds by Jonah Friedman provided for Windows 64, for 4.0.x and 4.1.x. 
+Linux builds by Vladimir Jankijevic and Benoit Leveau. OS X build by Jan Walter.
+Source code is provided for everyone else. 
 
 Contributions, questions, and suggestions are also welcomed. 
 
@@ -18,6 +18,7 @@ in Ray Traced Images available here:
 Contributors:
 	Benoit Leveau
 	Vladimir Jankijevic
+	Jan Walter
 
 Special Thanks To: 
 	Andy Jones
