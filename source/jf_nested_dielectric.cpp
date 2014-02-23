@@ -800,6 +800,11 @@ shader_evaluate
 			AtVector vTangent;
 			AtVector tangentSourceVector;
 
+			float spec_roughnessU = (RayState->media_specRoughnessU.v[m2] + RayState->media_specRoughnessU.v[m1]) / 2.0f;
+			float spec_roughnessV = (RayState->media_specRoughnessV.v[m2] + RayState->media_specRoughnessV.v[m1]) / 2.0f;
+
+			float refr_roughnessU = refractiveRoughness( RayState->media_refractRoughnessU.v[m1], RayState->media_refractRoughnessU.v[m2], n1, n2 );
+			float refr_roughnessV = refractiveRoughness( RayState->media_refractRoughnessV.v[m1], RayState->media_refractRoughnessV.v[m2], n1, n2 );
 				
 			if ( traceAnyRefraction )
 			{
@@ -821,14 +826,12 @@ shader_evaluate
 				// BTDF preprocessing
 				// ---------------------------------------------------//
 
-				float roughnessU = refractiveRoughness( RayState->media_refractRoughnessU.v[m1], RayState->media_refractRoughnessU.v[m2], n1, n2 );
-				float roughnessV = refractiveRoughness( RayState->media_refractRoughnessV.v[m1], RayState->media_refractRoughnessV.v[m2], n1, n2 );
 
 				if (causticPath)
 				{
 					const float causticDRRoughnessOffset = refractRoughnessConvert( AiShaderEvalParamFlt(p_caustic_dr_roughness_offset) );
-					roughnessU += causticDRRoughnessOffset;
-					roughnessV += causticDRRoughnessOffset;
+					refr_roughnessU += causticDRRoughnessOffset;
+					refr_roughnessV += causticDRRoughnessOffset;
 				}
 
 				AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 				
@@ -849,27 +852,27 @@ shader_evaluate
 						{
 							case b_stretched_phong:
 								// Stretched Phong
-								btdf_data = AiStretchedPhongMISCreateData(&ppsg, (0.5f / SQR(roughnessU) - 0.5f));
+								btdf_data = AiStretchedPhongMISCreateData(&ppsg, (0.5f / SQR(refr_roughnessU) - 0.5f));
 								break;
 							case b_cook_torrance:
 								// Cook Torrance
-								btdf_data = AiCookTorranceMISCreateData(&ppsg, &AI_V3_ZERO, &AI_V3_ZERO, roughnessU, roughnessU);
+								btdf_data = AiCookTorranceMISCreateData(&ppsg, &AI_V3_ZERO, &AI_V3_ZERO, refr_roughnessU, refr_roughnessU);
 								break;
 							case b_ward_rayTangent:
 								// Ward with refraction-derivitive tangents
 								tangentSourceVector = AiV3Normalize(ppsg.Rd);
-								blurAnisotropicPoles(&roughnessU, &roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
+								blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
 								uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 								vTangent = AiV3Cross(ppsg.Nf, uTangent);
-								btdf_data = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, roughnessU, roughnessV); 
+								btdf_data = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV); 
 								break;
 							case b_ward_userTangent:
 								// Ward with user tangents
 								tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-								blurAnisotropicPoles(&roughnessU, &roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
+								blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
 								uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 								vTangent = AiV3Cross(ppsg.Nf, uTangent);
-								btdf_data = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, roughnessU, roughnessV ) ; 
+								btdf_data = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
 								break;
 						}
 					}
@@ -921,27 +924,27 @@ shader_evaluate
 									{
 										case b_stretched_phong:
 											// Stretched Phong
-											btdf_data = AiStretchedPhongMISCreateData(&ppsg, (0.5f / SQR(roughnessU) - 0.5f));
+											btdf_data = AiStretchedPhongMISCreateData(&ppsg, (0.5f / SQR(refr_roughnessU) - 0.5f));
 											break;
 										case b_cook_torrance:
 											// Cook Torrance
-											btdf_data = AiCookTorranceMISCreateData(&ppsg, &AI_V3_ZERO, &AI_V3_ZERO, roughnessU, roughnessU);
+											btdf_data = AiCookTorranceMISCreateData(&ppsg, &AI_V3_ZERO, &AI_V3_ZERO, refr_roughnessU, refr_roughnessU);
 											break;
 										case b_ward_rayTangent:
 											// Ward with refraction-derivitive tangents
 											tangentSourceVector = AiV3Normalize(ppsg.Rd);
-											blurAnisotropicPoles(&roughnessU, &roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
+											blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
 											uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 											vTangent = AiV3Cross(ppsg.Nf, uTangent);
-											btdf_data = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, roughnessU, roughnessV); 
+											btdf_data = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV); 
 											break;
 										case b_ward_userTangent:
 											// Ward with user tangents
 											tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-											blurAnisotropicPoles(&roughnessU, &roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
+											blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
 											uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 											vTangent = AiV3Cross(ppsg.Nf, uTangent);
-											btdf_data = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, roughnessU, roughnessV ) ; 
+											btdf_data = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
 											break;
 									}
 								}
@@ -1050,8 +1053,8 @@ shader_evaluate
 
 					if (use_refraction_btdf)
 					{
-						dr_roughnessU = roughnessU;
-						dr_roughnessV = roughnessV;
+						dr_roughnessU = refr_roughnessU;
+						dr_roughnessV = refr_roughnessV;
 						dr_btdf = RayState->media_BTDF.v[m_cMatID];
 					}
 					else
@@ -1208,35 +1211,32 @@ shader_evaluate
 
 					AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
 
-					float roughnessU = (RayState->media_specRoughnessU.v[m2] + RayState->media_specRoughnessU.v[m1]) / 2.0f;
-					float roughnessV = (RayState->media_specRoughnessV.v[m2] + RayState->media_specRoughnessV.v[m1]) / 2.0f;
-
 					void * brdf_data; 
 
 					switch ( RayState->media_BRDF.v[m_higherPriority] )
 					{						
 						case b_stretched_phong:
 							// Stretched Phong
-							brdf_data = AiStretchedPhongMISCreateData(sg, (0.5f / SQR(roughnessU) - 0.5f));
+							brdf_data = AiStretchedPhongMISCreateData(sg, (0.5f / SQR(spec_roughnessU) - 0.5f));
 							break;
 						case b_cook_torrance:
 							// Cook Torrance
-							brdf_data = AiCookTorranceMISCreateData(sg, NULL, NULL, roughnessU, NULL);
+							brdf_data = AiCookTorranceMISCreateData(sg, NULL, NULL, spec_roughnessU, NULL);
 							break;
 						case b_ward_rayTangent:
 							// Ward with refraction-derivitive tangents
-							blurAnisotropicPoles(&roughnessU, &roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
 							AiV3Cross(uTangent, sg->N, sg->Rd); 
 							AiV3Cross(vTangent, sg->N, uTangent);
-							brdf_data = AiWardDuerMISCreateData(sg, &uTangent, &vTangent, roughnessU, roughnessV); 
+							brdf_data = AiWardDuerMISCreateData(sg, &uTangent, &vTangent, spec_roughnessU, spec_roughnessV); 
 							break;
 						case b_ward_userTangent:
 							// Ward with user tangents
 							tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-							blurAnisotropicPoles(&roughnessU, &roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
 							AiV3Cross( uTangent, sg->N, tangentSourceVector ) ;
 							AiV3Cross( vTangent, sg->N, uTangent ) ;
-							brdf_data = AiWardDuerMISCreateData( sg, &vTangent, &uTangent, roughnessU, roughnessV ) ; 
+							brdf_data = AiWardDuerMISCreateData( sg, &vTangent, &uTangent, spec_roughnessU, spec_roughnessV ) ; 
 							break;
 					}
 
@@ -1264,7 +1264,7 @@ shader_evaluate
 						{
 							RayState->ray_energy *= weight;		
 						}
-						if (roughnessU > ZERO_EPSILON || roughnessV > ZERO_EPSILON)
+						if (spec_roughnessU > ZERO_EPSILON || spec_roughnessV > ZERO_EPSILON)
 						{
 							while ( AiSamplerGetSample(specularIterator, specular_sample) )
 							{
