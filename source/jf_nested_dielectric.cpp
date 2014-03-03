@@ -359,6 +359,17 @@ shader_evaluate
 
 	const int m_cMatID = AiShaderEvalParamInt(p_mediumPriority) + 1;
 
+	if (RayState->media_inside.v[m_cMatID] < -10)
+	{
+		// Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
+		// I think -10 exceeds any plausible correct value of this
+		// Really -1 shows that things are modeled improperly.
+		// In any case, 
+		char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy values in media lists, you may have some perfectly overlapping surfaces.";
+		AiMsgWarning(overlapping_surfaces_message);
+		return; // something has clearly gone wrong in this case. 
+	}
+
 	if (m_cMatID >= max_media_count || m_cMatID < 0)
 	{
 		char * const priority_error_message = "JF Nested Dielectric: Medium priority must be between 0 and 32!";
