@@ -29,3 +29,10 @@ Special Thanks To:
 		
 See license.txt for license.
 
+
+
+Release Notes:
+
+1.0.1:
+	Fixes a bug causing a crash when there are two perfectly overlapping pieces
+	of geometry, such as duplicate geometry. 
