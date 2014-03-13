@@ -9,6 +9,14 @@ Binaries builds by Jonah Friedman provided for Windows 64, for 4.0.x and 4.1.x.
 Linux builds by Vladimir Jankijevic and Benoit Leveau. OS X build by Jan Walter.
 Source code is provided for everyone else. 
 
+
+To download as a user: Download the entire repo as a zip, using the "download as
+zip" button on the right sidebar of the github page. Then move the appropriate binaries
+and helper files (found under source) into the right directories of Softimage or Maya.
+Note: If you instead download individual files from github, you may accidentally 
+download HTML files instead of the actual raw files, which of course won't work.
+
+
 Contributions, questions, and suggestions are also welcomed. 
 
 Based on the 2002 paper by Charles M. Schmidt and Brian Budge, Simple Nested Dielectrics 
