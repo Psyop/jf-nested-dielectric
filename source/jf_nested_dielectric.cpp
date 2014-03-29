@@ -263,16 +263,7 @@ shader_evaluate
 {
 	ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
 	Ray_State_Datatype *RayState;
-	
-	// ---------------------------------------------------//
-	// - Cache all variables that need to be tracked across the tree, to be reset at the end of the shader 
-	// ---------------------------------------------------//
-
-	mediaIntStruct cache_mediaInside;
-	bool cache_ray_monochromatic;
-	bool cache_caustic_behaviorSet;
-	int cache_TIRDepth;
-	AtColor cache_ray_energy;
+	Ray_State_Cache_Datatype RayStateCache;
 
 	// ---------------------------------------------------//
 	// - Array and messaging preprocess 
@@ -287,11 +278,7 @@ shader_evaluate
 		AiStateGetMsgPtr("rayState_ptr", &rayState_ptr);
 		RayState = static_cast<Ray_State_Datatype*>( rayState_ptr );
 
-		cache_mediaInside = RayState->media_inside;
-		cache_ray_monochromatic = RayState->ray_monochromatic;
-		cache_caustic_behaviorSet = RayState->caustic_behaviorSet;
-		cache_TIRDepth = RayState->ray_TIRDepth;
-		cache_ray_energy = RayState->ray_energy;
+		cacheRayState( RayState, &RayStateCache );
 	}
 	else
 	{		
@@ -346,25 +333,29 @@ shader_evaluate
 	}
 	AiStateSetMsgBool("msgs_are_valid", true); // Any child rays from this will find valid messages. 
 
-
-	// ---------------------------------------------------//
-	// - shader parameters setup 
-	// ---------------------------------------------------//
-
-	// m_cMatID is the medium ID of the material we're currently evaluating, regardless of
-	// whether or not the interface is valid or what media we're inside.
-	//
-	// The medium IDs all get 1 added to them. This means 0 is reserved for "no medium". This simplifies other code, but it means
-	// that if the user gives a medium an ID of 0, internally in the shader it has an ID of 1. 
+	/*
+	 * --------------------------------------------------- *
+	 * - shader parameters setup 
+	 * --------------------------------------------------- *
+	 *
+	 * m_cMatID is the medium ID of the material we're currently evaluating, regardless of
+	 * whether or not the interface is valid or what media we're inside.
+	 *
+	 * The medium IDs all get 1 added to them. This means 0 is reserved for "no medium". This simplifies other code, but it means
+	 * that if the user gives a medium an ID of 0, internally in the shader it has an ID of 1. 
+	 */
 
 	const int m_cMatID = AiShaderEvalParamInt(p_mediumPriority) + 1;
 
 	if (RayState->media_inside.v[m_cMatID] < -10)
 	{
-		// Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
-		// I think -10 exceeds any plausible correct value of this
-		// Really -1 shows that things are modeled improperly.
-		// In any case, 
+		/* 
+		 * Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
+		 * I think -10 exceeds any plausible correct value of this
+		 * Really -1 shows that things are modeled improperly.
+		 * In any case, 
+		 */
+
 		char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy values in media lists, you may have some perfectly overlapping surfaces.";
 		AiMsgWarning(overlapping_surfaces_message);
 		return; // something has clearly gone wrong in this case. 
@@ -636,6 +627,16 @@ shader_evaluate
 		AiShaderGlobalsApplyOpacity(sg, AI_RGB_WHITE - transparency);
 		if (sg->out_opacity != AI_RGB_WHITE)
 			updateMediaInsideLists(m_cMatID, entering, RayState, false);
+
+		if (msgs_are_valid)
+		{
+			AiStateSetMsgBool("msgs_are_valid", true);
+			uncacheRayState( RayState, &RayStateCache );
+		}
+		else
+		{
+			AiStateSetMsgBool("msgs_are_valid", false);
+		}
 
 		return;
 	}
@@ -1451,11 +1452,7 @@ shader_evaluate
 	if (msgs_are_valid)
 	{
 		AiStateSetMsgBool("msgs_are_valid", true);
-		memcpy(&RayState->media_inside, &cache_mediaInside, sizeof(mediaIntStruct) );
-		RayState->ray_monochromatic = cache_ray_monochromatic;
-		RayState->caustic_behaviorSet = cache_caustic_behaviorSet;
-		RayState->ray_TIRDepth = cache_TIRDepth;
-		RayState->ray_energy = cache_ray_energy;
+		uncacheRayState( RayState, &RayStateCache );
 	}
 	else
 	{
