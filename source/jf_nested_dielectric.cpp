@@ -1037,7 +1037,6 @@ shader_evaluate
 								const bool tracehit = AiTrace(&ray, &sample);
 								if (tracehit || refract_skies) 
 								{
-									
 									acc_refract_indirect += sample.color * weight * transmissionOnSample(&t2, &sample, tracehit );
 								}
 
@@ -1049,13 +1048,13 @@ shader_evaluate
 								break;
 						}
 					}
-
-					// ---------------------------------------------------//
-					// Refraction - TIR
-					// Total internal reflection sampling
-					// TIR counts as refraction rays, and depth is counted seperately by RayState->ray_TIRDepth
-					// Actually occures in the specular loop below though. 
-					// ---------------------------------------------------//
+					
+					/*
+					 * Refraction - TIR
+					 * Total internal reflection sampling
+					 * TIR counts as refraction rays, and depth is counted seperately by RayState->ray_TIRDepth
+					 * Actually occurs in the specular loop below though. 
+					 */
 
 					// decision point - tir
 					if (do_disperse)

@@ -44,3 +44,8 @@ Release Notes:
 1.0.1:
 	Fixes a bug causing a crash when there are two perfectly overlapping pieces
 	of geometry, such as duplicate geometry. 
+
+1.0.2:
+	Fixed a bug where shadow rays were evaluating wrong if they originated from
+	inside nested dielectric, for example a standard shader embedded in some nested
+	dielectric glass. 
