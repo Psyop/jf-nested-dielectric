@@ -1,8 +1,9 @@
-// ------------------------------------------------------------------
-// JF Nested Dielectric by Jonah Friedman
-// 1.0
-// Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
-// Open sourced under the 3 clause BSD license, see license.txt
+/* 
+ * JF Nested Dielectric by Jonah Friedman
+ * 1.0.2
+ * Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
+ * Open sourced under the 3 clause BSD license, see license.txt
+ */
 
 #include <math.h>
 
@@ -335,11 +336,11 @@ AtColor wavelength_to_color( float wavelength, const gamut_definition * color_ga
 
 
 
-
-// ---------------------------------------------------//
-// - Functions for the shader proper 
-// ---------------------------------------------------//
-
+/*
+ * ---------------------------------------------------
+ * - Functions for the shader proper 
+ * ---------------------------------------------------
+ */
 
 spectral_LUT build_nonuniform_spectral_LUT( int spectral_preset, int gamut_preset, float saturation, bool clamp_negative_colors, AtColor xyz_whiteshift )
 {
