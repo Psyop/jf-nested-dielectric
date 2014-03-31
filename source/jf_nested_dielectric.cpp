@@ -1,8 +1,9 @@
-// ------------------------------------------------------------------
-// JF Nested Dielectric by Jonah Friedman
-// 1.0
-// Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
-// Open sourced under the 3 clause BSD license, see license.txt
+/* 
+ * JF Nested Dielectric by Jonah Friedman
+ * 1.0.2
+ * Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
+ * Open sourced under the 3 clause BSD license, see license.txt
+ */
 
 #include <ai.h>
 #include <cstring>
@@ -259,6 +260,8 @@ node_update
 }
 
 
+
+
 shader_evaluate
 {
 	ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
@@ -333,6 +336,48 @@ shader_evaluate
 	}
 	AiStateSetMsgBool("msgs_are_valid", true); // Any child rays from this will find valid messages. 
 
+
+	mediaIntStruct * media_inside_ptr;
+	
+	if (sg->Rt == AI_RAY_SHADOW)
+	{
+		media_inside_ptr = &RayState->shadow_media_inside;
+
+		bool shadowlist_is_valid = false;
+		AiStateGetMsgBool("shadowlist_is_valid", &shadowlist_is_valid);
+
+
+		bool transp_index_reset = false;
+		int prev_transp_index;
+		if (AiStateGetMsgInt( "prev_transp_index", &prev_transp_index))
+		{
+			if ((int) sg->transp_index <= prev_transp_index)
+			{
+				transp_index_reset = true;	
+			}
+		}
+
+		if ( !shadowlist_is_valid || transp_index_reset )  // if there has been another kind of ray, or the transp_index did not increase
+		{
+			// intialize the shadow media inside list
+			memcpy(&RayState->shadow_media_inside, &RayState->media_inside, sizeof(mediaIntStruct) );
+		}
+		else
+		{
+			shadowlist_is_valid = true;
+		}
+
+		AiStateSetMsgInt("prev_transp_index", sg->transp_index);
+		AiStateSetMsgBool("shadowlist_is_valid", true);
+	}
+	else
+	{
+		media_inside_ptr = &RayState->media_inside;
+
+		AiStateSetMsgBool("shadowlist_is_valid", false);
+	}
+
+
 	/*
 	 * --------------------------------------------------- *
 	 * - shader parameters setup 
@@ -347,18 +392,18 @@ shader_evaluate
 
 	const int m_cMatID = AiShaderEvalParamInt(p_mediumPriority) + 1;
 
-	if (RayState->media_inside.v[m_cMatID] < -10)
+	if (media_inside_ptr->v[m_cMatID] < -10)
 	{
 		/* 
 		 * Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
 		 * I think -10 exceeds any plausible correct value of this
 		 * Really -1 shows that things are modeled improperly.
-		 * In any case, 
+		 * In any case, this fixes it and the warning is helpful.
 		 */
 
 		char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy values in media lists, you may have some perfectly overlapping surfaces.";
 		AiMsgWarning(overlapping_surfaces_message);
-		return; // something has clearly gone wrong in this case. 
+		return; 
 	}
 
 	if (m_cMatID >= max_media_count || m_cMatID < 0)
@@ -425,23 +470,25 @@ shader_evaluate
 	// 		(determine what media we're in based on mediaInside arrays. )
 	// ---------------------------------------------------//
 
-
-	// startingMedium is the medium we were already inside when we started tracing	//
-	// startingMediumSecondary is the next medium we will be inside, if it turns out we're leaving this one
-	//
-	// example: we're inside glass and water, glass is the priority. startingMedium is glass, startingMediumSecondary is water.
-	// This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
+	/*
+	 * startingMedium is the medium we were already inside when we started tracing
+	 * startingMediumSecondary is the next medium we will be inside, if it turns out we're leaving this one
+	 *
+	 * example: we're inside glass and water, glass is the priority. startingMedium is glass, startingMediumSecondary is water.
+	 * This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
+	 */
 
 	int startingMedium = 0, startingMediumSecondary = 0; 
 
 	for( int i = 0; i < max_media_count; i++ )
 	{
-		if ( RayState->media_inside.v[i] > 0 ) // if we find a medium that we're inside
+	
+	if ( media_inside_ptr->v[i] > 0 ) // if we find a medium that we're inside
 		{
 			if ( startingMedium == 0 ) // ..and we havent found our current medium yet
 			{
 				startingMedium = i;  // then we've found our medium.
-				if (RayState->media_inside.v[i] > 1) // ...and if we're in more than one of these
+				if (media_inside_ptr->v[i] > 1) // ...and if we're in more than one of these
 				{
 					startingMediumSecondary = i; // then our second medium is the same medium.
 					break;
@@ -462,9 +509,11 @@ shader_evaluate
 		
 	const bool entering = ( AiV3Dot(sg->Ng, sg->Rd) < 0.0f ) ;
 
-	// m = medium ID, n = IOR, T = transmission
-	// 1 is the previous medium, 2 is the next, as seen in n1 and n2 of refraction diagrams
-	// such diagrams: http://en.wikipedia.org/wiki/File:Snells_law.svg
+	/*
+	 * m = medium ID, n = IOR, T = transmission
+	 * 1 is the previous medium, 2 is the next, as seen in n1 and n2 of refraction diagrams
+	 * such diagrams: http://en.wikipedia.org/wiki/File:Snells_law.svg
+	 */
 
 	int m1 = 0, m2 = 0;
 	float n1 = 1.0f, n2 = 1.0f;
@@ -548,11 +597,8 @@ shader_evaluate
 		if (RayState->media_disperse.v[m2])
 			do_disperse = RayState->media_disperse.v[m2];
 	}
-
 	const bool do_multiSampleRefraction = do_disperse || do_blurryRefraction;
 
-	// - Interface Logic
-	// 		(IORs)
 
 	if ( validInterface )
 	{	
@@ -573,15 +619,14 @@ shader_evaluate
 			validInterface = false;
 		}
 	}
-	
-	// - Interface Logic
-	// 		(Transmission)
+
 
 	t1 = RayState->media_transmission.v[m1];
 	t2 = RayState->media_transmission.v[m2];
 
 	AtColor cTransmission = transmissionColor(&t1, (float) sg->Rl) ;
 	RayState->ray_energy *= cTransmission;
+
 
 	// ---------------------------------------------------//
 	// - Shadow rays
@@ -626,21 +671,10 @@ shader_evaluate
 
 		AiShaderGlobalsApplyOpacity(sg, AI_RGB_WHITE - transparency);
 		if (sg->out_opacity != AI_RGB_WHITE)
-			updateMediaInsideLists(m_cMatID, entering, RayState, false);
-
-		if (msgs_are_valid)
-		{
-			AiStateSetMsgBool("msgs_are_valid", true);
-			uncacheRayState( RayState, &RayStateCache );
-		}
-		else
-		{
-			AiStateSetMsgBool("msgs_are_valid", false);
-		}
+			updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
 
 		return;
 	}
-	
 	
 
 	// ---------------------------------------------------//
@@ -990,7 +1024,7 @@ shader_evaluate
 							}
 							else if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO))
 							{
-								updateMediaInsideLists(m_cMatID, entering, RayState, false);
+								updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
 								const AtColor weight = (1.0f - fresnelTerm) 
 										* monochromaticColor
 										* cMediaIndirectRefractionProduct
@@ -1008,7 +1042,7 @@ shader_evaluate
 								}
 
 								RayState->ray_energy = energyCache;
-								updateMediaInsideLists(m_cMatID, entering, RayState, true);
+								updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, true);
 							}
 
 							if (!do_multiSampleRefraction)
@@ -1382,7 +1416,7 @@ shader_evaluate
 		AtRay ray;
 		AtScrSample sample;
 
-		updateMediaInsideLists(m_cMatID, entering, RayState, false);
+		updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
 
 		AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, NULL, AI_BIG, sg);
 		ray.dir = sg->Rd;

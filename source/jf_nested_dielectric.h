@@ -1,9 +1,9 @@
-// ------------------------------------------------------------------
-// JF Nested Dielectric by Jonah Friedman
-// 1.0
-// Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
-// Open sourced under the 3 clause BSD license, see license.txt
-
+/* 
+ * JF Nested Dielectric by Jonah Friedman
+ * 1.0.2
+ * Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
+ * Open sourced under the 3 clause BSD license, see license.txt
+ */
 
 
 
@@ -104,6 +104,7 @@ typedef struct Ray_State_Datatype {
 	bool caustic_specInternal;
 
 	mediaIntStruct   media_inside; // branching ray tree data, should be cached
+	mediaIntStruct   shadow_media_inside;
 	mediaFloatStruct media_iOR;
 	mediaBoolStruct  media_disperse;
 	mediaFloatStruct media_dispersion;
@@ -359,13 +360,13 @@ AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool
 }
 
 
-void updateMediaInsideLists(int m_cMatID, bool entering, Ray_State_Datatype * RayState, bool reverse = false)
+void updateMediaInsideLists(int m_cMatID, bool entering, mediaIntStruct * media_inside_list, bool reverse = false)
 {
 	// If we're entering an object, increment, if we're leaving, decrement. 
 	// Reverse reverses the behavior. 
 
 	if ( !reverse)
-		RayState->media_inside.v[m_cMatID] = RayState->media_inside.v[m_cMatID] + (entering ? 1 : -1 );
+		media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? 1 : -1 );
 	else
-		RayState->media_inside.v[m_cMatID] = RayState->media_inside.v[m_cMatID] + (entering ? -1 : 1 );
+		media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? -1 : 1 );
 }
