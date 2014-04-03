@@ -341,6 +341,15 @@ shader_evaluate
 	
 	if (sg->Rt == AI_RAY_SHADOW)
 	{
+		/*
+		 * Shadow rays need their own mediaInside tracking.
+		 * The shadow_media_inside struct is initialized by copying the media_inside struct
+		 * Under the following conditions the struct is re-initialized:
+		 *   The previous sample evaluated was not a shadow ray
+		 *   The transparency index decreased or stayed the same, meaning the previous was a different shadow ray
+		 *   The shadow list has never been initialzied
+		 */
+
 		media_inside_ptr = &RayState->shadow_media_inside;
 
 		bool shadowlist_is_valid = false;
@@ -361,10 +370,6 @@ shader_evaluate
 		{
 			// intialize the shadow media inside list
 			memcpy(&RayState->shadow_media_inside, &RayState->media_inside, sizeof(mediaIntStruct) );
-		}
-		else
-		{
-			shadowlist_is_valid = true;
 		}
 
 		AiStateSetMsgInt("prev_transp_index", sg->transp_index);
@@ -392,7 +397,7 @@ shader_evaluate
 
 	const int m_cMatID = AiShaderEvalParamInt(p_mediumPriority) + 1;
 
-	if (media_inside_ptr->v[m_cMatID] < -10)
+	if (media_inside_ptr->v[m_cMatID] < -10 )
 	{
 		/* 
 		 * Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
@@ -402,6 +407,19 @@ shader_evaluate
 		 */
 
 		char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy values in media lists, you may have some perfectly overlapping surfaces.";
+		AiMsgWarning(overlapping_surfaces_message);
+		return; 
+	}
+	if ( media_inside_ptr->v[m_cMatID] > 30)
+	{
+		/* 
+		 * Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
+		 * I think -10 exceeds any plausible correct value of this
+		 * Really -1 shows that things are modeled improperly.
+		 * In any case, this fixes it and the warning is helpful.
+		 */
+
+		char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy positive values in media lists, you may have some perfectly overlapping surfaces.";
 		AiMsgWarning(overlapping_surfaces_message);
 		return; 
 	}
@@ -1423,7 +1441,6 @@ shader_evaluate
 		ray.refr_bounces --;
 		const bool tracehit = AiTrace(&ray, &sample);
 
-		
 
 		AiRGBtoRGBA( sample.color * transmissionOnSample(&t2, &sample, tracehit ), invalidInterfaceResult );
 		invalidInterfaceResult.a = sample.alpha;
