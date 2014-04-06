@@ -291,6 +291,7 @@ shader_evaluate
 		RayState->ray_monochromatic = false;
 		RayState->ray_wavelength = 0.0f;
 		RayState->ray_TIRDepth = 0;
+		RayState->ray_invalidDepth = 0;
 		RayState->ray_energy = AI_RGB_WHITE;
 
 		// Array initialization - possibly unnecessary except mediaInside? TO DO: investigate
@@ -408,6 +409,7 @@ shader_evaluate
 
 		char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy values in media lists, you may have some perfectly overlapping surfaces.";
 		AiMsgWarning(overlapping_surfaces_message);
+		sg->out.RGBA = AI_RGBA_GREEN * 100.0f;
 		return; 
 	}
 	if ( media_inside_ptr->v[m_cMatID] > 30)
@@ -421,6 +423,7 @@ shader_evaluate
 
 		char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy positive values in media lists, you may have some perfectly overlapping surfaces.";
 		AiMsgWarning(overlapping_surfaces_message);
+		sg->out.RGBA = AI_RGBA_RED * 100.0f;
 		return; 
 	}
 
@@ -1430,20 +1433,32 @@ shader_evaluate
 
 	if ( !validInterface )
 	{
-		AtRay ray;
-		AtScrSample sample;
+		if (RayState->ray_invalidDepth < 50)
+		{
+			AtRay ray;
+			AtScrSample sample;
 
-		updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
+			RayState->ray_invalidDepth ++;
+			updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
 
-		AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, NULL, AI_BIG, sg);
-		ray.dir = sg->Rd;
-		ray.level --;
-		ray.refr_bounces --;
-		const bool tracehit = AiTrace(&ray, &sample);
+			AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, NULL, AI_BIG, sg);
+			ray.dir = sg->Rd;
+			ray.level --;
+			ray.refr_bounces --;
+			//sg->Rr --;
+			//sg->Rr_refr --;
+			const bool tracehit = AiTrace(&ray, &sample);
 
 
-		AiRGBtoRGBA( sample.color * transmissionOnSample(&t2, &sample, tracehit ), invalidInterfaceResult );
-		invalidInterfaceResult.a = sample.alpha;
+			AiRGBtoRGBA( sample.color * transmissionOnSample(&t2, &sample, tracehit ), invalidInterfaceResult );
+			invalidInterfaceResult.a = sample.alpha;
+			
+		}
+		else
+		{
+			char * const overlapping_surfaces_message = "Crazy numbers of invalid interfaces. Careful now.";
+			AiMsgWarning(overlapping_surfaces_message);
+		}
 	}
 
 	// ---------------------------------------------------//

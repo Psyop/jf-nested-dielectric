@@ -91,6 +91,7 @@ typedef struct Ray_State_Datatype {
 	bool    ray_monochromatic; // branching ray tree data, should be cached
 	float   ray_wavelength;
 	int     ray_TIRDepth; // branching ray tree data, should be cached
+	int     ray_invalidDepth; // branching ray tree data, should be cached
 	AtColor ray_energy; // branching ray tree data, should be cached
 
 	bool caustic_behaviorSet; // branching ray tree data, should be cached 
