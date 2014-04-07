@@ -138,6 +138,7 @@ typedef struct Ray_State_Datatype {
 typedef struct Ray_State_Cache_Datatype {
 	bool    ray_monochromatic;
 	int     ray_TIRDepth;
+	int     ray_invalidDepth;
 	AtColor ray_energy;
 	bool caustic_behaviorSet; 
 	mediaIntStruct   media_inside;
@@ -174,6 +175,7 @@ void uncacheRayState( Ray_State_Datatype * RayState, Ray_State_Cache_Datatype * 
 	RayState->ray_monochromatic 	= RayStateCache->ray_monochromatic;
 	RayState->caustic_behaviorSet 	= RayStateCache->caustic_behaviorSet;
 	RayState->ray_TIRDepth 			= RayStateCache->ray_TIRDepth;
+	RayState->ray_invalidDepth 		= RayStateCache->ray_invalidDepth;
 	RayState->ray_energy 			= RayStateCache->ray_energy;
 }
 
@@ -183,6 +185,7 @@ void cacheRayState( Ray_State_Datatype * RayState, Ray_State_Cache_Datatype * Ra
 	RayStateCache->ray_monochromatic 	= RayState->ray_monochromatic;
 	RayStateCache->caustic_behaviorSet 	= RayState->caustic_behaviorSet;
 	RayStateCache->ray_TIRDepth 		= RayState->ray_TIRDepth;
+	RayStateCache->ray_invalidDepth 	= RayState->ray_invalidDepth;
 	RayStateCache->ray_energy 			= RayState->ray_energy;
 }
 
