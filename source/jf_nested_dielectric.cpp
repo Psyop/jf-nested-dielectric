@@ -1,6 +1,6 @@
 /* 
  * JF Nested Dielectric by Jonah Friedman
- * 1.0.2
+ * 1.0.3
  * Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
  * Open sourced under the 3 clause BSD license, see license.txt
  */
@@ -1287,7 +1287,7 @@ shader_evaluate
 							break;
 						case b_cook_torrance:
 							// Cook Torrance
-							brdf_data = AiCookTorranceMISCreateData(sg, NULL, NULL, spec_roughnessU, NULL);
+							brdf_data = AiCookTorranceMISCreateData(sg, &AI_V3_ZERO, &AI_V3_ZERO, spec_roughnessU, spec_roughnessU);
 							break;
 						case b_ward_rayTangent:
 							// Ward with refraction-derivitive tangents

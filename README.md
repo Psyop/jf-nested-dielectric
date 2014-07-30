@@ -7,8 +7,8 @@ By Jonah Friedman
 jfriedman@psyop.tv
 
 Binaries builds by Jonah Friedman provided for Windows 64, for 4.0.x and 4.1.x.
-Linux builds by Vladimir Jankijevic and Benoit Leveau. OS X build by Jan Walter.
-Source code is provided for everyone else.
+4.1 binaries will work in Arnold 4.2 as well. Linux builds by Vladimir Jankijevic and
+Benoit Leveau. OS X build by Jan Walter.
 
 Contributions, questions, and suggestions are also welcomed.
 
@@ -69,3 +69,11 @@ make install
   dielectric glass.
 - Fixed a crash that occurred with perfectly overlapping geometry inside of a nested
   surface, and fixed a crash with huge numbers of overlapping geometries.
+
+#### 1.0.3
+
+- Fixed a new bug in Arnold 4.2 where Cook-Torrance speculars would render
+  incorrectly	(due to the inclusion of Anisotropic Cook-Torrance.)
+
+- Note: Arnold 4.1 is binary compatible with Arnold 4.2, so there are no seperate
+  binaries for 4.2.
