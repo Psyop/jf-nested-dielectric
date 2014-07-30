@@ -53,7 +53,8 @@ Release Notes:
 	surface, and fixed a crash with huge numbers of overlapping geometries. 
 
 1.0.3:
-	Fixed a new bug in Arnold 4.2 where Cook-Torrance speculars would render incorrectly
-	(due to the inclusion of Anisotropic Cook-Torrance.)
-	
-	Note: Arnold 4.1 is binary compatible with Arnold 4.2, so there are no new binaries for 4.2.
+	Fixed a new bug in Arnold 4.2 where Cook-Torrance speculars would render 
+	incorrectly	(due to the inclusion of Anisotropic Cook-Torrance.)
+
+	Note: Arnold 4.1 is binary compatible with Arnold 4.2, so there are no seperate 
+	binaries for 4.2.
