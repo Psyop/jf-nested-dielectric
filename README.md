@@ -45,6 +45,7 @@ make install
  - Benoit Leveau
  - Vladimir Jankijevic
  - Jan Walter
+ - Chad Dombrova 
 
 ### Special Thanks To
 
