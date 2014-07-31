@@ -18,6 +18,9 @@ in Ray Traced Images available here:
 
 See license.txt for license.
 
+### Use
+
+Full documentation: https://github.com/Psyop/jf-nested-dielectric/raw/master/documentation/jf_nested_dielectric_manual.pdf
 
 ### Installation
 
