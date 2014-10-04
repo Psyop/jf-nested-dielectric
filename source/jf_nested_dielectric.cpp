@@ -215,6 +215,9 @@ node_finish
 
 node_update
 {
+	// AiBegin();
+	// AiEnd();
+
 	ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
 	AiSamplerDestroy(data->dispersion_sampler);
 	AiSamplerDestroy(data->specular_sampler);
@@ -1054,6 +1057,8 @@ shader_evaluate
 								const AtColor energyCache = RayState->ray_energy;
 								RayState->ray_energy *= weight;
 
+								AiStateSetMsgRGB("photon_energy",RayState->ray_energy);
+
 								refractSamplesTaken++ ;
 								const bool tracehit = AiTrace(&ray, &sample);
 								if (tracehit || refract_skies) 
@@ -1330,6 +1335,9 @@ shader_evaluate
 						{
 							RayState->ray_energy *= weight;		
 						}
+
+						AiStateSetMsgRGB("photon_energy",RayState->ray_energy);
+
 						if (spec_roughnessU > ZERO_EPSILON || spec_roughnessV > ZERO_EPSILON)
 						{
 							while ( AiSamplerGetSample(specularIterator, specular_sample) )
@@ -1510,7 +1518,7 @@ shader_evaluate
 	// Reset all messages to the previous state. If there was no previous state, Mark them invalid. 
 	// ---------------------------------------------------//
 
-	AiStateSetMsgRGB("photon_energy",RayState->ray_energy); // this doesn't seem right, heberlein caustics related only
+	AiStateSetMsgRGB("photon_energy",AI_RGB_BLACK); // this doesn't seem right, heberlein caustics related only
 
 	if (msgs_are_valid)
 	{
