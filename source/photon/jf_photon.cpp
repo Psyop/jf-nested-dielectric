@@ -45,6 +45,7 @@ typedef struct photon_type{
 typedef std::vector<photon_type> photon_cloud_type;
 
 struct ShaderData{
+	AtArray * thread_clouds;
 	photon_cloud_type * photon_cloud;
 	volatile int count;
 	volatile bool locked;
@@ -69,70 +70,95 @@ node_parameters {
 node_initialize {
 	ShaderData* data = new ShaderData;
 	AiNodeSetLocalData(node,data);
-	AiMsgWarning("node init called");
-	data->photon_cloud = new photon_cloud_type;
+	int mode = AiNodeGetInt(node, "mode");
+	if (mode == m_write) {
+		AtNode * renderOptions = AiUniverseGetOptions();
+
+		AiMsgWarning("Setting up %d photon containers for the threads.", AiNodeGetInt(renderOptions, "threads"));
+
+		data->thread_clouds = AiArrayAllocate(AiNodeGetInt(renderOptions, "threads"), 1, AI_TYPE_POINTER);
+		for (AtUInt32 i = 0; i < data->thread_clouds->nelements; i++) {
+			photon_cloud_type * cloud = new photon_cloud_type;
+			cloud->reserve(sizeof(photon_type) * 100000);
+			AiArraySetPtr(data->thread_clouds, i, cloud );
+		}
+	}
 }
  
 node_update {
-	AtNode * renderOptions = AiUniverseGetOptions();
+	int mode = AiNodeGetInt(node, "mode");
+	if (mode == m_write) {		
+		ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
 
-	ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
+		for (AtUInt32 i = 0; i < data->thread_clouds->nelements; i++) {
+			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->thread_clouds, i));
+			cloud->clear();
+			cloud->reserve(sizeof(photon_type) * 10000);
+		}
 
-	data->photon_cloud->clear();
-	data->photon_cloud->reserve(sizeof(photon_type) * 100000);
+		data->locked = false;
+		data->count = 0;
+		data->initialized = false;
 
-	data->locked = false;
-	data->count = 0;
-	data->initialized = false;
+	}
 
 }
 
 node_finish {
-	AiMsgWarning("node finish called");
-	if (AiNodeGetLocalData(node) != NULL) {
-		ShaderData* data = (ShaderData*) AiNodeGetLocalData(node);
+	if (AiNodeGetLocalData(node) == NULL) {
+		return;
+	}
 
+	ShaderData* data = (ShaderData*) AiNodeGetLocalData(node);
+	int mode = AiNodeGetInt(node, "mode");
+
+	if (mode == m_write) {
 		std::string string_path = AiNodeGetStr(node, "file_path");
 
-		AiMsgWarning("Size is %d, lenght is %d, lenght sanity check is %d", sizeof(photon_type), data->photon_cloud->size(), data->count);
-		AiMsgWarning("Writing file on node finish");
-		AiMsgWarning(string_path.c_str());
+		AiMsgWarning("Writing Photon Cloud to: %s ", string_path.c_str());
 
 		std::ofstream outfile (string_path, std::ios::binary);
 
 		if (!outfile.good()) {
-			AiMsgError("Unable to write file!");
+			AiMsgError("Unable to write file! Check for invalid paths of bad permissions or something.");
+			return;
 		}
 
-		outfile.write((const char*)&data->photon_cloud->at(0), sizeof(photon_type) * data->photon_cloud->size());
+		size_t real_photon_count = 0;
+		for (AtUInt32 i = 0; i < data->thread_clouds->nelements; i++) {
+			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->thread_clouds, i));
+			size_t cloud_size = cloud->size();
+			if (cloud_size > 0) {				
+				outfile.write((const char*)&cloud->at(0), sizeof(photon_type) * cloud->size());
+				real_photon_count += cloud_size;
+			}
+			cloud->clear();
+			delete cloud;			
+		}
+
+		float megabytes = (float) (real_photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
+		AiMsgWarning("Photon cloud: %f mb, %d photons.", megabytes, real_photon_count);
+
 		outfile.close();
-		
+		AiArrayDestroy(data->thread_clouds);
+
 	}
+
+	delete data;
 }
  
 shader_evaluate {
 	ShaderData* data = (ShaderData*) AiNodeGetLocalData(node);
+	int mode = AiShaderEvalParamEnum(p_mode);
+	if (mode == m_write) {
+		AtColor photon_energy = AI_RGB_BLACK;
+		bool is_photon = AiStateGetMsgRGB( "photon_energy", &photon_energy );
 
-	AtColor photon_energy = AI_RGB_BLACK;
-	bool is_photon = AiStateGetMsgRGB( "photon_energy", &photon_energy );
-
-	if (is_photon) {
-		photon_type photon = {photon_energy, sg->P, sg->Rt};
-
-		int i = 0;
-		while (data->locked){
-			i++;
-			Sleep(1); // TO DO: Cross platform way to do sleep
+		if (is_photon) {
+			photon_type photon = {photon_energy, sg->P, sg->Rt};
+			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->thread_clouds, sg->tid));
+			cloud->push_back(photon);
 		}
-		if (i > 10) {
-			AiMsgWarning("Slept %d times", i); // TO DO: Better message about this
-		}
-
-		data->locked = true;
-		data->initialized = true;
-		data->photon_cloud->push_back(photon);
-		data->count++;
-		data->locked = false;
 	}
 
 	sg->out.RGBA = AI_RGBA_RED;
