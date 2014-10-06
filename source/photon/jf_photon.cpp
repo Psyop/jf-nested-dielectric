@@ -16,9 +16,10 @@ AI_SHADER_NODE_EXPORT_METHODS(jf_photon_methods);
 
 const char * enum_modes[] =
 {
-	"disabled",
-	"read",
-	"write",
+	"Disabled",
+	"Read",
+	"Read and Visualize Octree",
+	"Write",
 	NULL
 };
 
@@ -26,6 +27,7 @@ enum brdfs
 {
 	m_disabled,
 	m_read,
+	m_read_visualize,
 	m_write,
 };
 
@@ -348,7 +350,7 @@ node_initialize {
 		return;
 	} 
 
-	if (mode == m_read) {
+	if (mode == m_read || mode == m_read_visualize) {
 
 		
 		// Sleep(2000);
@@ -421,7 +423,7 @@ node_update {
 		return;
 	}
 
-	if (mode == m_read) {
+	if (mode == m_read || mode == m_read_visualize) {
 		// STUB
 	}
 }
@@ -464,7 +466,7 @@ node_finish {
 		AiArrayDestroy(data->write_thread_clouds);
 	}
 
-	if (mode == m_read) {
+	if ((mode == m_read || mode == m_read_visualize)) {
 		AiMsgWarning("Deleting photons.");
 		data->read_cloud_accelerator->destroy_structure();
 		delete data->read_cloud_accelerator;
@@ -492,24 +494,29 @@ shader_evaluate {
 	}
 	
 
-	if (mode == m_read) { 
+	if (mode == m_read || mode == m_read_visualize) { 
 		float radius = AiShaderEvalParamFlt(p_read_radius);
 
-		//size_t photon_count = data->read_cloud_accelerator->get_photons_in_radius(sg->P, radius).size();
-		
-		photon_list_type photon_IDs = data->read_cloud_accelerator->get_photons_in_radius(sg->P, radius);
 
-		AtColor energy = AI_RGB_BLACK;
-		for(size_t i = 0; i != photon_IDs.size(); i++) {
-			energy += data->read_cloud->at(photon_IDs[i]).energy;
+
+		if (mode == m_read) {
+			photon_list_type photon_IDs = data->read_cloud_accelerator->get_photons_in_radius(sg->P, radius);
+
+			AtColor energy = AI_RGB_BLACK;
+			for(size_t i = 0; i != photon_IDs.size(); i++) {
+				energy += data->read_cloud->at(photon_IDs[i]).energy;
+			}
+
+			sg->out.RGB = energy;
+			sg->out.RGBA.a = 1.0f;
+		} else if (mode == m_read_visualize) {
+			photon_list_type photon_IDs = data->read_cloud_accelerator->get_photons(sg->P, radius);
+			float out_value = ((float) photon_IDs.size() / 300.0f);
+			sg->out.RGBA = AI_RGBA_WHITE * out_value;
+			sg->out.RGBA.a = 1.0f;
+
 		}
-
-		//float out_value = ((float) photon_count / 300.0f);
-		//sg->out.RGBA = AI_RGBA_WHITE * out_value;
 		
-		sg->out.RGB = energy;
-
-		sg->out.RGBA.a = 1.0f;
 	}
 
 }
