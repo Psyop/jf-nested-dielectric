@@ -1,5 +1,5 @@
 #include <ai.h>
-#include <vector>
+
 
 #include <algorithm>
 #include <fstream>
@@ -8,6 +8,7 @@
 #include <map>
 
 #include <ctime>
+#include <Windows.h>
 
 
 AI_SHADER_NODE_EXPORT_METHODS(jf_photon_methods);
@@ -39,8 +40,6 @@ typedef std::vector<photon_type> photon_cloud_type; // vector of photons with al
 typedef std::vector<size_t> photon_list_type; // a list of photons in a photon cloud
 
 
-
-
 typedef class photon_accellerator_type{
 	AtVector bounds_n;
 	AtVector bounds_p;
@@ -49,6 +48,7 @@ typedef class photon_accellerator_type{
 	float _len;
 
 	bool _has_sub_accells;
+
 	size_t _recursion_level;
 	size_t _max_recursion;
 	size_t _max_per_bucket;
@@ -108,6 +108,19 @@ typedef class photon_accellerator_type{
 		return false;
 	}
 
+	bool within_range(AtVector photon_pos, float radius) {
+		if (photon_pos.x + radius >= bounds_n.x && 
+			photon_pos.y + radius >= bounds_n.y && 
+			photon_pos.z + radius >= bounds_n.z &&
+			photon_pos.x - radius < bounds_p.x &&
+			photon_pos.y - radius < bounds_p.y &&
+			photon_pos.z - radius < bounds_p.z
+			) {
+			return true;
+		}
+		return false;
+	}
+
 	void add_ID_to_bucket(size_t ID) {
 		_photon_list->push_back(ID);
 	}
@@ -123,8 +136,16 @@ typedef class photon_accellerator_type{
 		child->_max_recursion = _max_recursion;
 		child->_max_per_bucket = _max_per_bucket;
 		
-		child->_photon_list = new photon_list_type;
 		child->_target_photon_cloud = _target_photon_cloud;
+
+		child->_sub_accells[0] = NULL;
+		child->_sub_accells[1] = NULL;
+		child->_sub_accells[2] = NULL;
+		child->_sub_accells[3] = NULL;
+		child->_sub_accells[4] = NULL;
+		child->_sub_accells[5] = NULL;
+		child->_sub_accells[6] = NULL;
+		child->_sub_accells[7] = NULL;
 
 		// if (octant != 0 && octant != 1)
 		// 	AiMsgWarning("Found an octant in initialization");
@@ -133,10 +154,10 @@ typedef class photon_accellerator_type{
 
 	void build_structure() {
 		if (_photon_list->size() < _max_per_bucket || _recursion_level >= _max_recursion) {
-			// Stop building. Eitehr we're divided enough, or we're at our max recursion depth. 
-			if (_photon_list->size() > 0) {
-				AiMsgWarning("Recursion limit. %d points, %d depth, octant %d", _photon_list->size(), _recursion_level, _octant);
-			}
+			// Stop building. Either we're divided enough, or we're at our max recursion depth. 
+			// if (_photon_list->size() > 0) {
+			// 	AiMsgWarning("Recursion limit. %d points, %d depth, octant %d", _photon_list->size(), _recursion_level, _octant);
+			// }
 			return;
 		}
 		// make 8 children and initialize them
@@ -159,13 +180,64 @@ typedef class photon_accellerator_type{
 		}
 		_has_sub_accells = true;
 		delete _photon_list;
-
+		_photon_list = NULL;
 		for (size_t i = 0; i < 8; i++) {
 			_sub_accells[i]->build_structure();
 		}
 	}
 	
+
 public:
+	size_t get_photons(AtVector pos, float radius) {
+		photon_list_type found_photons;
+
+		if (!_has_sub_accells) {
+			// return *_photon_list;
+			return _photon_list->size();
+		}
+
+		photon_accellerator_type * s_sub_accell = _sub_accells[0];
+		std::vector<photon_accellerator_type *> accells_to_search;
+
+		for (size_t i = 0; i < 8; i++) {
+			if( _sub_accells[i]->within_range(pos, radius)) {
+				accells_to_search.push_back(_sub_accells[i]);
+			}
+		}
+
+		//bool exhausted = false;
+		size_t photons = 0;
+		size_t boxes = 0;
+		size_t max_depth = 0;
+		while (accells_to_search.size() > 0) {
+			std::vector<photon_accellerator_type *> s_accells = accells_to_search;
+			accells_to_search.clear();
+			for (size_t i = 0; i < s_accells.size(); i++) {
+				if (s_accells[i]->_has_sub_accells) {
+					// no points here, add sub accels to accells_to_search
+					for (size_t g = 0; g < 8; g++) {
+						if (s_accells[i]->_sub_accells[g]->within_range(pos, radius)) {
+							accells_to_search.push_back(s_accells[i]->_sub_accells[g]);
+						}
+					}
+				} else {
+					boxes++;
+					photons += s_accells[i]->_photon_list->size();
+					max_depth = max( s_accells[i]->_recursion_level, max_depth);
+
+					// AiMsgWarning("Found points in a box %d deep!", s_accells[i]->_recursion_level);
+
+					// Add points to list of points to return
+
+				}
+
+			}
+		}
+		AiMsgWarning("Found %d photons in %d buckets, max %d", photons, boxes, max_depth);
+		// return found_photons;
+		return photons;
+	}
+
 	void build(photon_cloud_type* photon_cloud, size_t max_per_bucket = 100, size_t max_nesting = 16) {
 		_target_photon_cloud = photon_cloud;
 		_max_per_bucket = max_per_bucket;
@@ -202,7 +274,7 @@ public:
 		AtVector dim = measured_bounds_p - measured_bounds_n;
 
 		// _pos = measured_bounds_n;
-		_len = std::max(std::max(dim.x, dim.y), dim.z);
+		_len = max(max(dim.x, dim.y), dim.z);
 		bounds_n = measured_bounds_n;
 		bounds_p = measured_bounds_p;
 
@@ -213,6 +285,9 @@ public:
 			if (_sub_accells[i] != NULL) {
 				_sub_accells[i]->destroy_structure();
 			}
+		}
+		if (_photon_list != NULL) {
+			delete _photon_list;		
 		}
 	}
 } photon_accellerator_type;
@@ -265,6 +340,8 @@ node_initialize {
 
 	if (mode == m_read) {
 
+		
+		// Sleep(2000);
 
 		std::string string_path = AiNodeGetStr(node, "file_path");
 		std::ifstream infile (string_path, std::ios::binary);
@@ -274,9 +351,14 @@ node_initialize {
 			AiMsgError("Unable to read file! Check for invalid paths or bad permissions or something.");
 			return;
 		}
+		
 
 		infile.seekg (0, infile.end);
 		size_t length = infile.tellg();
+
+		size_t max_len = 1024*1024*512;
+		length = min(length, max_len);
+
 		infile.seekg (0, infile.beg);
 
 		size_t num_photons = length/sizeof(photon_type);
@@ -286,14 +368,15 @@ node_initialize {
 
 		// allocate memory:
 		photon_type* photon_array = new photon_type[num_photons];
+		
 
 		char * buffer = (char*)(photon_array);
 		infile.read(buffer, length);
 
-		AiMsgWarning("The file is %d long, length %d, photons %d", infile.gcount(), length, num_photons);
-		photon_type* last_photon = &photon_array[num_photons - 1];
-		AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
-
+		int mb = 1024 * 1024;
+		AiMsgWarning("The file is %d long, length %d, photons %d", infile.gcount()/mb, length/mb, num_photons);
+		// photon_type* last_photon = &photon_array[num_photons - 1];
+		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 
 		const clock_t photon_process_time = clock();
 
@@ -301,26 +384,16 @@ node_initialize {
 		
 		v_cloud->assign(photon_array, photon_array + num_photons);
 		AiMsgWarning("Photon vector contains %d photons", v_cloud->size());
-		last_photon = &v_cloud->at(num_photons - 1);
-		AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
+		//last_photon = &v_cloud->at(num_photons - 1);
+		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 		delete photon_array;
-
-
-		// for(std::vector<photon_type>::iterator it = v_cloud->begin(); it != v_cloud->end(); ++it) {
-		// 	// AtVector myVec = it->pos;
-		//     if (abs(it->pos.x) < 0.0001) {
-		//     	AiMsgWarning("Photon with attitude!");
-		//     }
-		// }
 
 		photon_accellerator_type * accel = new photon_accellerator_type;
 		accel->build(v_cloud);
+		data->read_cloud_accelerator = accel;
 
 		AiMsgWarning("Photons read and processed: %f seconds", (float( clock () - photon_process_time ) /  CLOCKS_PER_SEC));
 
-		
-		//AiMsgWarning("Lower bounds: %f, %f, %f", bounds_n.x, bounds_n.y, bounds_n.z);		
-		//AiMsgWarning("Upper bounds: %f, %f, %f", bounds_p.x, bounds_p.y, bounds_p.z);
 	}
 }
  
@@ -382,7 +455,10 @@ node_finish {
 	}
 
 	if (mode == m_read) {
-		// STUB
+		AiMsgWarning("Deleting photons.");
+		data->read_cloud_accelerator->destroy_structure();
+		delete data->read_cloud_accelerator;
+		delete data->read_cloud;
 	}
 
 
@@ -392,6 +468,7 @@ node_finish {
 shader_evaluate {
 	ShaderData* data = (ShaderData*) AiNodeGetLocalData(node);
 	int mode = AiShaderEvalParamEnum(p_mode);
+	sg->out.RGBA = AI_RGBA_BLACK;
 	if (mode == m_write) {
 		AtColor photon_energy = AI_RGB_BLACK;
 		bool is_photon = AiStateGetMsgRGB( "photon_energy", &photon_energy );
@@ -401,9 +478,19 @@ shader_evaluate {
 			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, sg->tid));
 			cloud->push_back(photon);
 		}
+		sg->out.RGBA = AI_RGBA_RED;
+	}
+	
+
+	if (mode == m_read) { 
+		float radius = AiShaderEvalParamFlt(p_read_radius);
+
+		size_t photon_count = data->read_cloud_accelerator->get_photons(sg->P, radius);
+		
+		float out_value = ((float) photon_count / 300.0f);
+		sg->out.RGBA = AI_RGBA_WHITE * out_value;
 	}
 
-	sg->out.RGBA = AI_RGBA_RED;
 }
  
 node_loader {
