@@ -190,12 +190,12 @@ typedef class photon_accellerator_type{
 	
 
 public:
-	photon_list_type get_photons(AtVector pos, float radius) {
-		photon_list_type found_photons;
+	void get_photons_in_radius(photon_list_type* photon_list_out, AtVector pos, float radius, bool filter) {
+		// photon_list_type found_photons;
 
 		if (!_has_sub_accells) {
-			return *_photon_list;
-			// return _photon_list->size();
+			//return *_photon_list;
+			return;
 		}
 
 		photon_accellerator_type * s_sub_accell = _sub_accells[0];
@@ -208,9 +208,9 @@ public:
 		}
 
 		//bool exhausted = false;
-		size_t photon_count = 0;
-		size_t boxes_count = 0;
-		size_t max_depth = 0;
+		// size_t photon_count = 0;
+		// size_t boxes_count = 0;
+		// size_t max_depth = 0;
 		while (accells_to_search.size() > 0) {
 			std::vector<photon_accellerator_type *> s_accells = accells_to_search;
 			accells_to_search.clear();
@@ -223,32 +223,50 @@ public:
 						}
 					}
 				} else {
-					boxes_count++;
-					photon_count += s_accells[i]->_photon_list->size();
-					max_depth = max( s_accells[i]->_recursion_level, max_depth);
+					// boxes_count++;
+					// photon_count += s_accells[i]->_photon_list->size();
+					// max_depth = max( s_accells[i]->_recursion_level, max_depth);
 
-					found_photons.insert(found_photons.end(), s_accells[i]->_photon_list->begin(), s_accells[i]->_photon_list->end());
+					if (filter) {
+						for (size_t g = 0; g < s_accells[i]->_photon_list->size(); g++) {
+							if (filter_photon( s_accells[i]->_photon_list->at(g), pos, radius)) {
+								size_t ID = s_accells[i]->_photon_list->at(g);
+								photon_list_out->push_back(ID);
+							}
+						}
+					} else {
+						photon_list_out->insert(photon_list_out->end(), s_accells[i]->_photon_list->begin(), s_accells[i]->_photon_list->end());
+					}
+
 				}
 
 			}
 		}
 		// AiMsgWarning("Found %d photons in %d buckets, max %d", photon_count, boxes_count, max_depth);
-		return found_photons;		
+		// return found_photons;		
 	}
 
-	photon_list_type get_photons_in_radius(AtVector pos, float radius) {
-		photon_list_type found_photons = get_photons(pos, radius);
-		// AiMsgWarning("Got back %d photons", found_photons.size());
-		photon_list_type filtered_photons;
-		for (size_t i = 0; i < found_photons.size(); i++) {
-			photon_type* photon = &_target_photon_cloud->at(found_photons[i]);
-			if (AiV3Dist(pos, photon->pos) < radius) { 
-				filtered_photons.push_back(found_photons[i]);
-			}
+	bool filter_photon(size_t photon_ID, AtVector pos, float radius) {
+		photon_type* photon = &_target_photon_cloud->at(photon_ID);
+		if (AiV3Dist(pos, photon->pos) < radius) {
+			return true;
 		}
-		return filtered_photons;
-		// return found_photons;
+		return false;
 	}
+
+	// void get_photons_in_radius(photon_list_type* photon_list_out, AtVector pos, float radius) {
+	// 	photon_list_type found_photons = get_photons(pos, radius);
+	// 	// AiMsgWarning("Got back %d photons", found_photons.size());
+	// 	photon_list_type filtered_photons;
+	// 	for (size_t i = 0; i < found_photons.size(); i++) {
+	// 		photon_type* photon = &_target_photon_cloud->at(found_photons[i]);
+	// 		if (AiV3Dist(pos, photon->pos) < radius) { 
+	// 			filtered_photons.push_back(found_photons[i]);
+	// 		}
+	// 	}
+	// 	return filtered_photons;
+	//	// return found_photons;
+	// }
 
 	void build(photon_cloud_type* photon_cloud, size_t max_per_bucket = 20, size_t max_nesting = 16) {
 		_target_photon_cloud = photon_cloud;
@@ -396,7 +414,7 @@ node_initialize {
 		
 		v_cloud->assign(photon_array, photon_array + num_photons);
 		AiMsgWarning("Photon vector contains %d photons", v_cloud->size());
-		//last_photon = &v_cloud->at(num_photons - 1);
+		// last_photon = &v_cloud->at(num_photons - 1);
 		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 		delete photon_array;
 
@@ -497,23 +515,30 @@ shader_evaluate {
 	if (mode == m_read || mode == m_read_visualize) { 
 		float radius = AiShaderEvalParamFlt(p_read_radius);
 
-
-
 		if (mode == m_read) {
-			photon_list_type photon_IDs = data->read_cloud_accelerator->get_photons_in_radius(sg->P, radius);
+			photon_list_type photon_IDs;
+			photon_IDs.clear();
+			photon_IDs.reserve(1000);
+			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, sg->P, radius, true);
 
 			AtColor energy = AI_RGB_BLACK;
 			for(size_t i = 0; i != photon_IDs.size(); i++) {
 				energy += data->read_cloud->at(photon_IDs[i]).energy;
 			}
 
-			sg->out.RGB = energy;
+			AiMsgWarning("Color of photon %f %f %f", energy.r, energy.g, energy.b );
+
+
+			// sg->out.RGB = energy;
+			sg->out.RGBA.r = energy.r;
+			sg->out.RGBA.g = energy.g;
+			sg->out.RGBA.b = energy.b;
 			sg->out.RGBA.a = 1.0f;
 		} else if (mode == m_read_visualize) {
-			photon_list_type photon_IDs = data->read_cloud_accelerator->get_photons(sg->P, radius);
-			float out_value = ((float) photon_IDs.size() / 300.0f);
-			sg->out.RGBA = AI_RGBA_WHITE * out_value;
-			sg->out.RGBA.a = 1.0f;
+			// photon_list_type photon_IDs = data->read_cloud_accelerator->get_photons(sg->P, radius);
+			// float out_value = ((float) photon_IDs.size() / 300.0f);
+			// sg->out.RGBA = AI_RGBA_WHITE * out_value;
+			// sg->out.RGBA.a = 1.0f;
 
 		}
 		

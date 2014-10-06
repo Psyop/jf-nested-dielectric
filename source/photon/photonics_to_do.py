@@ -47,7 +47,7 @@ Caustics:
 
 Writing caustics:
 	Investigate removing points outside of the bucket to avoid the grid lines
-	
+
 
 
 Reading Caustics:
@@ -62,6 +62,13 @@ Reading Caustics:
 
 
 Data structure accelleration:
+	Control test: 0:56
+		3.62 second build
+	Pointer (less copying vectors): 0.52
+
+
+
+
 	Pass a pointer to not copy the lists so much
 		evaluate speedup
 	Put photons into data structure container for contiguous memory reads
