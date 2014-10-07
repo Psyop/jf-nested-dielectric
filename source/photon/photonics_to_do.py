@@ -52,10 +52,10 @@ Writing caustics:
 
 Reading Caustics:
 	# Add a "read - Octree Visualization" mode - because it is neato spaghettio
-	Differentiate between reflected and refracted caustics, give them seperate scales
-	Diffuse color
-	Exposure
-	Normalize against radius
+	# Differentiate between reflected and refracted caustics, give them seperate scales
+	# Diffuse color
+	# Exposure
+	# Normalize against radius
 	Blackman-harris filtering
 
 
@@ -91,6 +91,10 @@ Data structure accelleration:
 	# size_t max_per_bucket = 100, size_t max_nesting = 24
 	# 	0:44
 	# 	3.5 s build
+
+	was: 40 s
+	changed filtering to avoid a sqrt: 37 s
+	removed the minor optimization and got to 35s
 
 	# Pass a pointer to not copy the lists so much
 	# 	evaluate speedup

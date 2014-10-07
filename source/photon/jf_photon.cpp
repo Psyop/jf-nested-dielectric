@@ -8,7 +8,7 @@
 #include <map>
 
 #include <ctime>
-#include <Windows.h>
+//#include <Windows.h>
 
 
 AI_SHADER_NODE_EXPORT_METHODS(jf_photon_methods);
@@ -137,14 +137,9 @@ typedef class photon_accellerator_type{
 		
 		child->_target_photon_cloud = _target_photon_cloud;
 
-		child->_sub_accells[0] = NULL;
-		child->_sub_accells[1] = NULL;
-		child->_sub_accells[2] = NULL;
-		child->_sub_accells[3] = NULL;
-		child->_sub_accells[4] = NULL;
-		child->_sub_accells[5] = NULL;
-		child->_sub_accells[6] = NULL;
-		child->_sub_accells[7] = NULL;
+		for (size_t i = 0; i < 8; i++) {
+			child->_sub_accells[i] = NULL;
+		}
 	}
 
 
@@ -273,7 +268,7 @@ public:
 		AtVector dim = measured_bounds_p - measured_bounds_n;
 
 		// _pos = measured_bounds_n;
-		_len = max(max(dim.x, dim.y), dim.z);
+		_len = std::max(std::max(dim.x, dim.y), dim.z);
 		bounds_n = measured_bounds_n;
 		bounds_p = measured_bounds_p;
 
@@ -293,6 +288,25 @@ public:
 } photon_accellerator_type;
 
 
+
+// float blackman_harris(AtPoint2 p, float width) {
+// 	p /= (width * 0.5f);
+
+// 	float dist_squared = (p.x * p.x + p.y * p.y) ;
+// 	if (dist_squared >=  (1.0f)) {
+// 		return 0.0f;
+// 	}
+// 	float x = sqrt(dist_squared);
+
+// 	float a0 = 0.35875f;
+// 	float a1 = 0.48829f;
+// 	float a2 = 0.14128f;
+// 	float a3 = 0.01168f;
+
+// 	float weight  = a0 + a1*cos(1.0f * AI_PI * x) + a2*cos(2.0f * AI_PI * x) + a3*cos(4.0f * AI_PI * x);
+
+// 	return weight;
+// }
 
 
 
@@ -370,7 +384,7 @@ node_initialize {
 		photon_cloud_type * v_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
 
 		for (size_t i = 0; i < length; i+= chunk_size) {
-			size_t read_bytes = min(length - i, chunk_size);
+			size_t read_bytes = std::min(length - i, chunk_size);
 			size_t read_photons = read_bytes / photon_size;
 
 			infile.seekg (i, infile.beg);
