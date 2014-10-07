@@ -51,7 +51,7 @@ Writing caustics:
 
 
 Reading Caustics:
-	Add a "read - Octree Visualization" mode - because it is neato spaghettio
+	# Add a "read - Octree Visualization" mode - because it is neato spaghettio
 	Differentiate between reflected and refracted caustics, give them seperate scales
 	Diffuse color
 	Exposure
@@ -62,15 +62,38 @@ Reading Caustics:
 
 
 Data structure accelleration:
-	Control test: 0:56
-		3.62 second build
-	Pointer (less copying vectors): 0.52
+	# Control test: 
+	# 	0:56
+	# 	3.62 s build
+	# Pointer (less copying vectors): 
+	# 	0:52
 
+	# size_t max_per_bucket = 100, size_t max_nesting = 16
+	# 	0:51
+	# 	2.63 s build
 
+	# size_t max_per_bucket = 5, size_t max_nesting = 16
+	# 	1:05
+	# 	6.0 s build
 
+	# size_t max_per_bucket = 20, size_t max_nesting = 32
+	# 	0:51
+	# 	3.8 s build
 
-	Pass a pointer to not copy the lists so much
-		evaluate speedup
+	# size_t max_per_bucket = 20, size_t max_nesting = 16
+	# 	0:49
+	# 	3.5 s build
+
+	# size_t max_per_bucket = 20, size_t max_nesting = 8
+	# 	0:49
+	# 	1.0 s build
+
+	# size_t max_per_bucket = 100, size_t max_nesting = 24
+	# 	0:44
+	# 	3.5 s build
+
+	# Pass a pointer to not copy the lists so much
+	# 	evaluate speedup
 	Put photons into data structure container for contiguous memory reads
 		evaluate speedup
 
