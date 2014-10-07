@@ -96,7 +96,8 @@ typedef class photon_accellerator_type{
 	}
 
 	bool within_bounds(AtVector photon_pos) {
-		AtVector bounds_p = bounds_n + AiVector(_len, _len, _len);
+		AtVector offset = {_len, _len, _len};
+		AtVector bounds_p = bounds_n + offset;
 		if (photon_pos.x >= bounds_n.x && 
 			photon_pos.y >= bounds_n.y && 
 			photon_pos.z >= bounds_n.z &&
@@ -109,8 +110,9 @@ typedef class photon_accellerator_type{
 		return false;
 	}
 
-	bool within_range(const AtVector* photon_pos, float radius) {
-		AtVector bounds_p = bounds_n + AiVector(_len, _len, _len);
+	bool within_range(const AtVector* photon_pos, float radius) {		
+		AtVector offset = {_len, _len, _len};
+		AtVector bounds_p = bounds_n + offset;
 		if (photon_pos->x + radius > bounds_n.x && 
 			photon_pos->y + radius > bounds_n.y && 
 			photon_pos->z + radius > bounds_n.z &&
@@ -344,8 +346,9 @@ node_initialize {
 	} 
 
 	if (mode == m_read || mode == m_read_visualize) {
-		std::string string_path = AiNodeGetStr(node, "file_path");
-		std::ifstream infile (string_path, std::ios::binary);
+		const char* char_path = AiNodeGetStr(node, "file_path");
+		std::string string_path = char_path;
+		std::ifstream infile (char_path, std::ios::binary);
 
 		AiMsgWarning("Reading Photon Cloud from: %s ", string_path.c_str());
 		if (!infile.good()) {
@@ -437,8 +440,9 @@ node_finish {
 	int mode = AiNodeGetInt(node, "mode");
 
 	if (mode == m_write) {
+		const char* char_path = AiNodeGetStr(node, "file_path");
 		std::string string_path = AiNodeGetStr(node, "file_path");
-		std::ofstream outfile (string_path, std::ios::binary);
+		std::ofstream outfile (char_path, std::ios::binary);
 
 		AiMsgWarning("Writing Photon Cloud to: %s ", string_path.c_str());
 		if (!outfile.good()) {
