@@ -226,6 +226,7 @@ public:
 							}
 						}
 					} else {
+						// Append the photon lists together
 						photon_list_out->insert(photon_list_out->end(), s_accells[i]->_photon_list->begin(), s_accells[i]->_photon_list->end());
 					}
 
@@ -346,7 +347,6 @@ node_initialize {
 	} 
 
 	if (mode == m_read || mode == m_read_visualize) {
-
 		std::string string_path = AiNodeGetStr(node, "file_path");
 		std::ifstream infile (string_path, std::ios::binary);
 
@@ -356,47 +356,63 @@ node_initialize {
 			return;
 		}
 		
-
 		infile.seekg (0, infile.end);
 		size_t length = infile.tellg();
 
-		size_t max_len = 1024*1024*512;
-		length = min(length, max_len);
-
-		infile.seekg (0, infile.beg);
-
-		size_t num_photons = length/sizeof(photon_type);
+		size_t photon_size = sizeof(photon_type);
+		size_t num_photons = length/photon_size;
+		size_t mb = 1024 * 1024;
+		size_t chunk_size = (128 * mb) ;
+		size_t num_photons_in_chunk = (chunk_size / photon_size) + 1;
+		chunk_size = photon_size * num_photons_in_chunk; //No remainders here, please. 
 
 		data->read_cloud = new photon_cloud_type;
-		data->read_cloud->reserve(length);
+		photon_cloud_type * v_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
 
-		// allocate memory:
-		photon_type* photon_array = new photon_type[num_photons];
-		
+		for (size_t i = 0; i < length; i+= chunk_size) {
+			size_t read_bytes = min(length - i, chunk_size);
+			size_t read_photons = read_bytes / photon_size;
 
-		char * buffer = (char*)(photon_array);
-		infile.read(buffer, length);
+			infile.seekg (i, infile.beg);
+			AiMsgWarning("Reading %d mb chunk, containing %d photons.", (int) read_bytes/mb, read_photons);
 
-		int mb = 1024 * 1024;
-		AiMsgWarning("The file is %d long, length %d, photons %d", infile.gcount()/mb, length/mb, num_photons);
+			// allocate memory:
+			photon_type* photon_array = new photon_type[read_photons];
+
+			char * buffer = (char*)(photon_array);
+			infile.read(buffer, read_bytes);
+
+			v_cloud->insert(v_cloud->end(), &photon_array[0], &photon_array[read_photons]);
+
+			// v_cloud->assign(photon_array, photon_array + num_photons);
+			delete photon_array;
+		}
+
+
+
+
+
+
+
+		AiMsgInfo("Read %d mb, %d photons.", length/mb, num_photons);
 		// photon_type* last_photon = &photon_array[num_photons - 1];
 		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 
 		const clock_t photon_process_time = clock();
 
-		photon_cloud_type * v_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
-		
-		v_cloud->assign(photon_array, photon_array + num_photons);
-		AiMsgWarning("Photon vector contains %d photons", v_cloud->size());
+		if (num_photons != v_cloud->size()) {
+			AiMsgError("Error in photon read. %d in file, %d in memory.", num_photons, v_cloud->size());
+		} else {
+			AiMsgInfo("All photons accounted for.");
+		}
 		// last_photon = &v_cloud->at(num_photons - 1);
 		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
-		delete photon_array;
 
 		photon_accellerator_type * accel = new photon_accellerator_type;
 		accel->build(v_cloud);
 		data->read_cloud_accelerator = accel;
 
-		AiMsgWarning("Photons read and processed: %f seconds", (float( clock () - photon_process_time ) /  CLOCKS_PER_SEC));
+		AiMsgWarning("Acceleration structure built: %f seconds", (float( clock () - photon_process_time ) /  CLOCKS_PER_SEC));
 
 	}
 }
@@ -417,6 +433,7 @@ node_update {
 
 	if (mode == m_read || mode == m_read_visualize) {
 		// STUB
+		// Still can't find anything that needs doing here
 	}
 }
 
