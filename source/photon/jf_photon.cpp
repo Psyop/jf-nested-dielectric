@@ -44,14 +44,14 @@ typedef std::vector<size_t> photon_list_type; // a list of photons in a photon c
 
 typedef class photon_accellerator_type{
 	AtVector bounds_n;
-	AtVector bounds_p;
+	// AtVector bounds_p;
 	float _len;
 
 	bool _has_sub_accells;
-	size_t _recursion_level;
-	size_t _max_recursion;
-	size_t _max_per_bucket;
-	size_t _octant;
+	unsigned char _recursion_level;
+	unsigned char _max_recursion;
+	unsigned short _max_per_bucket;
+	// size_t _octant;
 
 	photon_list_type * _photon_list;
 	photon_accellerator_type * _sub_accells[8];
@@ -62,7 +62,7 @@ typedef class photon_accellerator_type{
 		_photon_list = new photon_list_type;
 	}
 
-	void set_bounds(size_t octant, AtVector par_bounds_n, float par_len) {
+	void set_bounds(unsigned char octant, AtVector par_bounds_n, float par_len) {
 		/*    0 means negative, 1 means positive
 		 * 0: 000
 		 * 1: 001
@@ -89,12 +89,14 @@ typedef class photon_accellerator_type{
 		if (!neg_z) {
 			bounds_n.z += half_len;
 		}
-		bounds_p = bounds_n + offset_vector;
+		// AtVector bounds_p = bounds_n + AiVector(_len, _len, _len);
+		// bounds_p = bounds_n + offset_vector;
 		_len = half_len;
 
 	}
 
 	bool within_bounds(AtVector photon_pos) {
+		AtVector bounds_p = bounds_n + AiVector(_len, _len, _len);
 		if (photon_pos.x >= bounds_n.x && 
 			photon_pos.y >= bounds_n.y && 
 			photon_pos.z >= bounds_n.z &&
@@ -107,13 +109,14 @@ typedef class photon_accellerator_type{
 		return false;
 	}
 
-	bool within_range(AtVector photon_pos, float radius) {
-		if (photon_pos.x + radius >= bounds_n.x && 
-			photon_pos.y + radius >= bounds_n.y && 
-			photon_pos.z + radius >= bounds_n.z &&
-			photon_pos.x - radius < bounds_p.x &&
-			photon_pos.y - radius < bounds_p.y &&
-			photon_pos.z - radius < bounds_p.z
+	bool within_range(const AtVector* photon_pos, float radius) {
+		AtVector bounds_p = bounds_n + AiVector(_len, _len, _len);
+		if (photon_pos->x + radius > bounds_n.x && 
+			photon_pos->y + radius > bounds_n.y && 
+			photon_pos->z + radius > bounds_n.z &&
+			photon_pos->x - radius < bounds_p.x &&
+			photon_pos->y - radius < bounds_p.y &&
+			photon_pos->z - radius < bounds_p.z
 			) {
 			return true;
 		}
@@ -124,12 +127,11 @@ typedef class photon_accellerator_type{
 		_photon_list->push_back(ID);
 	}
 
-	void initialize_child(photon_accellerator_type * child, size_t octant) {
+	void initialize_child(photon_accellerator_type * child, unsigned char octant) {
 		child->init();
 		child->set_bounds(octant, bounds_n, _len); //will set _pos, bounds_n and bounds_p
 
-		child->_octant = octant;
-
+		// child->_octant = octant;
 		child->_has_sub_accells = false;
 		child->_recursion_level = _recursion_level + 1;
 		child->_max_recursion = _max_recursion;
@@ -137,7 +139,7 @@ typedef class photon_accellerator_type{
 		
 		child->_target_photon_cloud = _target_photon_cloud;
 
-		for (size_t i = 0; i < 8; i++) {
+		for (unsigned char i = 0; i < 8; i++) {
 			child->_sub_accells[i] = NULL;
 		}
 	}
@@ -149,7 +151,7 @@ typedef class photon_accellerator_type{
 			return;
 		}
 		// make 8 children and initialize them
-		for (size_t i = 0; i < 8; i++) {
+		for (unsigned char i = 0; i < 8; i++) {
 			_sub_accells[i] = new photon_accellerator_type;
 			initialize_child(_sub_accells[i], i);
 		}
@@ -157,11 +159,10 @@ typedef class photon_accellerator_type{
 		// distribute points
 		for(size_t i = 0; i != _photon_list->size(); i++) {
 			size_t photon_ID = _photon_list->at(i);
-			for (size_t i = 0; i < 8; i++) {
+			for (unsigned char i = 0; i < 8; i++) {
 				AtVector photon_position = _target_photon_cloud->at(photon_ID).pos;
 				if (_sub_accells[i]->within_bounds(photon_position)) {
 					_sub_accells[i]->add_ID_to_bucket(photon_ID);
-
 					break;
 				}
 			}
@@ -169,28 +170,21 @@ typedef class photon_accellerator_type{
 		_has_sub_accells = true;
 		delete _photon_list;
 		_photon_list = NULL;
-		for (size_t i = 0; i < 8; i++) {
+		for (unsigned char i = 0; i < 8; i++) {
 			_sub_accells[i]->build_structure();
 		}
-	}	
-
-	bool filter_photon(size_t photon_ID, AtVector pos, float radius) {
-		photon_type* photon = &_target_photon_cloud->at(photon_ID);
-		if (AiV3Dist(pos, photon->pos) < radius) {
-			return true;
-		}
-		return false;
 	}
 public:
-	void get_photons_in_radius(photon_list_type* photon_list_out, AtVector pos, float radius, bool filter) {
+	void get_photons_in_radius(photon_list_type* photon_list_out, const AtVector* pos, float radius) {
 		if (!_has_sub_accells) {
+			photon_list_out->insert(photon_list_out->end(), _photon_list->begin(), _photon_list->end());
 			return;
 		}
 
 		photon_accellerator_type * s_sub_accell = _sub_accells[0];
 		std::vector<photon_accellerator_type *> accells_to_search;
 
-		for (size_t i = 0; i < 8; i++) {
+		for (unsigned char i = 0; i < 8; i++) {
 			if( _sub_accells[i]->within_range(pos, radius)) {
 				accells_to_search.push_back(_sub_accells[i]);
 			}
@@ -200,44 +194,35 @@ public:
 			std::vector<photon_accellerator_type *> s_accells = accells_to_search;
 			accells_to_search.clear();
 			for (size_t i = 0; i < s_accells.size(); i++) {
+
 				photon_accellerator_type* sub_accell = s_accells[i];
+
 				if (sub_accell->_has_sub_accells) {
 					// no points here, add sub accels to accells_to_search
-					for (size_t g = 0; g < 8; g++) {
+					for (unsigned char g = 0; g < 8; g++) {
 						if (sub_accell->_sub_accells[g]->within_range(pos, radius)) {
 							accells_to_search.push_back(sub_accell->_sub_accells[g]);
 						}
 					}
 				} else {
+					// We have found points. 
+
 					// boxes_count++;
 					// photon_count += sub_accell->_photon_list->size();
 					// max_depth = max( sub_accell->_recursion_level, max_depth);
 
-					if (filter) {
-						for (size_t g = 0; g < sub_accell->_photon_list->size(); g++) {
-							if (sub_accell->filter_photon( sub_accell->_photon_list->at(g), pos, radius)) {
-								size_t ID = sub_accell->_photon_list->at(g);
-								photon_list_out->push_back(ID);
-							}
-						}
-					} else {
-						// Append the photon lists together
-						photon_list_out->insert(photon_list_out->end(), s_accells[i]->_photon_list->begin(), s_accells[i]->_photon_list->end());
-					}
-
+					photon_list_out->insert(photon_list_out->end(), s_accells[i]->_photon_list->begin(), s_accells[i]->_photon_list->end());
 				}
-
 			}
 		}
 		// AiMsgWarning("Found %d photons in %d buckets, max %d", photon_count, boxes_count, max_depth);
 	}
 
-	void build(photon_cloud_type* photon_cloud, size_t max_per_bucket = 100, size_t max_nesting = 16) {
+	void build(photon_cloud_type* photon_cloud, unsigned short max_per_bucket = 64, unsigned char max_nesting = 16) {
 		_target_photon_cloud = photon_cloud;
 		_max_per_bucket = max_per_bucket;
 		_max_recursion = max_nesting;
 		_recursion_level = 0;
-		_octant = -1;
 		init();
 
 		AtVector measured_bounds_n = AI_V3_ZERO;
@@ -267,15 +252,13 @@ public:
 		}
 		AtVector dim = measured_bounds_p - measured_bounds_n;
 
-		// _pos = measured_bounds_n;
 		_len = std::max(std::max(dim.x, dim.y), dim.z);
 		bounds_n = measured_bounds_n;
-		bounds_p = measured_bounds_p;
 
 		build_structure();
 	}
 	void destroy_structure() {
-		for (size_t i = 0; i < 8; i++) {
+		for (unsigned char i = 0; i < 8; i++) {
 			if (_sub_accells[i] != NULL) {
 				_sub_accells[i]->destroy_structure();
 				delete _sub_accells[i];
@@ -398,14 +381,8 @@ node_initialize {
 
 			v_cloud->insert(v_cloud->end(), &photon_array[0], &photon_array[read_photons]);
 
-			// v_cloud->assign(photon_array, photon_array + num_photons);
 			delete photon_array;
 		}
-
-
-
-
-
 
 
 		AiMsgInfo("Read %d mb, %d photons.", length/mb, num_photons);
@@ -423,11 +400,11 @@ node_initialize {
 		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 
 		photon_accellerator_type * accel = new photon_accellerator_type;
+
 		accel->build(v_cloud);
 		data->read_cloud_accelerator = accel;
 
 		AiMsgWarning("Acceleration structure built: %f seconds", (float( clock () - photon_process_time ) /  CLOCKS_PER_SEC));
-
 	}
 }
  
@@ -530,16 +507,18 @@ shader_evaluate {
 
 
 			photon_list_type photon_IDs;
-			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, sg->P, radius, true);
+			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, &sg->P, radius);
 
 			AtColor refr_energy = AI_RGB_BLACK;
 			AtColor refl_energy = AI_RGB_BLACK;
 			for(size_t i = 0; i != photon_IDs.size(); i++) {
 				photon_type * photon = &data->read_cloud->at(photon_IDs[i]);
-				if (photon->type == AI_RAY_REFRACTED) {
-					refr_energy += photon->energy;
-				} else if (photon->type == AI_RAY_REFLECTED || photon->type == AI_RAY_GLOSSY) {
-					refl_energy += photon->energy;
+				if (AiV3Dist(sg->P, photon->pos) < radius) {					
+					if (photon->type == AI_RAY_REFRACTED) {
+						refr_energy += photon->energy;
+					} else if (photon->type == AI_RAY_REFLECTED || photon->type == AI_RAY_GLOSSY) {
+						refl_energy += photon->energy;
+					}
 				}
 			}
 			float exposure = (float) std::pow(2, AiShaderEvalParamFlt(p_exposure));
@@ -555,7 +534,7 @@ shader_evaluate {
 			sg->out.RGBA.a = 1.0f;
 		} else if (mode == m_read_visualize) {
 			photon_list_type photon_IDs;
-			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, sg->P, radius, false);
+			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, &sg->P, radius);
 			// photon_list_type photon_IDs = data->read_cloud_accelerator->get_photons(sg->P, radius);
 			float out_value = ((float) photon_IDs.size() / 300.0f);
 			sg->out.RGBA = AI_RGBA_WHITE * out_value;
