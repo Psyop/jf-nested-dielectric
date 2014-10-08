@@ -359,11 +359,11 @@ node_initialize {
 		infile.seekg (0, infile.end);
 		unsigned int length = infile.tellg();
 
-		unsigned int photon_size = sizeof(photon_type);
-		unsigned int num_photons = length/photon_size;
-		unsigned int mb = 1024 * 1024;
-		unsigned int chunk_size = (128 * mb) ;
-		unsigned int num_photons_in_chunk = (chunk_size / photon_size) + 1;
+		size_t photon_size = sizeof(photon_type);
+		size_t num_photons = length/photon_size;
+		size_t mb = 1024 * 1024;
+		unsigned int chunk_size = (256 * mb) ;
+		size_t num_photons_in_chunk = (chunk_size / photon_size) + 1;
 		chunk_size = photon_size * num_photons_in_chunk; //No remainders here, please. 
 
 		AiMsgInfo("Reading %d mb, %d photons.", length/mb, num_photons);
@@ -371,12 +371,17 @@ node_initialize {
 		data->read_cloud = new photon_cloud_type;
 		photon_cloud_type * v_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
 
+
+		if (v_cloud->max_size() < num_photons) {
+			AiMsgError("Max photon count exceeded. %d > %d.", num_photons, v_cloud->max_size());
+		}
+
 		for (unsigned int i = 0; i < length; i+= chunk_size) {
-			unsigned int read_bytes = std::min(length - i, chunk_size);
-			unsigned int  read_photons = read_bytes / photon_size;
+			unsigned int read_bytes = std::min((unsigned int) length - i, (unsigned int) chunk_size);
+			unsigned int read_photons = read_bytes / photon_size;
 
 			infile.seekg (i, infile.beg);
-			AiMsgWarning("Reading %d mb chunk, containing %d photons.", (int) read_bytes/mb, read_photons);
+			AiMsgWarning("Reading %d mb chunk, containing %d photons, at %d", (int) read_bytes/mb, read_photons, i/mb);
 
 			// allocate memory:
 			photon_type* photon_array = new photon_type[read_photons];
@@ -384,15 +389,22 @@ node_initialize {
 			char * buffer = (char*)(photon_array);
 			infile.read(buffer, read_bytes);
 
+			photon_type* first_photon = &photon_array[5];
+			AiMsgWarning("  Type is  %d", first_photon->type );
+			AiMsgWarning("  Color    %f %f %f", first_photon->energy.r, first_photon->energy.g, first_photon->energy.b );
+			AiMsgWarning("  Position %f %f %f", first_photon->pos.x, first_photon->pos.y, first_photon->pos.z );
+
 			v_cloud->insert(v_cloud->end(), &photon_array[0], &photon_array[read_photons]);
 
 			delete photon_array;
 		}
 
-
 		AiMsgInfo("Read %d mb, %d photons.", length/mb, num_photons);
-		// photon_type* last_photon = &photon_array[num_photons - 1];
-		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
+
+		photon_type* last_photon = &v_cloud->at(num_photons - 1);
+		AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
+		AiMsgWarning("Position of last photon %f %f %f", last_photon->pos.x, last_photon->pos.y, last_photon->pos.z );
+		AiMsgWarning("Type is %d", last_photon->type );
 
 		const clock_t photon_process_time = clock();
 
@@ -401,10 +413,8 @@ node_initialize {
 		} else {
 			AiMsgInfo("All photons accounted for.");
 		}
-		// last_photon = &v_cloud->at(num_photons - 1);
-		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
-
 		photon_accellerator_type * accel = new photon_accellerator_type;
+		
 
 		accel->build(v_cloud);
 		data->read_cloud_accelerator = accel;
