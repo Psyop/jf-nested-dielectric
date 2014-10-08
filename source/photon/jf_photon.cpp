@@ -357,21 +357,23 @@ node_initialize {
 		}
 		
 		infile.seekg (0, infile.end);
-		size_t length = infile.tellg();
+		unsigned int length = infile.tellg();
 
-		size_t photon_size = sizeof(photon_type);
-		size_t num_photons = length/photon_size;
-		size_t mb = 1024 * 1024;
-		size_t chunk_size = (128 * mb) ;
-		size_t num_photons_in_chunk = (chunk_size / photon_size) + 1;
+		unsigned int photon_size = sizeof(photon_type);
+		unsigned int num_photons = length/photon_size;
+		unsigned int mb = 1024 * 1024;
+		unsigned int chunk_size = (128 * mb) ;
+		unsigned int num_photons_in_chunk = (chunk_size / photon_size) + 1;
 		chunk_size = photon_size * num_photons_in_chunk; //No remainders here, please. 
+
+		AiMsgInfo("Reading %d mb, %d photons.", length/mb, num_photons);
 
 		data->read_cloud = new photon_cloud_type;
 		photon_cloud_type * v_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
 
-		for (size_t i = 0; i < length; i+= chunk_size) {
-			size_t read_bytes = std::min(length - i, chunk_size);
-			size_t read_photons = read_bytes / photon_size;
+		for (unsigned int i = 0; i < length; i+= chunk_size) {
+			unsigned int read_bytes = std::min(length - i, chunk_size);
+			unsigned int  read_photons = read_bytes / photon_size;
 
 			infile.seekg (i, infile.beg);
 			AiMsgWarning("Reading %d mb chunk, containing %d photons.", (int) read_bytes/mb, read_photons);
