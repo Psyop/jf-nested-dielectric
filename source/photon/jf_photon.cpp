@@ -381,7 +381,7 @@ node_initialize {
 			unsigned int read_photons = read_bytes / photon_size;
 
 			infile.seekg (i, infile.beg);
-			AiMsgWarning("Reading %d mb chunk, containing %d photons, at %d", (int) read_bytes/mb, read_photons, i/mb);
+			AiMsgWarning("JF_photon: Reading %d mb chunk, containing %d photons, at %d", (int) read_bytes/mb, read_photons, i/mb);
 
 			// allocate memory:
 			photon_type* photon_array = new photon_type[read_photons];
@@ -399,7 +399,7 @@ node_initialize {
 			delete photon_array;
 		}
 
-		AiMsgInfo("Read %d mb, %d photons.", length/mb, num_photons);
+		AiMsgInfo("JF_photon: Read %d mb, %d photons.", length/mb, num_photons);
 
 		photon_type* last_photon = &v_cloud->at(num_photons - 1);
 		AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
@@ -409,9 +409,9 @@ node_initialize {
 		const clock_t photon_process_time = clock();
 
 		if (num_photons != v_cloud->size()) {
-			AiMsgError("Error in photon read. %d in file, %d in memory.", num_photons, v_cloud->size());
+			AiMsgError("JF_photon: Error in photon read. %d in file, %d in memory.", num_photons, v_cloud->size());
 		} else {
-			AiMsgInfo("All photons accounted for.");
+			AiMsgInfo("JF_photon: All photons accounted for.");
 		}
 		photon_accellerator_type * accel = new photon_accellerator_type;
 		
@@ -419,7 +419,7 @@ node_initialize {
 		accel->build(v_cloud);
 		data->read_cloud_accelerator = accel;
 
-		AiMsgWarning("Acceleration structure built: %f seconds", (float( clock () - photon_process_time ) /  CLOCKS_PER_SEC));
+		AiMsgWarning("JF_photon: Acceleration structure built: %f s", (float( clock () - photon_process_time ) /  CLOCKS_PER_SEC));
 	}
 }
  
@@ -456,9 +456,9 @@ node_finish {
 		std::string string_path = AiNodeGetStr(node, "file_path");
 		std::ofstream outfile (char_path, std::ios::binary);
 
-		AiMsgWarning("Writing Photon Cloud to: %s ", string_path.c_str());
+		AiMsgWarning("JF_photon: Writing to: %s ", string_path.c_str());
 		if (!outfile.good()) {
-			AiMsgError("Unable to write file! Check for invalid paths or bad permissions or something.");
+			AiMsgError("JF_photon: Unable to write file! Check for invalid paths or bad permissions or something.");
 			return;
 		}
 
@@ -476,20 +476,18 @@ node_finish {
 		}
 
 		float cloud_mb = (float) (photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
-		AiMsgWarning("Photon cloud: %f mb, %d photons.", cloud_mb, photon_count);
+		AiMsgWarning("JF_photon: Wrote %f mb, %d photons.", cloud_mb, photon_count);
 
 		outfile.close();
 		AiArrayDestroy(data->write_thread_clouds);
 	}
 
 	if ((mode == m_read || mode == m_read_visualize)) {
-		AiMsgWarning("Deleting...");
+		AiMsgWarning("JF_photon: Dismantling acceleration structure");
 		data->read_cloud_accelerator->destroy_structure();
-		AiMsgWarning("Destoryed accel structure. Deleting read_cloud:");
+		AiMsgWarning("JF_photon: Deleting photons:");
 		delete data->read_cloud_accelerator;
-		AiMsgWarning("Deleted read accell.");
 		delete data->read_cloud;
-		AiMsgWarning("Deleted read cloud.");
 	}
 
 
