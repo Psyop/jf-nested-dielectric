@@ -245,9 +245,6 @@ private:
 				cloud_out->push_back(*photon);
 			}
 		}
-
-
-
 	}
 
 public:
@@ -348,28 +345,34 @@ public:
 	}
 
 	void build_for_culling(photon_cloud_type* photon_cloud, float radius, photon_cloud_type * cloud_out) {
-		// _max_per_bucket = 64;
-		// _max_recursion = 16;
-
 		init_bounds(photon_cloud);
 
-		size_t subdivisions = (int) (Log2(_len/radius) + 3.0f);
-		AiMsgWarning("Subd: %d, for %f sized boxes.", subdivisions, _len/radius);
+		int subdivisions = (int) (Log2(_len/radius) + 0.5f);
+		subdivisions = std::min(subdivisions, 16);
+
 		_max_per_bucket = 1;
 		_max_recursion = subdivisions;
 		build_structure();
 
-		AiMsgWarning("  Done building, %d sub-structures", all_nested_accells->size());
+		AiMsgWarning("  %d sub-structures. 2^%d division. ", all_nested_accells->size(), subdivisions);
 
 		cull_photons_in_all_buckets(radius, cloud_out);
 		
 	}
 
-	void build(photon_cloud_type* photon_cloud, unsigned short max_per_bucket = 64, unsigned char max_nesting = 16) {
-		_max_per_bucket = max_per_bucket;
-		_max_recursion = max_nesting;
+	// void build(photon_cloud_type* photon_cloud, unsigned short max_per_bucket = 64, unsigned char max_nesting = 16) {
+	void build(photon_cloud_type* photon_cloud, float radius_hint, unsigned short max_per_bucket = 64, unsigned short max_nesting = 16) {
 		init_bounds(photon_cloud);
+
+		unsigned short subdivisions_hint = (int) (Log2(_len/radius_hint) + 2.0f);
+		unsigned short subdivisions = std::min(subdivisions_hint, max_per_bucket);
+
+		_max_per_bucket = 1;
+		_max_recursion = subdivisions;
 		build_structure();
+
+		AiMsgInfo("  %d sub-structures. 2^%d divisions (optimized for radius %f). ", all_nested_accells->size(), subdivisions, radius_hint);
+
 	}
 
 	void destroy_structure() {
@@ -390,24 +393,26 @@ public:
 
 
 
-// float blackman_harris(AtPoint2 p, float width) {
-// 	p /= (width * 0.5f);
+float blackman_harris(float distance, float radius) {
+	// p /= (width * 0.5f);
 
-// 	float dist_squared = (p.x * p.x + p.y * p.y) ;
-// 	if (dist_squared >=  (1.0f)) {
-// 		return 0.0f;
-// 	}
-// 	float x = sqrt(dist_squared);
+	// float dist_squared = (p.x * p.x + p.y * p.y) ;
+	// if (dist_squared >=  (1.0f)) {
+	// 	return 0.0f;
+	// }
+	// float x = sqrt(dist_squared);
 
-// 	float a0 = 0.35875f;
-// 	float a1 = 0.48829f;
-// 	float a2 = 0.14128f;
-// 	float a3 = 0.01168f;
+	float x = distance/radius;
 
-// 	float weight  = a0 + a1*cos(1.0f * AI_PI * x) + a2*cos(2.0f * AI_PI * x) + a3*cos(4.0f * AI_PI * x);
+	float a0 = 0.35875f;
+	float a1 = 0.48829f;
+	float a2 = 0.14128f;
+	float a3 = 0.01168f;
 
-// 	return weight;
-// }
+	float weight  = a0 + a1*cos(1.0f * AI_PI * x) + a2*cos(2.0f * AI_PI * x) + a3*cos(4.0f * AI_PI * x);
+
+	return weight;
+}
 
 
 
@@ -475,24 +480,24 @@ node_initialize {
 		}
 		
 		infile.seekg (0, infile.end);
-		size_t length = infile.tellg();
+		unsigned long long length = infile.tellg();
 
-		size_t photon_size = sizeof(photon_type);
-		size_t num_photons = length/photon_size;
-		size_t mb = 1024 * 1024;
-		size_t chunk_size = (128 * mb) ;
-		size_t num_photons_in_chunk = (chunk_size / photon_size) + 1;
+		unsigned long long photon_size = sizeof(photon_type);
+		unsigned long long num_photons = length/photon_size;
+		unsigned long long mb = 1024 * 1024;
+		unsigned long long chunk_size = (128 * mb) ;
+		unsigned long long num_photons_in_chunk = (chunk_size / photon_size) + 1;
 		chunk_size = photon_size * num_photons_in_chunk; //No remainders here, please. 
 
 		data->read_cloud = new photon_cloud_type;
 		photon_cloud_type * v_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
 
-		for (unsigned int i = 0; i < length; i+= chunk_size) {
-			unsigned int read_bytes = std::min(length - i, chunk_size);
-			unsigned int read_photons = read_bytes / photon_size;
+		for (unsigned long long i = 0; i < length; i+= chunk_size) {
+			unsigned long long read_bytes = std::min(length - i, chunk_size);
+			unsigned long long read_photons = read_bytes / photon_size;
 
 			infile.seekg (i, infile.beg);
-			AiMsgWarning("Reading %d mb chunk, containing %d photons.", (int) read_bytes/mb, read_photons);
+			AiMsgInfo("  %d mb chunk, %d kilophotons.", (int) read_bytes/mb, read_photons/1000);
 
 			// allocate memory:
 			photon_type* photon_array = new photon_type[read_photons];
@@ -506,7 +511,7 @@ node_initialize {
 		}
 
 
-		AiMsgInfo("Read %d mb, %d photons.", length/mb, num_photons);
+		AiMsgInfo("  Read %d mb, %d kilophotons.", length/mb, num_photons/1000);
 		// photon_type* last_photon = &photon_array[num_photons - 1];
 		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 
@@ -515,17 +520,19 @@ node_initialize {
 		if (num_photons != v_cloud->size()) {
 			AiMsgError("Error in photon read. %d in file, %d in memory.", num_photons, v_cloud->size());
 		} else {
-			AiMsgInfo("All photons accounted for.");
+			AiMsgInfo("  All photons accounted for.");
 		}
 		// last_photon = &v_cloud->at(num_photons - 1);
 		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 
 		photon_accellerator_type * accel = new photon_accellerator_type;
 
-		accel->build(v_cloud);
+		float radius_hint = AiNodeGetFlt(node, "read_radius");
+
+		accel->build(v_cloud, radius_hint);
 		data->read_cloud_accelerator = accel;
 
-		AiMsgWarning("Acceleration structure built: %f seconds", (float( clock () - photon_process_time ) /  CLOCKS_PER_SEC));
+		AiMsgInfo("Octree completed: %f seconds", (float(clock() - photon_process_time) /  CLOCKS_PER_SEC));
 	}
 }
  
@@ -571,24 +578,22 @@ node_finish {
 		float merge_radius = AiNodeGetFlt(node, "write_merge_radius");
 
 		size_t photon_count = 0;
-
+		size_t orig_photon_count = 0;
 		for (AtUInt32 i = 0; i < data->write_thread_clouds->nelements; i++) {
 			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, i));
 
 			if (cloud->size() > 0) {
 				photon_accellerator_type octree;
 				photon_cloud_type cloud_out;
-				AiMsgWarning("Building octree for thread %d:", i);
+				AiMsgInfo("Building octree for thread %d:", i);
 				octree.build_for_culling(cloud, merge_radius, &cloud_out);
 				octree.destroy_structure();
-				AiMsgWarning("  %d -> %d reductions", cloud->size(), cloud_out.size());
-
+				AiMsgInfo("  %d -> %d reduction", cloud->size(), cloud_out.size());
 		
 				outfile.write((const char*)&cloud_out.at(0), (unsigned long long) sizeof(photon_type) * (unsigned long long) cloud_out.size());
 				photon_count += cloud_out.size();
+				orig_photon_count += cloud->size();
 			}
-
-
 			// if (cloud->size() > 0) {
 			// 	outfile.write((const char*)&cloud->at(0), (unsigned long long) sizeof(photon_type) * (unsigned long long) cloud->size());
 			// 	photon_count += cloud->size();		
@@ -599,7 +604,9 @@ node_finish {
 		}
 
 		float cloud_mb = (float) (photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
-		AiMsgWarning("Photon cloud: %f mb, %d photons.", cloud_mb, photon_count);
+		float orig_cloud_mb = (float) (orig_photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
+		AiMsgWarning("Photon cloud: %f mb, %d kilophotons.", cloud_mb, photon_count/1000);
+		AiMsgWarning("Photon cloud: reduced from: %f mb, %d kilophotons.", orig_cloud_mb, photon_count);
 
 		outfile.close();
 		AiArrayDestroy(data->write_thread_clouds);
@@ -646,19 +653,25 @@ shader_evaluate {
 			float k_refracted = AiShaderEvalParamFlt(p_refracted_intensity);
 			float k_reflected = AiShaderEvalParamFlt(p_reflected_intensity);
 
-
 			photon_list_type photon_IDs;
 			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, &sg->P, radius);
 
 			AtColor refr_energy = AI_RGB_BLACK;
 			AtColor refl_energy = AI_RGB_BLACK;
+			// float refr_weight = 0.0f;
+			// float refl_weight = 0.0f;
+
 			for(size_t i = 0; i != photon_IDs.size(); i++) {
 				photon_type * photon = &data->read_cloud->at(photon_IDs[i]);
-				if (AiV3Dist(sg->P, photon->pos) < radius) {					
+				float dist = AiV3Dist(sg->P, photon->pos);
+				if (dist < radius) {
+					float weight = blackman_harris(dist, radius);
 					if (photon->type == AI_RAY_REFRACTED) {
-						refr_energy += photon->energy;
+						refr_energy += photon->energy * weight;
+						// refr_weight += weight;
 					} else if (photon->type == AI_RAY_REFLECTED || photon->type == AI_RAY_GLOSSY) {
-						refl_energy += photon->energy;
+						refl_energy += photon->energy * weight;
+						// refl_weight += weight;
 					}
 				}
 			}
