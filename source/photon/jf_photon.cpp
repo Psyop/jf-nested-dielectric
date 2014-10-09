@@ -1,16 +1,13 @@
 #include <ai.h>
 
-
-
+#include <fstream>
+#include <vector>
+#include <ctime>
 
 //#include <algorithm>
-#include <fstream>
 //#include <iterator>
-#include <vector>
 //#include <map>
 //#include <cmath> 
-
-#include <ctime>
 //#include <Windows.h>
 
 
@@ -432,6 +429,8 @@ struct ShaderData{
 enum jf_photonParams {
 	p_mode,
 	p_file_path,
+	p_write_merge_photons,
+	p_write_remerge_photons,
 	p_write_merge_radius,
 	p_read_radius,
 	p_diffuse_color,
@@ -444,6 +443,8 @@ enum jf_photonParams {
 node_parameters {
 	AiParameterEnum("mode", m_read, enum_modes);
 	AiParameterStr("file_path", "");
+	AiParameterBool("write_merge_photons", true);
+	AiParameterBool("write_remerge_photons", true);
 	AiParameterFlt("write_merge_radius", 0.005f);
 	AiParameterFlt("read_radius", 0.1f);
 	AiParameterRGB("diffuse_color", 0.7f, 0.7f, 0.7f);
@@ -581,60 +582,81 @@ node_finish {
 		}
 
 		float merge_radius = AiNodeGetFlt(node, "write_merge_radius");
+		bool merge = AiNodeGetBool(node, "write_merge_photons");
+		bool remerge = AiNodeGetBool(node, "write_remerge_photons");
 
 		size_t photon_count = 0;
 		size_t orig_photon_count = 0;
 
-		unsigned short write_chunks = 1;
-		unsigned short threads_per_chunk = data->write_thread_clouds->nelements / write_chunks;
-		AtUInt32 threads = data->write_thread_clouds->nelements;
+		if (merge) {
+			unsigned short write_chunks = 1;
+			AtUInt32 threads = data->write_thread_clouds->nelements;
+			unsigned short threads_per_chunk = threads / write_chunks;
 
-		for (AtUInt32 i = 0; i < data->write_thread_clouds->nelements; i += threads_per_chunk) {
+			for (AtUInt32 i = 0; i < threads; i += threads_per_chunk) {
+				// Optimized write
+				photon_cloud_type compiled_cloud;
 
-			photon_cloud_type compiled_cloud;
+				for (int g = 0; (g < threads_per_chunk) && (i + g < threads); g++) {
+					AtUInt32 thread_ID = i + g;
+					photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
+					
+					if (cloud->size() > 0) {
+						photon_accellerator_type octree;
 
-			for (int g = 0; (g < threads_per_chunk) && (i + g < threads); g++) {
-				AtUInt32 thread_ID = i + g;
-				photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
+						AiMsgInfo("  Building octree for thread %d:", thread_ID);
+						size_t prev_size = compiled_cloud.size();
+
+						octree.build_for_culling(cloud, merge_radius, &compiled_cloud);
+						octree.destroy_structure();
+						AiMsgInfo("  %d -> %d kilophotons", cloud->size()/1000, (compiled_cloud.size() - prev_size)/1000);
+						AiMsgInfo("(%d mb of compiled photons)", (compiled_cloud.size() * sizeof(photon_type))/(1024*1024));
 				
-				if (cloud->size() > 0) {
-					photon_accellerator_type octree;
+						orig_photon_count += cloud->size();
 
-					AiMsgInfo("  Building octree for thread %d:", thread_ID);
-					size_t prev_size = compiled_cloud.size();
+						cloud->clear();
+						delete cloud;
+					}
+				}
 
-					octree.build_for_culling(cloud, merge_radius, &compiled_cloud);
-					octree.destroy_structure();
-					AiMsgInfo("  %d -> %d kilophotons", cloud->size()/1000, (compiled_cloud.size() - prev_size)/1000);
-					AiMsgInfo("(%d mb of compiled photons)", (compiled_cloud.size() * sizeof(photon_type))/(1024*1024));
-			
-					orig_photon_count += cloud->size();
+				if (compiled_cloud.size() > 0) {
+					if (remerge) {						
+						AiMsgWarning("Rereducing compiled photons:");
+						photon_cloud_type cloud_out;
+						photon_accellerator_type octree;
+						octree.build_for_culling(&compiled_cloud, merge_radius, &cloud_out);
+						octree.destroy_structure();
 
-					cloud->clear();
-					delete cloud;
+						AiMsgWarning("Rereduction: %d -> %d kilophotons", compiled_cloud.size()/1000, cloud_out.size()/1000);
+						outfile.write((const char*)&cloud_out.at(0), (file_int) sizeof(photon_type) * (file_int) cloud_out.size());
+						photon_count += cloud_out.size();
+					} else {
+						outfile.write((const char*)&compiled_cloud.at(0), (file_int) sizeof(photon_type) * (file_int) compiled_cloud.size());
+						photon_count += compiled_cloud.size();
+					}	
+
 				}
 			}
+		} else {
+			// Naive Write
+			AtUInt32 threads = data->write_thread_clouds->nelements;
 
-			AiMsgWarning("Rereducing compiled photons:");
-			photon_cloud_type cloud_out;
-			photon_accellerator_type octree;
-			octree.build_for_culling(&compiled_cloud, merge_radius, &cloud_out);
-			octree.destroy_structure();
+			for (AtUInt32 i = 0; i < threads; i += 1) { 
+				AtUInt32 thread_ID = i;
+				photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
 
-			AiMsgWarning("Rereduction: %d -> %d kilophotons", compiled_cloud.size()/1000, cloud_out.size()/1000);
-			outfile.write((const char*)&cloud_out.at(0), (file_int) sizeof(photon_type) * (file_int) cloud_out.size());
-			photon_count += cloud_out.size();
-			// if (cloud->size() > 0) {
-			// 	outfile.write((const char*)&cloud->at(0), (file_int) sizeof(photon_type) * (file_int) cloud->size());
-			// 	photon_count += cloud->size();		
-			// }
+				if (cloud->size() > 0) {
+					outfile.write((const char*)&cloud->at(0), (file_int) sizeof(photon_type) * (file_int) cloud->size());
+					photon_count += cloud->size();		
+				}
+			}
 
 		}
 
 		float cloud_mb = (float) (photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
 		float orig_cloud_mb = (float) (orig_photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
 		AiMsgInfo("Photon cloud: %f mb, %d kilophotons.", cloud_mb, photon_count/1000);
-		AiMsgInfo("Photon cloud: reduced from: %f mb, %d kilophotons.", orig_cloud_mb, photon_count/1000);
+		AiMsgInfo("Photon cloud: reduced from: %f mb, %d kilophotons.", orig_cloud_mb, orig_photon_count/1000);
 
 		outfile.close();
 		AiArrayDestroy(data->write_thread_clouds);
