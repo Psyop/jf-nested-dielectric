@@ -592,6 +592,8 @@ node_finish {
 			AtUInt32 threads = data->write_thread_clouds->nelements;
 			photon_cloud_type compiled_cloud;
 
+			AiMsgWarning("Reducing (merging) photons from subclouds:");
+
 			for (AtUInt32 i = 0; (i < threads) && (i < threads); i++) {
 				AtUInt32 thread_ID = i;
 				photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
@@ -622,7 +624,7 @@ node_finish {
 					octree.build_for_culling(&compiled_cloud, merge_radius, &cloud_out);
 					octree.destroy_structure();
 
-					AiMsgWarning("Rereduction: %d -> %d kilophotons", compiled_cloud.size()/1000, cloud_out.size()/1000);
+					AiMsgInfo("  %d -> %d kilophotons (rereduction)", compiled_cloud.size()/1000, cloud_out.size()/1000);
 					outfile.write((const char*)&cloud_out.at(0), (file_int) sizeof(photon_type) * (file_int) cloud_out.size());
 					photon_count += cloud_out.size();
 				} else {
@@ -648,9 +650,9 @@ node_finish {
 
 		float cloud_mb = (float) (photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
 		float orig_cloud_mb = (float) (orig_photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
-		AiMsgInfo("Photon cloud: %f mb, %d kilophotons.", cloud_mb, photon_count/1000);
+		AiMsgWarning("Photon cloud: %f mb, %d kilophotons.", cloud_mb, photon_count/1000);
 		if (merge) {
-			AiMsgInfo("Photon cloud: reduced from: %f mb, %d kilophotons.", orig_cloud_mb, orig_photon_count/1000);
+			AiMsgInfo("  reduced from: %f mb, %d kilophotons.", orig_cloud_mb, orig_photon_count/1000);
 		}
 
 		outfile.close();
