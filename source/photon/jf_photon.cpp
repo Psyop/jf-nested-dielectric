@@ -1,11 +1,14 @@
 #include <ai.h>
 
 
-#include <algorithm>
+
+
+//#include <algorithm>
 #include <fstream>
-#include <iterator>
+//#include <iterator>
 #include <vector>
-#include <map>
+//#include <map>
+//#include <cmath> 
 
 #include <ctime>
 //#include <Windows.h>
@@ -35,11 +38,21 @@ typedef struct photon_type{
 	AtColor energy;
 	AtVector pos;
 	AtUInt16 type;
+	// AtVector dir;
+	// float rl;
 } photon_type;
 
 typedef std::vector<photon_type> photon_cloud_type; // vector of photons with all the information a photon has
 
 typedef std::vector<size_t> photon_list_type; // a list of photons in a photon cloud
+
+
+
+float Log2( float n )  
+{  
+    // log(n)/log(2) is log2.  
+    return (float) (log( n ) / log( 2 ));  
+}
 
 
 typedef class photon_accellerator_type{
@@ -56,7 +69,13 @@ typedef class photon_accellerator_type{
 	photon_list_type * _photon_list;
 	photon_accellerator_type * _sub_accells[8];
 
+	photon_accellerator_type * _master_accell;
 	photon_cloud_type * _target_photon_cloud;
+
+public:
+	std::vector<photon_accellerator_type*> * all_nested_accells;
+	
+private:
 
 	void init() {
 		_photon_list = new photon_list_type;
@@ -139,7 +158,12 @@ typedef class photon_accellerator_type{
 		child->_max_recursion = _max_recursion;
 		child->_max_per_bucket = _max_per_bucket;
 		
+
 		child->_target_photon_cloud = _target_photon_cloud;
+		child->_master_accell = _master_accell;
+
+		child->all_nested_accells = all_nested_accells;
+		all_nested_accells->push_back(child);
 
 		for (unsigned char i = 0; i < 8; i++) {
 			child->_sub_accells[i] = NULL;
@@ -176,7 +200,67 @@ typedef class photon_accellerator_type{
 			_sub_accells[i]->build_structure();
 		}
 	}
+
+	void cull_photons_in_bucket(photon_accellerator_type * accell, float radius, photon_cloud_type * cloud_out) {
+		photon_list_type* photons = accell->_photon_list;
+		if (accell->_len < radius) {
+		// if (false) {
+			photon_type refr_conglom;
+			photon_type refl_conglom;
+			refr_conglom.energy = AI_RGB_BLACK;
+			refl_conglom.energy = AI_RGB_BLACK;
+			refr_conglom.pos = AI_V3_ZERO;
+			refl_conglom.pos = AI_V3_ZERO;
+
+			size_t refr_conglom_count = 0;
+			size_t refl_conglom_count = 0;
+
+			for(size_t i = 0; i != photons->size(); i++) {
+				photon_type * photon = &_target_photon_cloud->at( photons->at(i) );
+
+				if (photon->type == AI_RAY_REFRACTED) {
+					refr_conglom_count++;
+					refr_conglom.energy += photon->energy;
+					refr_conglom.pos += photon->pos;
+				} else if (photon->type == AI_RAY_REFLECTED || photon->type == AI_RAY_GLOSSY) {
+					refl_conglom_count++;
+					refl_conglom.energy += photon->energy;
+					refl_conglom.pos += photon->pos;
+				}
+			}
+
+			if (refr_conglom_count > 0) {
+				refr_conglom.pos /= (float) refr_conglom_count;
+				refr_conglom.type = AI_RAY_REFRACTED;
+				cloud_out->push_back(refr_conglom);
+			}
+			if (refl_conglom_count > 0) {
+				refl_conglom.pos /= (float) refl_conglom_count;
+				refl_conglom.type = AI_RAY_REFLECTED;
+				cloud_out->push_back(refl_conglom);
+			}
+		} else {
+			for(size_t i = 0; i != photons->size(); i++) {
+				photon_type * photon = &_target_photon_cloud->at( photons->at(i) );
+				cloud_out->push_back(*photon);
+			}
+		}
+
+
+
+	}
+
 public:
+	void cull_photons_in_all_buckets(float radius, photon_cloud_type * cloud_out) {
+		for (size_t i = 0; i < all_nested_accells->size(); i++) {
+			photon_accellerator_type * accell = all_nested_accells->at(i);
+			if (accell->_has_sub_accells == false) {
+				// AiMsgWarning("Culling photons in subAccell %d", i);
+				cull_photons_in_bucket(all_nested_accells->at(i), radius, cloud_out);			
+			}
+		}
+	}
+
 	void get_photons_in_radius(photon_list_type* photon_list_out, const AtVector* pos, float radius) {
 		if (!_has_sub_accells) {
 			photon_list_out->insert(photon_list_out->end(), _photon_list->begin(), _photon_list->end());
@@ -220,12 +304,17 @@ public:
 		// AiMsgWarning("Found %d photons in %d buckets, max %d", photon_count, boxes_count, max_depth);
 	}
 
-	void build(photon_cloud_type* photon_cloud, unsigned short max_per_bucket = 64, unsigned char max_nesting = 16) {
+	// void init_bounds(photon_cloud_type* photon_cloud, unsigned short max_per_bucket = 64, unsigned char max_nesting = 16) {
+	void init_bounds(photon_cloud_type* photon_cloud) {
 		_target_photon_cloud = photon_cloud;
-		_max_per_bucket = max_per_bucket;
-		_max_recursion = max_nesting;
+		// _max_per_bucket = max_per_bucket;
+		// _max_recursion = max_nesting;
 		_recursion_level = 0;
+		_master_accell = this;
+
 		init();
+
+		all_nested_accells = new std::vector<photon_accellerator_type*>;
 
 		AtVector measured_bounds_n = AI_V3_ZERO;
 		AtVector measured_bounds_p = AI_V3_ZERO;
@@ -256,9 +345,33 @@ public:
 
 		_len = std::max(std::max(dim.x, dim.y), dim.z);
 		bounds_n = measured_bounds_n;
+	}
 
+	void build_for_culling(photon_cloud_type* photon_cloud, float radius, photon_cloud_type * cloud_out) {
+		// _max_per_bucket = 64;
+		// _max_recursion = 16;
+
+		init_bounds(photon_cloud);
+
+		size_t subdivisions = (int) (Log2(_len/radius) + 3.0f);
+		AiMsgWarning("Subd: %d, for %f sized boxes.", subdivisions, _len/radius);
+		_max_per_bucket = 1;
+		_max_recursion = subdivisions;
+		build_structure();
+
+		AiMsgWarning("  Done building, %d sub-structures", all_nested_accells->size());
+
+		cull_photons_in_all_buckets(radius, cloud_out);
+		
+	}
+
+	void build(photon_cloud_type* photon_cloud, unsigned short max_per_bucket = 64, unsigned char max_nesting = 16) {
+		_max_per_bucket = max_per_bucket;
+		_max_recursion = max_nesting;
+		init_bounds(photon_cloud);
 		build_structure();
 	}
+
 	void destroy_structure() {
 		for (unsigned char i = 0; i < 8; i++) {
 			if (_sub_accells[i] != NULL) {
@@ -269,6 +382,9 @@ public:
 		if (_photon_list != NULL) {
 			delete _photon_list;
 		}
+		// if (all_nested_accells != NULL) {
+		// 	delete all_nested_accells;
+		// }
 	}
 } photon_accellerator_type;
 
@@ -307,6 +423,7 @@ struct ShaderData{
 enum jf_photonParams {
 	p_mode,
 	p_file_path,
+	p_write_merge_radius,
 	p_read_radius,
 	p_diffuse_color,
 	p_exposure,
@@ -317,6 +434,7 @@ enum jf_photonParams {
 node_parameters {
 	AiParameterEnum("mode", m_read, enum_modes);
 	AiParameterStr("file_path", "");
+	AiParameterFlt("write_merge_radius", 0.005f);
 	AiParameterFlt("read_radius", 0.1f);
 	AiParameterRGB("diffuse_color", 0.7f, 0.7f, 0.7f);
 	AiParameterFlt("exposure", 0.0f);
@@ -357,23 +475,21 @@ node_initialize {
 		}
 		
 		infile.seekg (0, infile.end);
-		unsigned int length = infile.tellg();
+		size_t length = infile.tellg();
 
-		unsigned int photon_size = sizeof(photon_type);
-		unsigned int num_photons = length/photon_size;
-		unsigned int mb = 1024 * 1024;
-		unsigned int chunk_size = (128 * mb) ;
-		unsigned int num_photons_in_chunk = (chunk_size / photon_size) + 1;
+		size_t photon_size = sizeof(photon_type);
+		size_t num_photons = length/photon_size;
+		size_t mb = 1024 * 1024;
+		size_t chunk_size = (128 * mb) ;
+		size_t num_photons_in_chunk = (chunk_size / photon_size) + 1;
 		chunk_size = photon_size * num_photons_in_chunk; //No remainders here, please. 
-
-		AiMsgInfo("Reading %d mb, %d photons.", length/mb, num_photons);
 
 		data->read_cloud = new photon_cloud_type;
 		photon_cloud_type * v_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
 
 		for (unsigned int i = 0; i < length; i+= chunk_size) {
 			unsigned int read_bytes = std::min(length - i, chunk_size);
-			unsigned int  read_photons = read_bytes / photon_size;
+			unsigned int read_photons = read_bytes / photon_size;
 
 			infile.seekg (i, infile.beg);
 			AiMsgWarning("Reading %d mb chunk, containing %d photons.", (int) read_bytes/mb, read_photons);
@@ -452,17 +568,34 @@ node_finish {
 			return;
 		}
 
+		float merge_radius = AiNodeGetFlt(node, "write_merge_radius");
+
 		size_t photon_count = 0;
+
 		for (AtUInt32 i = 0; i < data->write_thread_clouds->nelements; i++) {
 			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, i));
 
-			if (cloud->size() > 0) {				
-				outfile.write((const char*)&cloud->at(0), sizeof(photon_type) * cloud->size());
-				photon_count += cloud->size();
+			if (cloud->size() > 0) {
+				photon_accellerator_type octree;
+				photon_cloud_type cloud_out;
+				AiMsgWarning("Building octree for thread %d:", i);
+				octree.build_for_culling(cloud, merge_radius, &cloud_out);
+				octree.destroy_structure();
+				AiMsgWarning("  %d -> %d reductions", cloud->size(), cloud_out.size());
+
+		
+				outfile.write((const char*)&cloud_out.at(0), (unsigned long long) sizeof(photon_type) * (unsigned long long) cloud_out.size());
+				photon_count += cloud_out.size();
 			}
 
+
+			// if (cloud->size() > 0) {
+			// 	outfile.write((const char*)&cloud->at(0), (unsigned long long) sizeof(photon_type) * (unsigned long long) cloud->size());
+			// 	photon_count += cloud->size();		
+			// }
+
 			cloud->clear();
-			delete cloud;			
+			delete cloud;
 		}
 
 		float cloud_mb = (float) (photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
@@ -498,10 +631,12 @@ shader_evaluate {
 			photon_type photon = {photon_energy, sg->P, sg->Rt};
 			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, sg->tid));
 			cloud->push_back(photon);
+			sg->out.RGB = photon_energy;
+			sg->out.RGBA.a = 1.0f;
+		} else {
+			sg->out.RGBA = AI_RGBA_RED / 5;
 		}
-		sg->out.RGBA = AI_RGBA_RED;
-	}
-	
+	}	
 
 	if (mode == m_read || mode == m_read_visualize) { 
 		float radius = AiShaderEvalParamFlt(p_read_radius);
@@ -541,7 +676,6 @@ shader_evaluate {
 		} else if (mode == m_read_visualize) {
 			photon_list_type photon_IDs;
 			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, &sg->P, radius);
-			// photon_list_type photon_IDs = data->read_cloud_accelerator->get_photons(sg->P, radius);
 			float out_value = ((float) photon_IDs.size() / 300.0f);
 			sg->out.RGBA = AI_RGBA_WHITE * out_value;
 			sg->out.RGBA.a = 1.0f;

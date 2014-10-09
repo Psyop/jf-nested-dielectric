@@ -96,8 +96,15 @@ Data structure accelleration:
 	changed filtering to avoid a sqrt: 37 s
 	removed the minor optimization and got to 35s
 
+
+
 	# Pass a pointer to not copy the lists so much
 	# 	evaluate speedup
 	Put photons into data structure container for contiguous memory reads
 		evaluate speedup
 
+
+
+reduce:
+	309mb, 1:10 to build and write
+	160mb, 1:27 to build and build octrees and write
