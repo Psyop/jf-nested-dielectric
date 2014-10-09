@@ -57,342 +57,354 @@ float Log2( float n )
 
 
 typedef class photon_accellerator_type{
-	AtVector bounds_n; //bounds_n + {_len, _len, _len} is the positive bounds
-	float _len;
+		AtVector bounds_n; //bounds_n + {_len, _len, _len} is the positive bounds
+		float _len;
 
-	bool _has_sub_accells;
-	unsigned char _recursion_level;
-	unsigned char _max_recursion;
-	unsigned short _max_per_bucket;
-	// size_t _octant;
+		bool _has_sub_accells;
+		unsigned char _recursion_level;
+		unsigned char _max_recursion;
+		unsigned short _photons_per_bucket_hint;
+		// size_t _octant;
 
-	photon_list_type * _photon_list;
-	photon_accellerator_type * _sub_accells[8];
+		photon_list_type * _photon_list;
+		photon_accellerator_type * _sub_accells[8];
 
-	photon_accellerator_type * _master_accell;
-	photon_cloud_type * _target_photon_cloud;
+		photon_accellerator_type * _master_accell;
+		photon_cloud_type * _target_photon_cloud;
 
-public:
-	std::vector<photon_accellerator_type*> * all_nested_accells;
+	public:
+		std::vector<photon_accellerator_type*> * all_nested_accells;
 	
-private:
-	void init() {
-		_photon_list = new photon_list_type;
-	}
-
-
-	void set_bounds(unsigned char octant, AtVector par_bounds_n, float par_len) {
-		/*    0 means negative, 1 means positive
-		 * 0: 000
-		 * 1: 001
-		 * 2: 010
-		 * 3: 011
-		 * 4: 100
-		 * 5: 101
-		 * 6: 110
-		 * 7: 111
-		*/
-		float half_len = par_len/2.0f;
-		AtVector offset_vector = {half_len, half_len, half_len};
-		bool neg_x = octant % 2 == 0; //0, 2, 4
-		bool neg_y = (octant/2) % 2 == 0; //0, 1, 4, 5
-		bool neg_z = octant < 4;
-
-		bounds_n = par_bounds_n;
-		if (!neg_x) {
-			bounds_n.x += half_len;
-		}
-		if (!neg_y) {
-			bounds_n.y += half_len;
-		}
-		if (!neg_z) {
-			bounds_n.z += half_len;
-		}
-		_len = half_len;
-	}
-
-
-	bool within_bounds(AtVector photon_pos) {
-		AtVector offset = {_len, _len, _len};
-		AtVector bounds_p = bounds_n + offset;
-		if (photon_pos.x >= bounds_n.x && 
-			photon_pos.y >= bounds_n.y && 
-			photon_pos.z >= bounds_n.z &&
-			photon_pos.x < bounds_p.x &&
-			photon_pos.y < bounds_p.y &&
-			photon_pos.z < bounds_p.z
-			) {
-			return true;
-		}
-		return false;
-	}
-
-
-	bool within_range(const AtVector* photon_pos, float radius) {		
-		AtVector offset = {_len, _len, _len};
-		AtVector bounds_p = bounds_n + offset;
-		if (photon_pos->x + radius > bounds_n.x && 
-			photon_pos->y + radius > bounds_n.y && 
-			photon_pos->z + radius > bounds_n.z &&
-			photon_pos->x - radius < bounds_p.x &&
-			photon_pos->y - radius < bounds_p.y &&
-			photon_pos->z - radius < bounds_p.z
-			) {
-			return true;
-		}
-		return false;
-	}
-
-
-	void add_ID_to_bucket(size_t ID) {
-		_photon_list->push_back(ID);
-	}
-
-
-	void initialize_child(photon_accellerator_type * child, unsigned char octant) {
-		child->init();
-		child->set_bounds(octant, bounds_n, _len); //will set _pos, bounds_n and bounds_p
-
-		// child->_octant = octant;
-		child->_has_sub_accells = false;
-		child->_recursion_level = _recursion_level + 1;
-		child->_max_recursion = _max_recursion;
-		child->_max_per_bucket = _max_per_bucket;
-		
-
-		child->_target_photon_cloud = _target_photon_cloud;
-		child->_master_accell = _master_accell;
-
-		child->all_nested_accells = all_nested_accells;
-		all_nested_accells->push_back(child);
-
-		for (unsigned char i = 0; i < 8; i++) {
-			child->_sub_accells[i] = NULL;
-		}
-	}
-
-
-	void build_structure() {
-		if (_photon_list->size() < _max_per_bucket || _recursion_level >= _max_recursion) {
-			// Stop building. Either we're divided enough, or we're at our max recursion depth. 
-			return;
-		}
-		// make 8 children and initialize them
-		for (unsigned char i = 0; i < 8; i++) {
-			_sub_accells[i] = new photon_accellerator_type;
-			initialize_child(_sub_accells[i], i);
+	private:
+		void init() {
+			_photon_list = new photon_list_type;
 		}
 
-		// distribute points
-		for(size_t i = 0; i != _photon_list->size(); i++) {
-			size_t photon_ID = _photon_list->at(i);
+
+		void set_bounds(unsigned char octant, AtVector par_bounds_n, float par_len) {
+			/*    0 means negative, 1 means positive
+			 * 0: 000
+			 * 1: 001
+			 * 2: 010
+			 * 3: 011
+			 * 4: 100
+			 * 5: 101
+			 * 6: 110
+			 * 7: 111
+			*/
+			float half_len = par_len/2.0f;
+			AtVector offset_vector = {half_len, half_len, half_len};
+			bool neg_x = octant % 2 == 0; //0, 2, 4
+			bool neg_y = (octant/2) % 2 == 0; //0, 1, 4, 5
+			bool neg_z = octant < 4;
+
+			bounds_n = par_bounds_n;
+			if (!neg_x) {
+				bounds_n.x += half_len;
+			}
+			if (!neg_y) {
+				bounds_n.y += half_len;
+			}
+			if (!neg_z) {
+				bounds_n.z += half_len;
+			}
+			_len = half_len;
+		}
+
+
+		bool within_bounds(AtVector photon_pos) {
+			AtVector offset = {_len, _len, _len};
+			AtVector bounds_p = bounds_n + offset;
+			if (photon_pos.x >= bounds_n.x && 
+				photon_pos.y >= bounds_n.y && 
+				photon_pos.z >= bounds_n.z &&
+				photon_pos.x < bounds_p.x &&
+				photon_pos.y < bounds_p.y &&
+				photon_pos.z < bounds_p.z
+				) {
+				return true;
+			}
+			return false;
+		}
+
+
+		bool within_range(const AtVector* photon_pos, float radius) {		
+			AtVector offset = {_len, _len, _len};
+			AtVector bounds_p = bounds_n + offset;
+			if (photon_pos->x + radius > bounds_n.x && 
+				photon_pos->y + radius > bounds_n.y && 
+				photon_pos->z + radius > bounds_n.z &&
+				photon_pos->x - radius < bounds_p.x &&
+				photon_pos->y - radius < bounds_p.y &&
+				photon_pos->z - radius < bounds_p.z
+				) {
+				return true;
+			}
+			return false;
+		}
+
+
+		void add_ID_to_bucket(size_t ID) {
+			_photon_list->push_back(ID);
+		}
+
+
+		void initialize_child(photon_accellerator_type * child, unsigned char octant) {
+			child->init();
+			child->set_bounds(octant, bounds_n, _len); //will set _pos, bounds_n and bounds_p
+
+			// child->_octant = octant;
+			child->_has_sub_accells = false;
+			child->_recursion_level = _recursion_level + 1;
+			child->_max_recursion = _max_recursion;
+			child->_photons_per_bucket_hint = _photons_per_bucket_hint;
+			
+
+			child->_target_photon_cloud = _target_photon_cloud;
+			child->_master_accell = _master_accell;
+
+			child->all_nested_accells = all_nested_accells;
+			all_nested_accells->push_back(child);
+
 			for (unsigned char i = 0; i < 8; i++) {
-				AtVector photon_position = _target_photon_cloud->at(photon_ID).pos;
-				if (_sub_accells[i]->within_bounds(photon_position)) {
-					_sub_accells[i]->add_ID_to_bucket(photon_ID);
-					break;
-				}
-			}
-		}
-		_has_sub_accells = true;
-		delete _photon_list;
-		_photon_list = NULL;
-		for (unsigned char i = 0; i < 8; i++) {
-			_sub_accells[i]->build_structure();
-		}
-	}
-
-
-	void cull_photons_in_bucket(photon_accellerator_type * accell, float radius, photon_cloud_type * cloud_out) {
-		photon_list_type* photons = accell->_photon_list;
-		if (accell->_len < radius) {
-		// if (false) {
-			photon_type refr_conglom;
-			photon_type refl_conglom;
-			refr_conglom.energy = AI_RGB_BLACK;
-			refl_conglom.energy = AI_RGB_BLACK;
-			refr_conglom.pos = AI_V3_ZERO;
-			refl_conglom.pos = AI_V3_ZERO;
-
-			size_t refr_conglom_count = 0;
-			size_t refl_conglom_count = 0;
-
-			for(size_t i = 0; i != photons->size(); i++) {
-				photon_type * photon = &_target_photon_cloud->at( photons->at(i) );
-
-				if (photon->type == AI_RAY_REFRACTED) {
-					refr_conglom_count++;
-					refr_conglom.energy += photon->energy;
-					refr_conglom.pos += photon->pos;
-				} else if (photon->type == AI_RAY_REFLECTED || photon->type == AI_RAY_GLOSSY) {
-					refl_conglom_count++;
-					refl_conglom.energy += photon->energy;
-					refl_conglom.pos += photon->pos;
-				}
-			}
-
-			if (refr_conglom_count > 0) {
-				refr_conglom.pos /= (float) refr_conglom_count;
-				refr_conglom.type = AI_RAY_REFRACTED;
-				cloud_out->push_back(refr_conglom);
-			}
-			if (refl_conglom_count > 0) {
-				refl_conglom.pos /= (float) refl_conglom_count;
-				refl_conglom.type = AI_RAY_REFLECTED;
-				cloud_out->push_back(refl_conglom);
-			}
-		} else {
-			for(size_t i = 0; i != photons->size(); i++) {
-				photon_type * photon = &_target_photon_cloud->at( photons->at(i) );
-				cloud_out->push_back(*photon);
-			}
-		}
-	}
-
-public:
-	void cull_photons_in_all_buckets(float radius, photon_cloud_type * cloud_out) {
-		for (size_t i = 0; i < all_nested_accells->size(); i++) {
-			photon_accellerator_type * accell = all_nested_accells->at(i);
-			if (accell->_has_sub_accells == false) {
-				// AiMsgWarning("Culling photons in subAccell %d", i);
-				cull_photons_in_bucket(all_nested_accells->at(i), radius, cloud_out);			
-			}
-		}
-	}
-
-
-	void get_photons_in_radius(photon_list_type* photon_list_out, const AtVector* pos, float radius) {
-		if (!_has_sub_accells) {
-			photon_list_out->insert(photon_list_out->end(), _photon_list->begin(), _photon_list->end());
-			return;
-		}
-
-		photon_accellerator_type * s_sub_accell = _sub_accells[0];
-		std::vector<photon_accellerator_type *> accells_to_search;
-
-		for (unsigned char i = 0; i < 8; i++) {
-			if( _sub_accells[i]->within_range(pos, radius)) {
-				accells_to_search.push_back(_sub_accells[i]);
+				child->_sub_accells[i] = NULL;
 			}
 		}
 
-		while (accells_to_search.size() > 0) {
-			std::vector<photon_accellerator_type *> s_accells = accells_to_search;
-			accells_to_search.clear();
-			for (size_t i = 0; i < s_accells.size(); i++) {
 
-				photon_accellerator_type* sub_accell = s_accells[i];
+		void build_structure() {
+			if (_photon_list->size() < _photons_per_bucket_hint || _recursion_level >= _max_recursion) {
+				// Stop building. Either we're divided enough, or we're at our max recursion depth. 
+				return;
+			}
+			// make 8 children and initialize them
+			for (unsigned char i = 0; i < 8; i++) {
+				_sub_accells[i] = new photon_accellerator_type;
+				initialize_child(_sub_accells[i], i);
+			}
 
-				if (sub_accell->_has_sub_accells) {
-					// no points here, add sub accels to accells_to_search
-					for (unsigned char g = 0; g < 8; g++) {
-						if (sub_accell->_sub_accells[g]->within_range(pos, radius)) {
-							accells_to_search.push_back(sub_accell->_sub_accells[g]);
-						}
+			// distribute points
+			for(size_t i = 0; i != _photon_list->size(); i++) {
+				size_t photon_ID = _photon_list->at(i);
+				for (unsigned char i = 0; i < 8; i++) {
+					AtVector photon_position = _target_photon_cloud->at(photon_ID).pos;
+					if (_sub_accells[i]->within_bounds(photon_position)) {
+						_sub_accells[i]->add_ID_to_bucket(photon_ID);
+						break;
 					}
-				} else {
-					// We have found points. 
+				}
+			}
+			_has_sub_accells = true;
+			delete _photon_list;
+			_photon_list = NULL;
+			for (unsigned char i = 0; i < 8; i++) {
+				_sub_accells[i]->build_structure();
+			}
+		}
 
-					// boxes_count++;
-					// photon_count += sub_accell->_photon_list->size();
-					// max_depth = max( sub_accell->_recursion_level, max_depth);
 
-					photon_list_out->insert(photon_list_out->end(), s_accells[i]->_photon_list->begin(), s_accells[i]->_photon_list->end());
+		void cull_photons_in_bucket(photon_accellerator_type * accell, float radius, photon_cloud_type * cloud_out) {
+			photon_list_type* photons = accell->_photon_list;
+			if (accell->_len < radius) {
+			// if (false) {
+				photon_type refr_conglom;
+				photon_type refl_conglom;
+				refr_conglom.energy = AI_RGB_BLACK;
+				refl_conglom.energy = AI_RGB_BLACK;
+				refr_conglom.pos = AI_V3_ZERO;
+				refl_conglom.pos = AI_V3_ZERO;
+
+				size_t refr_conglom_count = 0;
+				size_t refl_conglom_count = 0;
+
+				for(size_t i = 0; i != photons->size(); i++) {
+					photon_type * photon = &_target_photon_cloud->at( photons->at(i) );
+
+					if (photon->type == AI_RAY_REFRACTED) {
+						refr_conglom_count++;
+						refr_conglom.energy += photon->energy;
+						refr_conglom.pos += photon->pos;
+					} else if (photon->type == AI_RAY_REFLECTED || photon->type == AI_RAY_GLOSSY) {
+						refl_conglom_count++;
+						refl_conglom.energy += photon->energy;
+						refl_conglom.pos += photon->pos;
+					}
+				}
+
+				if (refr_conglom_count > 0) {
+					refr_conglom.pos /= (float) refr_conglom_count;
+					refr_conglom.type = AI_RAY_REFRACTED;
+					cloud_out->push_back(refr_conglom);
+				}
+				if (refl_conglom_count > 0) {
+					refl_conglom.pos /= (float) refl_conglom_count;
+					refl_conglom.type = AI_RAY_REFLECTED;
+					cloud_out->push_back(refl_conglom);
+				}
+			} else {
+				for(size_t i = 0; i != photons->size(); i++) {
+					photon_type * photon = &_target_photon_cloud->at( photons->at(i) );
+					cloud_out->push_back(*photon);
 				}
 			}
 		}
-		// AiMsgWarning("Found %d photons in %d buckets, max %d", photon_count, boxes_count, max_depth);
-	}
 
-
-	void init_bounds(photon_cloud_type* photon_cloud) {
-		_target_photon_cloud = photon_cloud;
-		// _max_per_bucket = max_per_bucket;
-		// _max_recursion = max_nesting;
-		_recursion_level = 0;
-		_master_accell = this;
-
-		init();
-
-		all_nested_accells = new std::vector<photon_accellerator_type*>;
-
-		AtVector measured_bounds_n = AI_V3_ZERO;
-		AtVector measured_bounds_p = AI_V3_ZERO;
-
-		for(size_t i = 0; i != _target_photon_cloud->size(); i++) {
-			_photon_list->push_back(i);
-			photon_type * photon = &_target_photon_cloud->at(i);
-			if (i == 0) {
-				measured_bounds_n = photon->pos;
-				measured_bounds_p = photon->pos;
-			} else {
-				if (measured_bounds_n.x > photon->pos.x)
-					measured_bounds_n.x = photon->pos.x;
-				if (measured_bounds_n.y > photon->pos.y)
-					measured_bounds_n.y = photon->pos.y;
-				if (measured_bounds_n.z > photon->pos.z)
-					measured_bounds_n.z = photon->pos.z;
-
-				if (measured_bounds_p.x < photon->pos.x)
-					measured_bounds_p.x = photon->pos.x;
-				if (measured_bounds_p.y < photon->pos.y)
-					measured_bounds_p.y = photon->pos.y;
-				if (measured_bounds_p.z < photon->pos.z)
-					measured_bounds_p.z = photon->pos.z;
+	public:
+		void cull_photons_in_all_buckets(float radius, photon_cloud_type * cloud_out) {
+			for (size_t i = 0; i < all_nested_accells->size(); i++) {
+				photon_accellerator_type * accell = all_nested_accells->at(i);
+				if (accell->_has_sub_accells == false) {
+					// AiMsgWarning("Culling photons in subAccell %d", i);
+					cull_photons_in_bucket(all_nested_accells->at(i), radius, cloud_out);			
+				}
 			}
 		}
-		AtVector dim = measured_bounds_p - measured_bounds_n;
-
-		_len = std::max(std::max(dim.x, dim.y), dim.z);
-		bounds_n = measured_bounds_n;
-	}
 
 
-	void build_for_culling(photon_cloud_type* photon_cloud, float radius, photon_cloud_type * cloud_out) {
-		init_bounds(photon_cloud);
-
-		int subdivisions = (int) (Log2(_len/radius) + 0.5f);
-		subdivisions = std::min(subdivisions, 16);
-
-		_max_per_bucket = 1;
-		_max_recursion = (unsigned char) subdivisions;
-		build_structure();
-
-		AiMsgWarning("  %d sub-structures. 2^%d division. ", all_nested_accells->size(), subdivisions);
-
-		cull_photons_in_all_buckets(radius, cloud_out);		
-	}
-
-
-	void build(photon_cloud_type* photon_cloud, float radius_hint, unsigned short max_per_bucket = 64, unsigned short max_nesting = 16) {
-		init_bounds(photon_cloud);
-
-		unsigned short subdivisions_hint = (int) (Log2(_len/radius_hint) + 2.0f);
-		unsigned short subdivisions = std::min(subdivisions_hint, max_per_bucket);
-
-		_max_per_bucket = 1;
-		_max_recursion = (unsigned char) subdivisions;
-		build_structure();
-
-		AiMsgInfo("  %d sub-structures. 2^%d divisions (optimized for radius %f). ", all_nested_accells->size(), subdivisions, radius_hint);
-	}
-
-
-	void destroy_structure() {
-		for (unsigned char i = 0; i < 8; i++) {
-			if (_sub_accells[i] != NULL) {
-				_sub_accells[i]->destroy_structure();
-				delete _sub_accells[i];
+		void get_photons_in_radius(photon_list_type* photon_list_out, const AtVector* pos, float radius) {
+			if (!_has_sub_accells) {
+				photon_list_out->insert(
+					photon_list_out->end(), 
+					_photon_list->begin(), 
+					_photon_list->end()
+					);
+				return;
 			}
+
+			photon_accellerator_type * s_sub_accell = _sub_accells[0];
+			std::vector<photon_accellerator_type *> accells_to_search;
+
+			for (unsigned char i = 0; i < 8; i++) {
+				if( _sub_accells[i]->within_range(pos, radius)) {
+					accells_to_search.push_back(_sub_accells[i]);
+				}
+			}
+
+			while (accells_to_search.size() > 0) {
+				std::vector<photon_accellerator_type *> s_accells = accells_to_search;
+				accells_to_search.clear();
+				for (size_t i = 0; i < s_accells.size(); i++) {
+
+					photon_accellerator_type* sub_accell = s_accells[i];
+
+					if (sub_accell->_has_sub_accells) {
+						// no points here, add sub accels to accells_to_search
+						for (unsigned char g = 0; g < 8; g++) {
+							if (sub_accell->_sub_accells[g]->within_range(pos, radius)) {
+								accells_to_search.push_back(sub_accell->_sub_accells[g]);
+							}
+						}
+					} else {
+						// We have found points. 
+
+						// boxes_count++;
+						// photon_count += sub_accell->_photon_list->size();
+						// max_depth = max( sub_accell->_recursion_level, max_depth);
+
+						photon_list_out->insert(
+							photon_list_out->end(), 
+							s_accells[i]->_photon_list->begin(), 
+							s_accells[i]->_photon_list->end()
+							);
+					}
+				}
+			}
+			// AiMsgWarning("Found %d photons in %d buckets, max %d", photon_count, boxes_count, max_depth);
 		}
-		if (_photon_list != NULL) {
-			delete _photon_list;
+
+
+		void init_bounds(photon_cloud_type* photon_cloud) {
+			_target_photon_cloud = photon_cloud;
+			// _photons_per_bucket_hint = max_per_bucket;
+			// _max_recursion = max_nesting;
+			_recursion_level = 0;
+			_master_accell = this;
+
+			init();
+
+			all_nested_accells = new std::vector<photon_accellerator_type*>;
+
+			AtVector measured_bounds_n = AI_V3_ZERO;
+			AtVector measured_bounds_p = AI_V3_ZERO;
+
+			for(size_t i = 0; i != _target_photon_cloud->size(); i++) {
+				_photon_list->push_back(i);
+				photon_type * photon = &_target_photon_cloud->at(i);
+				if (i == 0) {
+					measured_bounds_n = photon->pos;
+					measured_bounds_p = photon->pos;
+				} else {
+					if (measured_bounds_n.x > photon->pos.x)
+						measured_bounds_n.x = photon->pos.x;
+					if (measured_bounds_n.y > photon->pos.y)
+						measured_bounds_n.y = photon->pos.y;
+					if (measured_bounds_n.z > photon->pos.z)
+						measured_bounds_n.z = photon->pos.z;
+
+					if (measured_bounds_p.x < photon->pos.x)
+						measured_bounds_p.x = photon->pos.x;
+					if (measured_bounds_p.y < photon->pos.y)
+						measured_bounds_p.y = photon->pos.y;
+					if (measured_bounds_p.z < photon->pos.z)
+						measured_bounds_p.z = photon->pos.z;
+				}
+			}
+			AtVector dim = measured_bounds_p - measured_bounds_n;
+
+			_len = std::max(std::max(dim.x, dim.y), dim.z);
+			bounds_n = measured_bounds_n;
 		}
-		// if (all_nested_accells != NULL) {
-		// 	delete all_nested_accells;
-		// }
-	}
-	
+
+
+		void build_for_culling(photon_cloud_type* photon_cloud, float radius, photon_cloud_type * cloud_out) {
+			init_bounds(photon_cloud);
+
+			int subdivisions = (int) (Log2(_len/radius) + 2.0f);
+			subdivisions = std::min(subdivisions, 14);
+
+			_photons_per_bucket_hint = 1;
+			_max_recursion = (unsigned char) subdivisions;
+			build_structure();
+
+			AiMsgInfo("  %d kilo-substructures. 8^%d max division. ", 
+				all_nested_accells->size()/1000, subdivisions);
+
+			cull_photons_in_all_buckets(radius, cloud_out);		
+		}
+
+
+		void build(photon_cloud_type* photon_cloud, float radius_hint) {
+			unsigned short photons_per_bucket_hint = 32;
+			unsigned short max_nesting = 11;
+
+			init_bounds(photon_cloud);
+
+			unsigned short subdivisions_hint = (int) (Log2(_len/radius_hint) - 2.0f);
+			unsigned short subdivisions = std::min(subdivisions_hint, max_nesting);
+
+			_photons_per_bucket_hint = photons_per_bucket_hint;
+			_max_recursion = (unsigned char) subdivisions;
+			build_structure();
+
+			AiMsgInfo("  %d  kilo-substructures. 8^%d max divisions (optimized for radius %f). ", 
+				all_nested_accells->size()/1000, subdivisions, radius_hint);
+		}
+
+
+		void destroy_structure() {
+			for (unsigned char i = 0; i < 8; i++) {
+				if (_sub_accells[i] != NULL) {
+					_sub_accells[i]->destroy_structure();
+					delete _sub_accells[i];
+				}
+			}
+			if (_photon_list != NULL) {
+				delete _photon_list;
+			}
+			// if (all_nested_accells != NULL) {
+			// 	delete all_nested_accells;
+			// }
+		}
 } photon_accellerator_type;
 
 
@@ -572,47 +584,68 @@ node_finish {
 
 		size_t photon_count = 0;
 		size_t orig_photon_count = 0;
-		for (AtUInt32 i = 0; i < data->write_thread_clouds->nelements; i++) {
-			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, i));
 
-			if (cloud->size() > 0) {
-				photon_accellerator_type octree;
-				photon_cloud_type cloud_out;
-				AiMsgInfo("Building octree for thread %d:", i);
-				octree.build_for_culling(cloud, merge_radius, &cloud_out);
-				octree.destroy_structure();
-				AiMsgInfo("  %d -> %d reduction", cloud->size(), cloud_out.size());
-		
-				outfile.write((const char*)&cloud_out.at(0), (file_int) sizeof(photon_type) * (file_int) cloud_out.size());
-				photon_count += cloud_out.size();
-				orig_photon_count += cloud->size();
+		unsigned short write_chunks = 1;
+		unsigned short threads_per_chunk = data->write_thread_clouds->nelements / write_chunks;
+		AtUInt32 threads = data->write_thread_clouds->nelements;
+
+		for (AtUInt32 i = 0; i < data->write_thread_clouds->nelements; i += threads_per_chunk) {
+
+			photon_cloud_type compiled_cloud;
+
+			for (int g = 0; (g < threads_per_chunk) && (i + g < threads); g++) {
+				AtUInt32 thread_ID = i + g;
+				photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
+				
+				if (cloud->size() > 0) {
+					photon_accellerator_type octree;
+
+					AiMsgInfo("  Building octree for thread %d:", thread_ID);
+					size_t prev_size = compiled_cloud.size();
+
+					octree.build_for_culling(cloud, merge_radius, &compiled_cloud);
+					octree.destroy_structure();
+					AiMsgInfo("  %d -> %d kilophotons", cloud->size()/1000, (compiled_cloud.size() - prev_size)/1000);
+					AiMsgInfo("(%d mb of compiled photons)", (compiled_cloud.size() * sizeof(photon_type))/(1024*1024));
+			
+					orig_photon_count += cloud->size();
+
+					cloud->clear();
+					delete cloud;
+				}
 			}
+
+			AiMsgWarning("Rereducing compiled photons:");
+			photon_cloud_type cloud_out;
+			photon_accellerator_type octree;
+			octree.build_for_culling(&compiled_cloud, merge_radius, &cloud_out);
+			octree.destroy_structure();
+
+			AiMsgWarning("Rereduction: %d -> %d kilophotons", compiled_cloud.size()/1000, cloud_out.size()/1000);
+			outfile.write((const char*)&cloud_out.at(0), (file_int) sizeof(photon_type) * (file_int) cloud_out.size());
+			photon_count += cloud_out.size();
 			// if (cloud->size() > 0) {
 			// 	outfile.write((const char*)&cloud->at(0), (file_int) sizeof(photon_type) * (file_int) cloud->size());
 			// 	photon_count += cloud->size();		
 			// }
 
-			cloud->clear();
-			delete cloud;
 		}
 
 		float cloud_mb = (float) (photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
 		float orig_cloud_mb = (float) (orig_photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
 		AiMsgInfo("Photon cloud: %f mb, %d kilophotons.", cloud_mb, photon_count/1000);
-		AiMsgInfo("Photon cloud: reduced from: %f mb, %d kilophotons.", orig_cloud_mb, photon_count);
+		AiMsgInfo("Photon cloud: reduced from: %f mb, %d kilophotons.", orig_cloud_mb, photon_count/1000);
 
 		outfile.close();
 		AiArrayDestroy(data->write_thread_clouds);
 	}
 
 	if ((mode == m_read || mode == m_read_visualize)) {
-		AiMsgWarning("Deleting...");
+		AiMsgWarning("Photon Octree: Destroying...");
 		data->read_cloud_accelerator->destroy_structure();
-		AiMsgWarning("Destoryed accel structure. Deleting read_cloud:");
 		delete data->read_cloud_accelerator;
-		AiMsgWarning("Deleted read accell.");
+		AiMsgWarning("Photon Cloud: Destroying...");
 		delete data->read_cloud;
-		AiMsgWarning("Deleted read cloud.");
 	}
 
 	delete data;
