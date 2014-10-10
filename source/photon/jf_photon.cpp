@@ -49,7 +49,7 @@ typedef unsigned long long file_int;
 float Log2( float n )  
 {  
     // log(n)/log(2) is log2.  
-    return (float) (log( n ) / log( 2 ));  
+    return (float) (log( n ) / log( 2.0f ));  
 }
 
 
