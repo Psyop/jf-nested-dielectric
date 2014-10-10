@@ -217,6 +217,7 @@ node_update
 {
 	// AiBegin();
 	// AiEnd();
+	AtNode* render_options = AiUniverseGetOptions();
 
 	ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
 	AiSamplerDestroy(data->dispersion_sampler);
@@ -224,15 +225,21 @@ node_update
 	AiSamplerDestroy(data->refraction_sampler);
 	AiSamplerDestroy(data->russian_roullete_single_sampler);
 
-	data->dispersion_sampler = AiSamplerSeeded( base_sampler_seed + 1, AiNodeGetInt(AiUniverseGetOptions(), "GI_refraction_samples"), 2 );	
-	data->specular_sampler = AiSamplerSeeded( base_sampler_seed + 2, AiNodeGetInt(AiUniverseGetOptions(), "GI_glossy_samples"), 2 );	
-	data->refraction_sampler = AiSamplerSeeded( base_sampler_seed + 3, AiNodeGetInt(AiUniverseGetOptions(), "GI_refraction_samples"), 2 );
+	data->refr_samples = AiNodeGetInt(render_options, "GI_refraction_samples");
+	data->gloss_samples = AiNodeGetInt(render_options, "GI_glossy_samples");
+
+	data->dispersion_sampler = AiSamplerSeeded( base_sampler_seed + 1, data->refr_samples, 2 );	
+	data->specular_sampler = AiSamplerSeeded( base_sampler_seed + 2, data->gloss_samples, 2);
+	data->refraction_sampler = AiSamplerSeeded( base_sampler_seed + 3, data->refr_samples, 2 );
 	data->russian_roullete_single_sampler = AiSamplerSeeded( base_sampler_seed + 7, 1, 2 );
 
 	data->aov_direct_refraction = AiNodeGetStr(node, "aov_direct_refraction");
 	data->aov_indirect_refraction = AiNodeGetStr(node, "aov_indirect_refraction");
 	data->aov_direct_specular = AiNodeGetStr(node, "aov_direct_specular");
 	data->aov_indirect_specular = AiNodeGetStr(node, "aov_indirect_specular");
+
+	data->refr_samples *= data->refr_samples;
+	data->gloss_samples *= data->gloss_samples;
 
 	const bool do_disperse = AiNodeGetBool(node, "disperse");
 	if (do_disperse)
@@ -296,6 +303,7 @@ shader_evaluate
 		RayState->ray_TIRDepth = 0;
 		RayState->ray_invalidDepth = 0;
 		RayState->ray_energy = AI_RGB_WHITE;
+		RayState->ray_energy_photon = AI_RGB_WHITE;
 
 		// Array initialization - possibly unnecessary except mediaInside? TO DO: investigate
 		for( int i = 0; i < max_media_count; i++ )
@@ -650,6 +658,7 @@ shader_evaluate
 
 	AtColor cTransmission = transmissionColor(&t1, (float) sg->Rl) ;
 	RayState->ray_energy *= cTransmission;
+	RayState->ray_energy_photon *= cTransmission;
 
 
 	// ---------------------------------------------------//
@@ -1056,8 +1065,13 @@ shader_evaluate
 
 								const AtColor energyCache = RayState->ray_energy;
 								RayState->ray_energy *= weight;
+								const AtColor energyCache_photon = RayState->ray_energy_photon;
+								RayState->ray_energy_photon *= weight;
 
-								AiStateSetMsgRGB("photon_energy",RayState->ray_energy);
+								if (sg->Rt == AI_RAY_CAMERA)								
+									RayState->ray_energy_photon /= (float) data->refr_samples;
+
+								AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
 
 								refractSamplesTaken++ ;
 								const bool tracehit = AiTrace(&ray, &sample);
@@ -1067,6 +1081,8 @@ shader_evaluate
 								}
 
 								RayState->ray_energy = energyCache;
+								RayState->ray_energy_photon = energyCache_photon;
+
 								updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, true);
 							}
 
@@ -1320,6 +1336,7 @@ shader_evaluate
 					{
 						const float weight = fresnelTerm * RayState->media_specIndirect.v[m1] * overallResultScale;
 						const AtColor energyCache = RayState->ray_energy;						
+						const AtColor energyCache_photon = RayState->ray_energy_photon;						
 						const bool reflect_skies = AiShaderEvalParamBool(p_reflect_skies);
 
 						if ( do_TIR )
@@ -1330,16 +1347,23 @@ shader_evaluate
 								specularRay.refr_bounces-- ;
 
 							RayState->ray_energy *= TIR_color;
+							RayState->ray_energy_photon *= TIR_color;
 						} 
 						else
 						{
 							RayState->ray_energy *= weight;		
+							RayState->ray_energy_photon *= weight;		
 						}
 
-						AiStateSetMsgRGB("photon_energy",RayState->ray_energy);
+
 
 						if (spec_roughnessU > ZERO_EPSILON || spec_roughnessV > ZERO_EPSILON)
 						{
+							if (sg->Rt == AI_RAY_CAMERA)
+								RayState->ray_energy_photon /= (float) data->gloss_samples;
+
+							AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
+
 							while ( AiSamplerGetSample(specularIterator, specular_sample) )
 							{
 								switch ( RayState->media_BRDF.v[m_higherPriority] )
@@ -1376,6 +1400,7 @@ shader_evaluate
 						}
 						else
 						{
+							AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
 							AiReflectRay(&specularRay, &sg->Nf, sg);
 							const bool tracehit = AiTrace(&specularRay, &sample);
 							if (tracehit || reflect_skies) 
@@ -1387,6 +1412,7 @@ shader_evaluate
 							}
 						}
 						RayState->ray_energy = energyCache;						
+						RayState->ray_energy_photon = energyCache_photon;						
 					}
 
 					// ---------------------------------------------------//

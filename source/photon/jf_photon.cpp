@@ -423,6 +423,7 @@ struct ShaderData{
 	AtArray * write_thread_clouds;
 	photon_cloud_type * read_cloud;
 	photon_accellerator_type * read_cloud_accelerator;
+	float sampling_normalizer;
 };
 
 
@@ -461,18 +462,19 @@ node_initialize {
 	ShaderData* data = new ShaderData;
 	AiNodeSetLocalData(node,data);
 
-	AtNode * renderOptions = AiUniverseGetOptions();
+	AtNode * render_options = AiUniverseGetOptions();
 
 	int mode = AiNodeGetInt(node, "mode");
 	
 	if (mode == m_write) {
-		// AiMsgWarning("Setting up %d photon containers for the threads.", AiNodeGetInt(renderOptions, "threads"));
-		data->write_thread_clouds = AiArrayAllocate(AiNodeGetInt(renderOptions, "threads"), 1, AI_TYPE_POINTER);
+		// AiMsgWarning("Setting up %d photon containers for the threads.", AiNodeGetInt(render_options, "threads"));
+		data->write_thread_clouds = AiArrayAllocate(AiNodeGetInt(render_options, "threads"), 1, AI_TYPE_POINTER);
 		for (AtUInt32 i = 0; i < data->write_thread_clouds->nelements; i++) {
 			photon_cloud_type * cloud = new photon_cloud_type;
 			cloud->reserve(init_cloud_size);
 			AiArraySetPtr(data->write_thread_clouds, i, cloud );
 		}
+
 		return;
 	} 
 
@@ -480,6 +482,7 @@ node_initialize {
 		const char* char_path = AiNodeGetStr(node, "file_path");
 		std::string string_path = char_path;
 		std::ifstream infile (char_path, std::ios::binary);
+
 
 		AiMsgWarning("Reading Photon Cloud from: %s ", string_path.c_str());
 		if (!infile.good()) {
@@ -543,6 +546,7 @@ node_initialize {
  
 node_update {
 	int mode = AiNodeGetInt(node, "mode");
+	AtNode * render_options = AiUniverseGetOptions();
 
 	if (mode == m_write) {		
 		ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
@@ -552,6 +556,13 @@ node_update {
 			cloud->clear();
 			cloud->reserve(init_cloud_size);
 		}
+
+		unsigned long long AA_samples = AiNodeGetInt(render_options, "AA_samples");
+		unsigned long long total_samples = AA_samples * AA_samples * AiNodeGetInt(render_options, "xres") * AiNodeGetInt(render_options, "yres");
+		unsigned long long expected_sampling_baseline = 16777216;
+		data->sampling_normalizer = (double) expected_sampling_baseline / (double) total_samples;
+		AiMsgWarning("Based on expected %d kilosamples, normalization factor is %f.", total_samples/1000, data->sampling_normalizer);
+
 		return;
 	}
 
@@ -680,7 +691,7 @@ shader_evaluate {
 		bool is_photon = AiStateGetMsgRGB( "photon_energy", &photon_energy );
 
 		if (is_photon) {
-			photon_type photon = {photon_energy, sg->P, sg->Rt};
+			photon_type photon = {photon_energy * data->sampling_normalizer, sg->P, sg->Rt};
 			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, sg->tid));
 			cloud->push_back(photon);
 			sg->out.RGB = photon_energy;

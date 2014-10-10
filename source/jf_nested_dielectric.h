@@ -93,6 +93,7 @@ typedef struct Ray_State_Datatype {
 	int     ray_TIRDepth; // branching ray tree data, should be cached
 	int     ray_invalidDepth; // branching ray tree data, should be cached
 	AtColor ray_energy; // branching ray tree data, should be cached
+	AtColor ray_energy_photon; // branching ray tree data, should be cached
 
 	bool caustic_behaviorSet; // branching ray tree data, should be cached 
 	int  caustic_mode;
@@ -156,7 +157,9 @@ struct ShaderData{
 	std::string aov_direct_specular;
 	std::string aov_indirect_specular;
 	spectral_LUT spectral_LUT_;
-	AtVector polarizationVector; 
+	AtVector polarizationVector;
+	int gloss_samples;
+	int refr_samples;
 };
 
 const int base_sampler_seed = 5;
