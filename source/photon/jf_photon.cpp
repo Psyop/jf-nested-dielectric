@@ -385,7 +385,7 @@ typedef class photon_accellerator_type{
 
 		void destroy_structure() {
 			ripple_destroy();
-			
+
 			if (_photon_list != NULL) {
 				delete _photon_list;
 			}
@@ -426,16 +426,21 @@ float blackman_harris(float distance, float radius) {
 
 
 struct ShaderData{
+	std::string file_name;
+	bool abort;
 	AtArray * write_thread_clouds;
 	photon_cloud_type * read_cloud;
 	photon_accellerator_type * read_cloud_accelerator;
 	float sampling_normalizer;
+	std::string aov_refr_caustics;
+	std::string aov_refl_caustics;
 };
 
 
 enum jf_photonParams {
 	p_mode,
 	p_file_path,
+	p_frame,
 	p_write_merge_photons,
 	p_write_remerge_photons,
 	p_write_merge_radius,
@@ -449,7 +454,8 @@ enum jf_photonParams {
  
 node_parameters {
 	AiParameterEnum("mode", m_read, enum_modes);
-	AiParameterStr("file_path", "");
+	AiParameterStr("file_path", "c:/photonics.[Frame].caustics");
+	AiParameterInt("frame", 0);
 	AiParameterBool("write_merge_photons", true);
 	AiParameterBool("write_remerge_photons", true);
 	AiParameterFlt("write_merge_radius", 0.005f);
@@ -467,11 +473,22 @@ size_t init_cloud_size = sizeof(photon_type) * 100000;
 node_initialize {
 	ShaderData* data = new ShaderData;
 	AiNodeSetLocalData(node,data);
+	data->abort = false;
 
 	AtNode * render_options = AiUniverseGetOptions();
 
 	int mode = AiNodeGetInt(node, "mode");
-	
+
+	std::string file_path = AiNodeGetStr(node, "file_path");
+	int frame = AiNodeGetInt(node, "frame");
+	char frame_string[4];
+ 	sprintf(frame_string, "%04d", frame);
+	std::string token = "[Frame]";
+	if (file_path.find(token) != std::string::npos) {	
+		file_path.replace(file_path.find(token),token.length(),frame_string);
+	}
+	data->file_name = file_path;
+
 	if (mode == m_write) {
 		// AiMsgWarning("Setting up %d photon containers for the threads.", AiNodeGetInt(render_options, "threads"));
 		data->write_thread_clouds = AiArrayAllocate(AiNodeGetInt(render_options, "threads"), 1, AI_TYPE_POINTER);
@@ -485,13 +502,14 @@ node_initialize {
 	} 
 
 	if (mode == m_read || mode == m_read_visualize) {
-		const char* char_path = AiNodeGetStr(node, "file_path");
-		std::string string_path = char_path;
-		std::ifstream infile (char_path, std::ios::binary);
+		//const char* char_path = AiNodeGetStr(node, "file_path");
+		std::string string_path = data->file_name;
+		std::ifstream infile (string_path.c_str(), std::ios::binary);
 
 
 		AiMsgWarning("Reading Photon Cloud from: %s ", string_path.c_str());
 		if (!infile.good()) {
+			data->abort = true;
 			AiMsgError("Unable to read file! Check for invalid paths or bad permissions or something.");
 			return;
 		}
@@ -551,12 +569,15 @@ node_initialize {
 
  
 node_update {
+	ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
+	if (data->abort) {
+		return;
+	}
+
 	int mode = AiNodeGetInt(node, "mode");
 	AtNode * render_options = AiUniverseGetOptions();
 
-	if (mode == m_write) {		
-		ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
-
+	if (mode == m_write) {
 		for (AtUInt32 i = 0; i < data->write_thread_clouds->nelements; i++) {
 			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, i));
 			cloud->clear();
@@ -585,12 +606,17 @@ node_finish {
 	}
 
 	ShaderData* data = (ShaderData*) AiNodeGetLocalData(node);
+
+	if (data->abort) {
+		return;
+	}
+
 	int mode = AiNodeGetInt(node, "mode");
 
 	if (mode == m_write) {
-		const char* char_path = AiNodeGetStr(node, "file_path");
-		std::string string_path = AiNodeGetStr(node, "file_path");
-		std::ofstream outfile (char_path, std::ios::binary);
+		// const char* char_path = AiNodeGetStr(node, "file_path");
+		std::string string_path = data->file_name;
+		std::ofstream outfile (string_path.c_str(), std::ios::binary);
 
 		AiMsgWarning("Writing Photon Cloud to: %s ", string_path.c_str());
 		if (!outfile.good()) {
@@ -694,6 +720,11 @@ shader_evaluate {
 	ShaderData* data = (ShaderData*) AiNodeGetLocalData(node);
 	int mode = AiShaderEvalParamEnum(p_mode);
 	sg->out.RGBA = AI_RGBA_BLACK;
+
+	if (data->abort) {
+		return;
+	}
+	
 	if (mode == m_write) {
 		AtColor photon_energy = AI_RGB_BLACK;
 		bool is_photon = AiStateGetMsgRGB( "photon_energy", &photon_energy );
