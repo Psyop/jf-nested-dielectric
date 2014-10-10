@@ -66,7 +66,6 @@ typedef class photon_accellerator_type{
 		photon_list_type * _photon_list;
 		photon_accellerator_type * _sub_accells[8];
 
-		photon_accellerator_type * _master_accell;
 		photon_cloud_type * _target_photon_cloud;
 
 	public:
@@ -154,11 +153,9 @@ typedef class photon_accellerator_type{
 			child->_has_sub_accells = false;
 			child->_recursion_level = _recursion_level + 1;
 			child->_max_recursion = _max_recursion;
-			child->_photons_per_bucket_hint = _photons_per_bucket_hint;
-			
+			child->_photons_per_bucket_hint = _photons_per_bucket_hint;			
 
 			child->_target_photon_cloud = _target_photon_cloud;
-			child->_master_accell = _master_accell;
 
 			child->all_nested_accells = all_nested_accells;
 			all_nested_accells->push_back(child);
@@ -315,8 +312,6 @@ typedef class photon_accellerator_type{
 			// _photons_per_bucket_hint = max_per_bucket;
 			// _max_recursion = max_nesting;
 			_recursion_level = 0;
-			_master_accell = this;
-			_photon_list = NULL;
 			init_photon_list();
 
 			all_nested_accells = new std::vector<photon_accellerator_type*>;
@@ -390,8 +385,10 @@ typedef class photon_accellerator_type{
 
 		void destroy_structure() {
 			ripple_destroy();
-
-			all_nested_accells->clear();
+			
+			if (_photon_list != NULL) {
+				delete _photon_list;
+			}
 			delete all_nested_accells;
 		}
 
