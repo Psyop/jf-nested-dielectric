@@ -73,7 +73,7 @@ typedef class photon_accellerator_type{
 		std::vector<photon_accellerator_type*> * all_nested_accells;
 	
 	private:
-		void init() {
+		void init_photon_list() {
 			_photon_list = new photon_list_type;
 		}
 
@@ -147,7 +147,7 @@ typedef class photon_accellerator_type{
 
 
 		void initialize_child(photon_accellerator_type * child, unsigned char octant) {
-			child->init();
+			child->init_photon_list();
 			child->set_bounds(octant, bounds_n, _len); //will set _pos, bounds_n and bounds_p
 
 			// child->_octant = octant;
@@ -316,8 +316,8 @@ typedef class photon_accellerator_type{
 			// _max_recursion = max_nesting;
 			_recursion_level = 0;
 			_master_accell = this;
-
-			init();
+			_photon_list = NULL;
+			init_photon_list();
 
 			all_nested_accells = new std::vector<photon_accellerator_type*>;
 
@@ -389,14 +389,23 @@ typedef class photon_accellerator_type{
 
 
 		void destroy_structure() {
-			for (unsigned char i = 0; i < 8; i++) {
-				if (_sub_accells[i] != NULL) {
-					_sub_accells[i]->destroy_structure();
-					delete _sub_accells[i];
-				}
-			}
+			ripple_destroy();
+
+			all_nested_accells->clear();
+			delete all_nested_accells;
+		}
+
+
+		void ripple_destroy() {
 			if (_photon_list != NULL) {
 				delete _photon_list;
+			}
+
+			for (unsigned char i = 0; i < 8; i++) {
+				if (_sub_accells[i] != NULL) {
+					_sub_accells[i]->ripple_destroy();
+					delete _sub_accells[i];
+				}
 			}
 			// if (all_nested_accells != NULL) {
 			// 	delete all_nested_accells;
@@ -560,7 +569,7 @@ node_update {
 		unsigned long long AA_samples = AiNodeGetInt(render_options, "AA_samples");
 		unsigned long long total_samples = AA_samples * AA_samples * AiNodeGetInt(render_options, "xres") * AiNodeGetInt(render_options, "yres");
 		unsigned long long expected_sampling_baseline = 16777216;
-		data->sampling_normalizer = (double) expected_sampling_baseline / (double) total_samples;
+		data->sampling_normalizer = (float) ((double) expected_sampling_baseline / (double) total_samples);
 		AiMsgWarning("Based on expected %d kilosamples, normalization factor is %f.", total_samples/1000, data->sampling_normalizer);
 
 		return;
@@ -656,7 +665,9 @@ node_finish {
 					outfile.write((const char*)&cloud->at(0), (file_int) sizeof(photon_type) * (file_int) cloud->size());
 					photon_count += cloud->size();		
 				}
+				delete cloud;
 			}
+
 		}
 
 		float cloud_mb = (float) (photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
