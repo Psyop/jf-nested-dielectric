@@ -1068,7 +1068,7 @@ shader_evaluate
 								const AtColor energyCache_photon = RayState->ray_energy_photon;
 								RayState->ray_energy_photon *= weight;
 
-								if (sg->Rt == AI_RAY_CAMERA)								
+								if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction))								
 									RayState->ray_energy_photon /= (float) data->refr_samples;
 
 								AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
