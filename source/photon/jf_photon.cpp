@@ -362,7 +362,7 @@ typedef class photon_accellerator_type{
 			g_accelerator_count = 1;
 
 			int subdivisions = (int) (Log2(_len/radius) + 2.0f);
-			subdivisions = std::min(subdivisions, 14);
+			subdivisions = std::min(subdivisions, 24);
 
 			_photons_per_bucket_hint = 1;
 			_max_recursion = (unsigned char) subdivisions;
