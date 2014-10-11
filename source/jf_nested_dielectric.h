@@ -73,7 +73,7 @@ enum specular_raytypes
 // - Definitions and data types  
 // ---------------------------------------------------//
 
-#define ZERO_EPSILON 0.0000005f // 0.001^2 = 0.000001, so this value works.
+#define ZERO_EPSILON 0.000000005f 
 
 const int max_media_count = 32 + 1;  // media 0 is reserved for the air everything exists in, so to allow 32 media this has to be set to 33. 
 
