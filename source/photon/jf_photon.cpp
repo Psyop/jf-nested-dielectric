@@ -674,7 +674,6 @@ node_finish {
 				AtUInt32 thread_ID = i;
 				photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
 				AtVector prev_bound = universal_bounds_n;
-				// AiMsgWarning("Measuring bounds, %d", i);
 				octree.measure_bounds_from_cloud(cloud, &universal_bounds_n, &universal_bounds_p);
 			}
 
@@ -705,7 +704,7 @@ node_finish {
 					AiMsgWarning("Rereducing compiled photons:");
 					photon_cloud_type cloud_out;
 					photon_accellerator_type octree;
-					octree.build_while_culling(&compiled_cloud, merge_radius, &cloud_out);
+					octree.build_while_culling(&compiled_cloud, merge_radius, &cloud_out, &universal_bounds_n, &universal_bounds_p);
 					octree.destroy_structure();
 
 					AiMsgInfo("  %d -> %d kilophotons (rereduction)", compiled_cloud.size()/1000, cloud_out.size()/1000);
