@@ -55,10 +55,11 @@ float Log2( float n )
 unsigned long long g_accelerator_count;
 
 typedef class photon_accellerator_type{
-	private:
-		AtVector bounds_n; //bounds_n + {_len, _len, _len} is the positive bounds
-		float _len;
+	public:
+		AtVector bounds_n; //bounds_n + {len, len, len} is the positive bounds
+		float len;
 
+	private:
 		bool _has_sub_accells;
 		unsigned char _recursion_level;
 		unsigned char _max_recursion;
@@ -72,51 +73,67 @@ typedef class photon_accellerator_type{
 
 
 
+	public:
+		void init_bounds_from_vectors(AtVector* bounds_n_out, AtVector* bounds_p_out) {
+			AtVector dim = *bounds_p_out - *bounds_n_out;
+			len = std::max(std::max(dim.x, dim.y), dim.z);
+			bounds_n = *bounds_n_out;
+		}
+
+		void measure_bounds_from_cloud(photon_cloud_type* photon_cloud, AtVector* bounds_n_out, AtVector* bounds_p_out) {
+			bool uninitialized = (*bounds_p_out == AI_V3_ZERO && *bounds_n_out == AI_V3_ZERO);
+
+			for(size_t i = 0; i != photon_cloud->size(); i++) {
+				photon_type * photon = &photon_cloud->at(i);
+				if (uninitialized && i == 0) {
+					*bounds_n_out = photon->pos;
+					*bounds_p_out = photon->pos;
+				} else {
+					if (bounds_n_out->x > photon->pos.x)
+						bounds_n_out->x = photon->pos.x;
+					if (bounds_n_out->y > photon->pos.y)
+						bounds_n_out->y = photon->pos.y;
+					if (bounds_n_out->z > photon->pos.z)
+						bounds_n_out->z = photon->pos.z;
+
+					if (bounds_p_out->x < photon->pos.x)
+						bounds_p_out->x = photon->pos.x;
+					if (bounds_p_out->y < photon->pos.y)
+						bounds_p_out->y = photon->pos.y;
+					if (bounds_p_out->z < photon->pos.z)
+						bounds_p_out->z = photon->pos.z;
+				}
+			}
+
+			init_bounds_from_vectors(bounds_n_out, bounds_p_out);
+		}
+
+
 	private:
 		void init_photon_list() {
 			_photon_list = new photon_list_type;
 		}
 		// Bounds creation
 
-		void init_bounds(photon_cloud_type* photon_cloud) {
+		void init_top_accell(photon_cloud_type* photon_cloud, bool measure_bounds) {
 			_target_photon_cloud = photon_cloud;
-			// _photons_per_bucket_hint = max_per_bucket;
-			// _max_recursion = max_nesting;
+			// _photons_per_bucket_hint = 64;
+			// _max_recursion = 14;
 			_recursion_level = 0;
 			init_photon_list();
 
-			AtVector measured_bounds_n = AI_V3_ZERO;
-			AtVector measured_bounds_p = AI_V3_ZERO;
-
-			for(size_t i = 0; i != _target_photon_cloud->size(); i++) {
+			for(size_t i = 0; i != photon_cloud->size(); i++) {
 				_photon_list->push_back(i);
-				photon_type * photon = &_target_photon_cloud->at(i);
-				if (i == 0) {
-					measured_bounds_n = photon->pos;
-					measured_bounds_p = photon->pos;
-				} else {
-					if (measured_bounds_n.x > photon->pos.x)
-						measured_bounds_n.x = photon->pos.x;
-					if (measured_bounds_n.y > photon->pos.y)
-						measured_bounds_n.y = photon->pos.y;
-					if (measured_bounds_n.z > photon->pos.z)
-						measured_bounds_n.z = photon->pos.z;
-
-					if (measured_bounds_p.x < photon->pos.x)
-						measured_bounds_p.x = photon->pos.x;
-					if (measured_bounds_p.y < photon->pos.y)
-						measured_bounds_p.y = photon->pos.y;
-					if (measured_bounds_p.z < photon->pos.z)
-						measured_bounds_p.z = photon->pos.z;
-				}
+				photon_type * photon = &photon_cloud->at(i); 
 			}
-			AtVector dim = measured_bounds_p - measured_bounds_n;
-
-			_len = std::max(std::max(dim.x, dim.y), dim.z);
-			bounds_n = measured_bounds_n;
+			if (measure_bounds) {
+				AtVector measured_bounds_n = AI_V3_ZERO;
+				AtVector measured_bounds_p = AI_V3_ZERO;
+				measure_bounds_from_cloud(photon_cloud, &measured_bounds_n, &measured_bounds_p);	
+			}
 		}
 
-		void set_bounds(unsigned char octant, AtVector par_bounds_n, float par_len) {
+		void set_bounds(unsigned char octant, AtVector par_bounds_n, float parlen) {
 			/*    0 means negative, 1 means positive
 			 * 0: 000
 			 * 1: 001
@@ -127,28 +144,28 @@ typedef class photon_accellerator_type{
 			 * 6: 110
 			 * 7: 111
 			*/
-			float half_len = par_len/2.0f;
-			AtVector offset_vector = {half_len, half_len, half_len};
+			float halflen = parlen/2.0f;
+			AtVector offset_vector = {halflen, halflen, halflen};
 			bool neg_x = octant % 2 == 0; //0, 2, 4
 			bool neg_y = (octant/2) % 2 == 0; //0, 1, 4, 5
 			bool neg_z = octant < 4;
 
 			bounds_n = par_bounds_n;
 			if (!neg_x) {
-				bounds_n.x += half_len;
+				bounds_n.x += halflen;
 			}
 			if (!neg_y) {
-				bounds_n.y += half_len;
+				bounds_n.y += halflen;
 			}
 			if (!neg_z) {
-				bounds_n.z += half_len;
+				bounds_n.z += halflen;
 			}
-			_len = half_len;
+			len = halflen;
 		}
 
 		// Bounds checking
 		bool within_bounds(AtVector photon_pos) {
-			AtVector offset = {_len, _len, _len};
+			AtVector offset = {len, len, len};
 			AtVector bounds_p = bounds_n + offset;
 			if (photon_pos.x >= bounds_n.x && 
 				photon_pos.y >= bounds_n.y && 
@@ -164,7 +181,7 @@ typedef class photon_accellerator_type{
 
 
 		bool within_range(const AtVector* photon_pos, float radius) {		
-			AtVector offset = {_len, _len, _len};
+			AtVector offset = {len, len, len};
 			AtVector bounds_p = bounds_n + offset;
 			if (photon_pos->x + radius > bounds_n.x && 
 				photon_pos->y + radius > bounds_n.y && 
@@ -188,7 +205,7 @@ typedef class photon_accellerator_type{
 
 		void cull_photons_in_bucket(photon_accellerator_type * accell, float radius, photon_cloud_type * cloud_out) {
 			photon_list_type* photons = accell->_photon_list;
-			if (accell->_len < radius) {
+			if (accell->len < radius) {
 			// if (false) {
 				photon_type refr_conglom;
 				photon_type refl_conglom;
@@ -249,7 +266,7 @@ typedef class photon_accellerator_type{
 			g_accelerator_count++;
 
 			child->init_photon_list();
-			child->set_bounds(octant, bounds_n, _len); //will set _pos, bounds_n and bounds_p
+			child->set_bounds(octant, bounds_n, len); //will set _pos, bounds_n and bounds_p
 
 			// child->_octant = octant;
 			child->_has_sub_accells = false;
@@ -258,7 +275,6 @@ typedef class photon_accellerator_type{
 			child->_photons_per_bucket_hint = _photons_per_bucket_hint;			
 
 			child->_target_photon_cloud = _target_photon_cloud;
-
 
 			for (unsigned char i = 0; i < 8; i++) {
 				child->_sub_accells[i] = NULL;
@@ -357,11 +373,16 @@ typedef class photon_accellerator_type{
 		}
 
 
-		void build_while_culling(photon_cloud_type* photon_cloud, float radius, photon_cloud_type * cloud_out) {
-			init_bounds(photon_cloud);
+		void build_while_culling(photon_cloud_type* photon_cloud, float radius, photon_cloud_type * cloud_out, AtVector* bounds_n_in = NULL, AtVector* bounds_p_in = NULL) {
+			if (bounds_n_in != NULL && bounds_p_in != NULL) {
+				init_top_accell(photon_cloud, false);
+				init_bounds_from_vectors(bounds_n_in, bounds_p_in);
+			} else {
+				init_top_accell(photon_cloud, true);				
+			}
 			g_accelerator_count = 1;
 
-			int subdivisions = (int) (Log2(_len/radius) + 2.0f);
+			int subdivisions = (int) (Log2(len/radius) + 2.0f);
 			subdivisions = std::min(subdivisions, 24);
 
 			_photons_per_bucket_hint = 1;
@@ -380,9 +401,9 @@ typedef class photon_accellerator_type{
 			unsigned short max_nesting = 11;
 			g_accelerator_count = 1;
 
-			init_bounds(photon_cloud);
+			init_top_accell(photon_cloud, true);
 
-			unsigned short subdivisions_hint = (int) (Log2(_len/radius_hint) - 2.0f);
+			unsigned short subdivisions_hint = (int) (Log2(len/radius_hint) - 2.0f);
 			unsigned short subdivisions = std::min(subdivisions_hint, max_nesting);
 
 			_photons_per_bucket_hint = photons_per_bucket_hint;
@@ -646,6 +667,17 @@ node_finish {
 
 			AiMsgWarning("Reducing (merging) photons from subclouds:");
 
+			AtVector universal_bounds_n = AI_V3_ZERO;
+			AtVector universal_bounds_p = AI_V3_ZERO;
+			photon_accellerator_type octree;
+			for (AtUInt32 i = 0; (i < threads) && (i < threads); i++) {
+				AtUInt32 thread_ID = i;
+				photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
+				AtVector prev_bound = universal_bounds_n;
+				// AiMsgWarning("Measuring bounds, %d", i);
+				octree.measure_bounds_from_cloud(cloud, &universal_bounds_n, &universal_bounds_p);
+			}
+
 			for (AtUInt32 i = 0; (i < threads) && (i < threads); i++) {
 				AtUInt32 thread_ID = i;
 				photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
@@ -656,7 +688,7 @@ node_finish {
 					AiMsgInfo("  Building octree for thread %d:", thread_ID);
 					size_t prev_size = compiled_cloud.size();
 
-					octree.build_while_culling(cloud, merge_radius, &compiled_cloud);
+					octree.build_while_culling(cloud, merge_radius, &compiled_cloud, &universal_bounds_n, &universal_bounds_p);
 					octree.destroy_structure();
 					AiMsgInfo("  %d -> %d kilophotons", cloud->size()/1000, (compiled_cloud.size() - prev_size)/1000);
 					AiMsgInfo("(%d mb of compiled photons)", (compiled_cloud.size() * sizeof(photon_type))/(1024*1024));
