@@ -78,6 +78,10 @@ typedef class photon_accellerator_type{
 			AtVector dim = *bounds_p_out - *bounds_n_out;
 			len = std::max(std::max(dim.x, dim.y), dim.z);
 			bounds_n = *bounds_n_out;
+
+			// 1% bounds padding. Cheap way to defend againt certain artifacts that have cropped up due to floating point errors.. I think.
+			len *= 1.02f;
+			bounds_n -= dim * 0.01f;
 		}
 
 		void measure_bounds_from_cloud(photon_cloud_type* photon_cloud, AtVector* bounds_n_out, AtVector* bounds_p_out) {
