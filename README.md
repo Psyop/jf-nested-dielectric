@@ -81,3 +81,7 @@ make install
 
 - Note: Arnold 4.1 is binary compatible with Arnold 4.2, so there are no seperate
   binaries for 4.2.
+
+#### 1.0.4
+
+- Added specular light contributions to direct speculars. Direct refraction is not affected. 

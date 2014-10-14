@@ -1,6 +1,6 @@
 /* 
  * JF Nested Dielectric by Jonah Friedman
- * 1.0.3
+ * 1.0.4
  * Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
  * Open sourced under the 3 clause BSD license, see license.txt
  */
@@ -1397,21 +1397,26 @@ shader_evaluate
 						const bool reflect_skydomes = AiShaderEvalParamBool(p_reflect_skydomes);
 						while ( AiLightsGetSample(sg) ) // loop over the lights to compute direct effects
 						{
-							if ( reflect_skydomes || !AiNodeIs( sg->Lp,"skydome_light" ))
+							float l_weight = AiLightGetSpecular(sg->Lp);
+
+							if ( 
+								(reflect_skydomes || !AiNodeIs( sg->Lp,"skydome_light" )) && 
+								l_weight > ZERO_EPSILON
+								)
 							{
 								switch ( RayState->media_BRDF.v[m_higherPriority] )
 								{
 									case b_stretched_phong:
-										acc_spec_direct += AiEvaluateLightSample(sg, brdf_data, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
+										acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
 										break;
 									case b_cook_torrance:
-										acc_spec_direct += AiEvaluateLightSample(sg, brdf_data, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
+										acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
 										break;
 									case b_ward_rayTangent:
-										acc_spec_direct += AiEvaluateLightSample(sg, brdf_data, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
+										acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
 										break;
 									case b_ward_userTangent:
-										acc_spec_direct += AiEvaluateLightSample(sg, brdf_data, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
+										acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
 										break;
 								}								
 							}
