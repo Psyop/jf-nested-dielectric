@@ -279,7 +279,7 @@ typedef class photon_accellerator_type{
 			unsigned long long accel_mb_estimate = (octree_size)/(1024 * 1024);
 			if (!cull && accel_mb_estimate > (unsigned long) ( 16 * 1024 )) {
 				// This is only a safety mechanism.
-				AiMsgError("Photons: More than 16 gb of octree. Radius may be too small. Stopping construction.");
+				AiMsgError("JF Photon: More than 16 gb of octree. Radius may be too small. Stopping construction.");
 				return;
 			}
 			// make 8 children and initialize them
@@ -467,9 +467,9 @@ unsigned int threaded_cull(void * data) {
 
 
 	AiCritSecEnter(thread_data->crit_sec);
-		AiMsgInfo("Thread-%d Finished collapse: ", thread_data->thread_ID);
-		AiMsgInfo("  Thread-%d: %g -> %g kilophotons", thread_data->thread_ID, prev_size/1000.0f, new_size/1000.0f);
-		AiMsgInfo("  Thread-%d: (%d mb of photons)", thread_data->thread_ID, (new_size * sizeof(photon_type))/(1024*1024));
+		AiMsgInfo("JF Photon: Finished collapse for thread-cloud %d: ", thread_data->thread_ID);
+		AiMsgInfo("  T-%d: %g -> %g kilophotons", thread_data->thread_ID, prev_size/1000.0f, new_size/1000.0f);
+		AiMsgInfo("  T-%d: (%d mb of photons)", thread_data->thread_ID, (new_size * sizeof(photon_type))/(1024*1024));
 		photon_cloud_append( thread_data->cloud_out, &reduced_cloud);
 		delete thread_data->cloud_in;
 	AiCritSecLeave(thread_data->crit_sec);
@@ -574,11 +574,9 @@ node_initialize {
 			if (AiNodeIs(other_photon_shader, "jf_photon")) {
 				ShaderData *other_data = (ShaderData*)AiNodeGetLocalData(other_photon_shader);
 				if (other_photon_shader == node) {
-					AiMsgWarning("Found self. Ignoring.");
 					continue;					
 				}
 				if (other_data == NULL) {
-					AiMsgWarning("Shader with no data.");
 					continue;
 				}
 				if (other_data->file_name.compare(data->file_name) == 0 &&
@@ -586,7 +584,7 @@ node_initialize {
 					other_data->read_octree_owner == true
 					) {
 
-					AiMsgWarning("Found other readers! I no longer own my own cloud. I may own my own octree.");
+					AiMsgWarning("JF Photon: Cloud already in memory, reusing: %s", string_path.c_str());
 					data->read_cloud_owner = false;
 					data->read_cloud = other_data->read_cloud;
 					
@@ -594,7 +592,7 @@ node_initialize {
 					if (other_data->read_radius < (read_radius * tolerance_factor) &&
 						other_data->read_radius > (read_radius / tolerance_factor)
 						) {
-						AiMsgWarning("Within a 4x read factor allowed for reusing an octree!");
+						AiMsgWarning("JF Photon: Octree already exists, reusing!");
 						data->read_cloud_accelerator = other_data->read_cloud_accelerator;
 						data->read_octree_owner = false;
 					}
@@ -608,15 +606,16 @@ node_initialize {
 
 		if (data->read_cloud_owner == true) {
 
-			AiMsgWarning("Reading Photon Cloud from: %s ", string_path.c_str());
+			AiMsgWarning("JF Photon: Reading from: %s ", string_path.c_str());
 			if (!infile.good()) {
 				data->abort = true;
-				AiMsgError("Unable to read file! Check for invalid paths or bad permissions or something.");
+				AiMsgError("JF Photon: Unable to read file! Check for invalid paths or bad permissions or something.");
 				return;
 			}
 			
 			infile.seekg (0, infile.end);
 			file_int length = infile.tellg();
+
 
 			file_int photon_size = sizeof(photon_type);
 			file_int num_photons = length/photon_size;
@@ -633,16 +632,18 @@ node_initialize {
 				file_int read_bytes = std::min(length - i, chunk_size);
 				file_int read_photons = read_bytes / photon_size;
 
-				infile.seekg (i, infile.beg);
+				if (read_bytes != 0) {
+					infile.seekg (i, infile.beg);
 
-				AiMsgInfo("  %d mb chunk, %d kilophotons.", (int) read_bytes/mb, read_photons/1000);
-				photon_type* photon_array = new photon_type[read_photons];
-				char * buffer = (char*)(photon_array);
+					AiMsgInfo("  %d mb chunk, %d kilophotons.", (int) read_bytes/mb, read_photons/1000);
+					photon_type* photon_array = new photon_type[read_photons];
+					char * buffer = (char*)(photon_array);
 
-				infile.read(buffer, read_bytes);
-				read_cloud->insert(read_cloud->end(), &photon_array[0], &photon_array[read_photons]);
+					infile.read(buffer, read_bytes);
+					read_cloud->insert(read_cloud->end(), &photon_array[0], &photon_array[read_photons]);
 
-				delete photon_array;
+					delete photon_array;
+				}
 			}
 
 			AiMsgInfo("  Read %d mb, %d kilophotons.", length/mb, num_photons/1000);
@@ -651,7 +652,7 @@ node_initialize {
 
 
 			if (num_photons != read_cloud->size()) {
-				AiMsgError("Error in photon read. %d in file, %d in memory.", num_photons, read_cloud->size());
+				AiMsgError("JF Photon: Error in photon read. %d in file, %d in memory.", num_photons, read_cloud->size());
 			} else {
 				AiMsgInfo("  All photons accounted for.");
 			}
@@ -666,7 +667,7 @@ node_initialize {
 			accel->build(data->read_cloud, data->read_radius);
 			data->read_cloud_accelerator = accel;
 
-			AiMsgInfo("Octree completed: %f seconds", (float(clock() - photon_process_time) /  CLOCKS_PER_SEC));
+			AiMsgInfo("JF Photon: Octree completed in %f seconds", (float(clock() - photon_process_time) /  CLOCKS_PER_SEC));
 		}
 	}
 }
@@ -686,7 +687,7 @@ node_update {
 		float merge_radius = AiNodeGetFlt(node, "write_merge_radius");
 		bool merge = AiNodeGetBool(node, "write_merge_photons");
 		if (merge_radius == 0.0f && merge) {
-			AiMsgError("Zero radius, unable to merge photons. If you would like raw photon clouds please disable merging.");
+			AiMsgError("JF Photon: Zero radius, unable to merge photons. If you would like raw photon clouds please disable merging.");
 			return;
 		}
 
@@ -700,7 +701,7 @@ node_update {
 		unsigned long long total_samples = AA_samples * AA_samples * AiNodeGetInt(render_options, "xres") * AiNodeGetInt(render_options, "yres");
 		unsigned long long expected_sampling_baseline = 16777216;
 		data->write_sampling_normalizer = (float) ((double) expected_sampling_baseline / (double) total_samples);
-		AiMsgWarning("Based on expected %d kilosamples, normalization factor is %f.", total_samples/1000, data->write_sampling_normalizer);
+		AiMsgWarning("JF Photon: Based on expected %d kilosamples, normalization factor is %f.", total_samples/1000, data->write_sampling_normalizer);
 
 		return;
 	}
@@ -724,9 +725,9 @@ node_finish {
 		std::string string_path = data->file_name;
 		std::ofstream outfile (string_path.c_str(), std::ios::binary);
 
-		AiMsgWarning("Writing Photon Cloud to: %s ", string_path.c_str());
+		AiMsgWarning("JF Photon: Writing to: %s ", string_path.c_str());
 		if (!outfile.good()) {
-			AiMsgError("Unable to write file! Check for invalid paths or bad permissions or something.");
+			AiMsgError("JF Photon: Unable to write file! Check for invalid paths or bad permissions or something.");
 			return;
 		}
 
@@ -735,7 +736,7 @@ node_finish {
 		bool remerge = AiNodeGetBool(node, "write_remerge_photons");
 
 		if (merge_radius == 0.0f && merge) {
-			AiMsgError("Zero radius, unable to merge photons. If you would like raw photon clouds please disable merging.");
+			AiMsgError("JF Photon: Zero radius, unable to merge photons. If you would like raw photon clouds please disable merging.");
 			return;
 		}
 
@@ -747,7 +748,7 @@ node_finish {
 			AtUInt32 thread_count = data->write_thread_clouds->nelements;
 			photon_cloud_type compiled_cloud;
 
-			AiMsgWarning("Reducing (merging) photons from subclouds:");
+			AiMsgWarning("JF Photon: Reducing (merging) photons from subclouds:");
 
 			AtVector universal_bounds_n = AI_V3_ZERO;
 			AtVector universal_bounds_p = AI_V3_ZERO;
@@ -798,7 +799,7 @@ node_finish {
 
 			if (compiled_cloud.size() > 0) {
 				if (remerge) {						
-					AiMsgWarning("Rereducing compiled photons:");
+					AiMsgWarning("JF Photon: Rereducing:");
 					photon_cloud_type cloud_out;
 					photon_accellerator_type octree;
 					octree.build_while_culling(&compiled_cloud, merge_radius, &cloud_out, &universal_bounds_n, &universal_bounds_p);
@@ -833,9 +834,9 @@ node_finish {
 
 		float cloud_mb = (float) (photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
 		float orig_cloud_mb = (float) (orig_photon_count * sizeof(photon_type)) / (1024.0f*1024.0f);
-		AiMsgWarning("Photon cloud: %g mb, %g kilophotons.", cloud_mb, photon_count/1000.0f);
+		AiMsgWarning("JF Photon: Final tally: %g mb, %g kilophotons.", cloud_mb, photon_count/1000.0f);
 		if (merge) {
-			AiMsgInfo("  reduced from: %g mb, %g kilophotons.", orig_cloud_mb, orig_photon_count/1000.0f);
+			AiMsgInfo("  (reduced from: %g mb, %g kilophotons)", orig_cloud_mb, orig_photon_count/1000.0f);
 		}
 
 		outfile.close();
@@ -844,12 +845,12 @@ node_finish {
 
 	if ((mode == m_read || mode == m_read_visualize)) {
 		if (data->read_octree_owner) {
-			AiMsgWarning("Photon Octree: Destroying...");
+			AiMsgWarning("JF Photon: Destroying Octree...");
 			data->read_cloud_accelerator->destroy_structure();
 			delete data->read_cloud_accelerator;
 		}		
 		if (data->read_cloud_owner == true) {
-			AiMsgWarning("Photon Cloud: Destroying...");
+			AiMsgWarning("JF Photon: Destroying Cloud...");
 			delete data->read_cloud;
 		}
 	}
