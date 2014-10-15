@@ -453,6 +453,9 @@ void photon_cloud_append( photon_cloud_type* cloud_out, photon_cloud_type* cloud
 unsigned int threaded_cull(void * data) {
 	t_collapse_data_type* thread_data = static_cast<t_collapse_data_type*> (data);
 
+	if (thread_data->cloud_in->size() == 0) {
+		return 0;
+	}
 
 	photon_accellerator_type octree;
 	photon_cloud_type reduced_cloud;
