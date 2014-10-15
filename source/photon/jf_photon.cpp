@@ -482,9 +482,12 @@ struct ShaderData{
 	std::string file_name;
 	bool abort;
 	AtArray * write_thread_clouds;
+	float write_sampling_normalizer;
+	bool read_cloud_owner;
+	bool read_octree_owner;
 	photon_cloud_type * read_cloud;
 	photon_accellerator_type * read_cloud_accelerator;
-	float sampling_normalizer;
+	float read_radius;
 	std::string aov_refr_caustics;
 	std::string aov_refl_caustics;
 };
@@ -557,64 +560,114 @@ node_initialize {
 		std::string string_path = data->file_name;
 		std::ifstream infile (string_path.c_str(), std::ios::binary);
 
+		float read_radius = AiNodeGetFlt(node, "read_radius");
 
-		AiMsgWarning("Reading Photon Cloud from: %s ", string_path.c_str());
-		if (!infile.good()) {
-			data->abort = true;
-			AiMsgError("Unable to read file! Check for invalid paths or bad permissions or something.");
-			return;
+		data->read_cloud_owner = true;
+		data->read_octree_owner = true;
+		data->read_cloud = NULL;
+		data->read_cloud_accelerator = NULL;
+		data->read_radius = read_radius;
+
+		AtNodeIterator * shader_iterator = AiUniverseGetNodeIterator(AI_NODE_SHADER);
+		while (!AiNodeIteratorFinished(shader_iterator)) {
+			AtNode *other_photon_shader = AiNodeIteratorGetNext(shader_iterator);
+			if (AiNodeIs(other_photon_shader, "jf_photon")) {
+				ShaderData *other_data = (ShaderData*)AiNodeGetLocalData(other_photon_shader);
+				if (other_photon_shader == node) {
+					AiMsgWarning("Found self. Ignoring.");
+					continue;					
+				}
+				if (other_data == NULL) {
+					AiMsgWarning("Shader with no data.");
+					continue;
+				}
+				if (other_data->file_name.compare(data->file_name) == 0 &&
+					other_data->read_cloud_owner == true &&
+					other_data->read_octree_owner == true
+					) {
+
+					AiMsgWarning("Found other readers! I no longer own my own cloud. I may own my own octree.");
+					data->read_cloud_owner = false;
+					data->read_cloud = other_data->read_cloud;
+					
+					float tolerance_factor = 4.0f;
+					if (other_data->read_radius < (read_radius * tolerance_factor) &&
+						other_data->read_radius > (read_radius / tolerance_factor)
+						) {
+						AiMsgWarning("Within a 4x read factor allowed for reusing an octree!");
+						data->read_cloud_accelerator = other_data->read_cloud_accelerator;
+						data->read_octree_owner = false;
+					}
+					break;
+
+				}
+
+				
+			}
 		}
-		
-		infile.seekg (0, infile.end);
-		file_int length = infile.tellg();
 
-		file_int photon_size = sizeof(photon_type);
-		file_int num_photons = length/photon_size;
-		file_int mb = 1024 * 1024;
-		file_int chunk_size = (256 * mb) ;
-		file_int num_photons_in_chunk = (chunk_size / photon_size) + 1;
-		chunk_size = photon_size * num_photons_in_chunk; //No remainders here, please. 
+		if (data->read_cloud_owner == true) {
 
-		data->read_cloud = new photon_cloud_type;
-		photon_cloud_type * read_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
+			AiMsgWarning("Reading Photon Cloud from: %s ", string_path.c_str());
+			if (!infile.good()) {
+				data->abort = true;
+				AiMsgError("Unable to read file! Check for invalid paths or bad permissions or something.");
+				return;
+			}
+			
+			infile.seekg (0, infile.end);
+			file_int length = infile.tellg();
 
-		for (file_int i = 0; i < length; i+= chunk_size) {
-			file_int read_bytes = std::min(length - i, chunk_size);
-			file_int read_photons = read_bytes / photon_size;
+			file_int photon_size = sizeof(photon_type);
+			file_int num_photons = length/photon_size;
+			file_int mb = 1024 * 1024;
+			file_int chunk_size = (256 * mb) ;
+			file_int num_photons_in_chunk = (chunk_size / photon_size) + 1;
+			chunk_size = photon_size * num_photons_in_chunk; //No remainders here, please. 
 
-			infile.seekg (i, infile.beg);
+			data->read_cloud = new photon_cloud_type;
+			data->read_cloud_owner = true;
+			photon_cloud_type * read_cloud = data->read_cloud; //Alias of the cloud in data->read_cloud;
 
-			AiMsgInfo("  %d mb chunk, %d kilophotons.", (int) read_bytes/mb, read_photons/1000);
-			photon_type* photon_array = new photon_type[read_photons];
-			char * buffer = (char*)(photon_array);
+			for (file_int i = 0; i < length; i+= chunk_size) {
+				file_int read_bytes = std::min(length - i, chunk_size);
+				file_int read_photons = read_bytes / photon_size;
 
-			infile.read(buffer, read_bytes);
-			read_cloud->insert(read_cloud->end(), &photon_array[0], &photon_array[read_photons]);
+				infile.seekg (i, infile.beg);
 
-			delete photon_array;
+				AiMsgInfo("  %d mb chunk, %d kilophotons.", (int) read_bytes/mb, read_photons/1000);
+				photon_type* photon_array = new photon_type[read_photons];
+				char * buffer = (char*)(photon_array);
+
+				infile.read(buffer, read_bytes);
+				read_cloud->insert(read_cloud->end(), &photon_array[0], &photon_array[read_photons]);
+
+				delete photon_array;
+			}
+
+			AiMsgInfo("  Read %d mb, %d kilophotons.", length/mb, num_photons/1000);
+			// photon_type* last_photon = &photon_array[num_photons - 1];
+			// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
+
+
+			if (num_photons != read_cloud->size()) {
+				AiMsgError("Error in photon read. %d in file, %d in memory.", num_photons, read_cloud->size());
+			} else {
+				AiMsgInfo("  All photons accounted for.");
+			}
+			// last_photon = &read_cloud->at(num_photons - 1);
+			// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 		}
 
+		if (data->read_octree_owner == true) {
+			const clock_t photon_process_time = clock();
+			
+			photon_accellerator_type * accel = new photon_accellerator_type;
+			accel->build(data->read_cloud, data->read_radius);
+			data->read_cloud_accelerator = accel;
 
-		AiMsgInfo("  Read %d mb, %d kilophotons.", length/mb, num_photons/1000);
-		// photon_type* last_photon = &photon_array[num_photons - 1];
-		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
-
-		const clock_t photon_process_time = clock();
-
-		if (num_photons != read_cloud->size()) {
-			AiMsgError("Error in photon read. %d in file, %d in memory.", num_photons, read_cloud->size());
-		} else {
-			AiMsgInfo("  All photons accounted for.");
+			AiMsgInfo("Octree completed: %f seconds", (float(clock() - photon_process_time) /  CLOCKS_PER_SEC));
 		}
-		// last_photon = &read_cloud->at(num_photons - 1);
-		// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
-
-		photon_accellerator_type * accel = new photon_accellerator_type;
-		float radius_hint = AiNodeGetFlt(node, "read_radius");
-		accel->build(read_cloud, radius_hint);
-		data->read_cloud_accelerator = accel;
-
-		AiMsgInfo("Octree completed: %f seconds", (float(clock() - photon_process_time) /  CLOCKS_PER_SEC));
 	}
 }
 
@@ -646,8 +699,8 @@ node_update {
 		unsigned long long AA_samples = AiNodeGetInt(render_options, "AA_samples");
 		unsigned long long total_samples = AA_samples * AA_samples * AiNodeGetInt(render_options, "xres") * AiNodeGetInt(render_options, "yres");
 		unsigned long long expected_sampling_baseline = 16777216;
-		data->sampling_normalizer = (float) ((double) expected_sampling_baseline / (double) total_samples);
-		AiMsgWarning("Based on expected %d kilosamples, normalization factor is %f.", total_samples/1000, data->sampling_normalizer);
+		data->write_sampling_normalizer = (float) ((double) expected_sampling_baseline / (double) total_samples);
+		AiMsgWarning("Based on expected %d kilosamples, normalization factor is %f.", total_samples/1000, data->write_sampling_normalizer);
 
 		return;
 	}
@@ -790,11 +843,15 @@ node_finish {
 	}
 
 	if ((mode == m_read || mode == m_read_visualize)) {
-		AiMsgWarning("Photon Octree: Destroying...");
-		data->read_cloud_accelerator->destroy_structure();
-		delete data->read_cloud_accelerator;
-		AiMsgWarning("Photon Cloud: Destroying...");
-		delete data->read_cloud;
+		if (data->read_octree_owner) {
+			AiMsgWarning("Photon Octree: Destroying...");
+			data->read_cloud_accelerator->destroy_structure();
+			delete data->read_cloud_accelerator;
+		}		
+		if (data->read_cloud_owner == true) {
+			AiMsgWarning("Photon Cloud: Destroying...");
+			delete data->read_cloud;
+		}
 	}
 
 	delete data;
@@ -815,7 +872,7 @@ shader_evaluate {
 		bool is_photon = AiStateGetMsgRGB( "photon_energy", &photon_energy );
 
 		if (is_photon) {
-			photon_type photon = {photon_energy * data->sampling_normalizer, sg->P, sg->Rt};
+			photon_type photon = {photon_energy * data->write_sampling_normalizer, sg->P, sg->Rt};
 			photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, sg->tid));
 			cloud->push_back(photon);
 			sg->out.RGB = photon_energy;
