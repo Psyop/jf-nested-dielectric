@@ -6,11 +6,17 @@ Reading Caustics:
 	# Multiple readers pointing to the same photon cloud dont need to load it more than once.
 
 
+AOVs
+	Refracted AOV
+	Reflected AOV
+
+
 Writing caustics:
 
 
-RND: 
+R&D: 
 	Investigate the Jones Gambit
+	Investigate spherical harmonics
 	
 
 

@@ -44,20 +44,20 @@ float Log2( float n )
     return (float) (log( n ) / log( 2.0f ));  
 }
 
-typedef class photon_accellerator_type{
+typedef class photon_octree_type{
 	public:
 		AtVector bounds_n; //bounds_n + {len, len, len} is the positive bounds
 		float len;
 
 	private:
-		bool _has_sub_accells;
+		bool _has_sub_octrees;
 		unsigned char _recursion_level;
 		unsigned char _max_recursion;
 		unsigned short _photons_per_bucket_hint;
 
 		photon_list_type * _photon_list;
-		photon_accellerator_type * _sub_accells[8];
-		unsigned long long * accelerator_count;
+		photon_octree_type * _sub_octrees[8];
+		unsigned long long * octree_count;
 
 		photon_cloud_type * _target_photon_cloud;
 
@@ -109,10 +109,10 @@ typedef class photon_accellerator_type{
 		}
 		// Bounds creation
 
-		void init_top_accell(photon_cloud_type* photon_cloud, bool measure_bounds) {
+		void init_top_tree(photon_cloud_type* photon_cloud, bool measure_bounds) {
 			_target_photon_cloud = photon_cloud;
-			accelerator_count = new unsigned long long;
-			*accelerator_count = 1;
+			octree_count = new unsigned long long;
+			*octree_count = 1;
 
 			_recursion_level = 0;
 			init_photon_list();
@@ -198,9 +198,9 @@ typedef class photon_accellerator_type{
 
 		// Culling
 
-		void cull_photons_in_bucket(photon_accellerator_type * accell, float radius, photon_cloud_type * cloud_out) {
-			photon_list_type* photons = accell->_photon_list;
-			if (accell->len < radius) {
+		void cull_photons_in_bucket(photon_octree_type * tree, float radius, photon_cloud_type * cloud_out) {
+			photon_list_type* photons = tree->_photon_list;
+			if (tree->len < radius) {
 			// if (false) {
 				photon_type refr_conglom;
 				photon_type refl_conglom;
@@ -246,14 +246,14 @@ typedef class photon_accellerator_type{
 
 		// Build tree
 
-		void initialize_child(photon_accellerator_type * child, unsigned char octant) {
+		void initialize_child(photon_octree_type * child, unsigned char octant) {
 			child->init_photon_list();
 			child->set_bounds(octant, bounds_n, len); //will set _pos, bounds_n and bounds_p
 
-			child->accelerator_count = accelerator_count;
-			++ *child->accelerator_count;
+			child->octree_count = octree_count;
+			++ *child->octree_count;
 
-			child->_has_sub_accells = false;
+			child->_has_sub_octrees = false;
 			child->_recursion_level = _recursion_level + 1;
 			child->_max_recursion = _max_recursion;
 			child->_photons_per_bucket_hint = _photons_per_bucket_hint;			
@@ -261,7 +261,7 @@ typedef class photon_accellerator_type{
 			child->_target_photon_cloud = _target_photon_cloud;
 
 			for (unsigned char i = 0; i < 8; i++) {
-				child->_sub_accells[i] = NULL;
+				child->_sub_octrees[i] = NULL;
 			}
 		}
 
@@ -275,7 +275,7 @@ typedef class photon_accellerator_type{
 				return;
 			}
 
-			unsigned long long octree_size = *accelerator_count * sizeof(photon_accellerator_type);
+			unsigned long long octree_size = *octree_count * sizeof(photon_octree_type);
 			unsigned long long accel_mb_estimate = (octree_size)/(1024 * 1024);
 			if (!cull && accel_mb_estimate > (unsigned long) ( 16 * 1024 )) {
 				// This is only a safety mechanism.
@@ -284,8 +284,8 @@ typedef class photon_accellerator_type{
 			}
 			// make 8 children and initialize them
 			for (unsigned char i = 0; i < 8; i++) {
-				_sub_accells[i] = new photon_accellerator_type;
-				initialize_child(_sub_accells[i], i);
+				_sub_octrees[i] = new photon_octree_type;
+				initialize_child(_sub_octrees[i], i);
 			}
 
 			// distribute points
@@ -293,28 +293,28 @@ typedef class photon_accellerator_type{
 				size_t photon_ID = _photon_list->at(i);
 				for (unsigned char i = 0; i < 8; i++) {
 					AtVector photon_position = _target_photon_cloud->at(photon_ID).pos;
-					if (_sub_accells[i]->within_bounds(photon_position)) {
-						_sub_accells[i]->add_ID_to_bucket(photon_ID);
+					if (_sub_octrees[i]->within_bounds(photon_position)) {
+						_sub_octrees[i]->add_ID_to_bucket(photon_ID);
 						break;
 					}
 				}
 			}
-			_has_sub_accells = true;
+			_has_sub_octrees = true;
 			delete _photon_list;
 			_photon_list = NULL;
 			for (unsigned char i = 0; i < 8; i++) {
-				_sub_accells[i]->build_structure(cull, cull_radius, cull_cloud_out);
+				_sub_octrees[i]->build_structure(cull, cull_radius, cull_cloud_out);
 				if (cull) {
-					_sub_accells[i]->ripple_destroy();
-					delete _sub_accells[i];
-					_sub_accells[i] = NULL;
+					_sub_octrees[i]->ripple_destroy();
+					delete _sub_octrees[i];
+					_sub_octrees[i] = NULL;
 				}
 			}
 		}
 
 	public:
 		void get_photons_in_radius(photon_list_type* photon_list_out, const AtVector* pos, float radius) {
-			if (!_has_sub_accells) {
+			if (!_has_sub_octrees) {
 				photon_list_out->insert(
 					photon_list_out->end(), 
 					_photon_list->begin(), 
@@ -323,35 +323,35 @@ typedef class photon_accellerator_type{
 				return;
 			}
 
-			photon_accellerator_type * s_sub_accell = _sub_accells[0];
-			std::vector<photon_accellerator_type *> accells_to_search;
+			photon_octree_type * s_sub_tree = _sub_octrees[0];
+			std::vector<photon_octree_type *> octrees_to_search;
 
 			for (unsigned char i = 0; i < 8; i++) {
-				if( _sub_accells[i]->within_range(pos, radius)) {
-					accells_to_search.push_back(_sub_accells[i]);
+				if( _sub_octrees[i]->within_range(pos, radius)) {
+					octrees_to_search.push_back(_sub_octrees[i]);
 				}
 			}
 
-			while (accells_to_search.size() > 0) {
-				std::vector<photon_accellerator_type *> s_accells = accells_to_search;
-				accells_to_search.clear();
-				for (size_t i = 0; i < s_accells.size(); i++) {
+			while (octrees_to_search.size() > 0) {
+				std::vector<photon_octree_type *> s_octrees = octrees_to_search;
+				octrees_to_search.clear();
+				for (size_t i = 0; i < s_octrees.size(); i++) {
 
-					photon_accellerator_type* sub_accell = s_accells[i];
+					photon_octree_type* sub_tree = s_octrees[i];
 
-					if (sub_accell->_has_sub_accells) {
-						// no points here, add sub accels to accells_to_search
+					if (sub_tree->_has_sub_octrees) {
+						// no points here, add sub accels to octrees_to_search
 						for (unsigned char g = 0; g < 8; g++) {
-							if (sub_accell->_sub_accells[g]->within_range(pos, radius)) {
-								accells_to_search.push_back(sub_accell->_sub_accells[g]);
+							if (sub_tree->_sub_octrees[g]->within_range(pos, radius)) {
+								octrees_to_search.push_back(sub_tree->_sub_octrees[g]);
 							}
 						}
 					} else {
 						// We have found points. 
 						photon_list_out->insert(
 							photon_list_out->end(), 
-							s_accells[i]->_photon_list->begin(), 
-							s_accells[i]->_photon_list->end()
+							s_octrees[i]->_photon_list->begin(), 
+							s_octrees[i]->_photon_list->end()
 							);
 					}
 				}
@@ -361,10 +361,10 @@ typedef class photon_accellerator_type{
 
 		void build_while_culling(photon_cloud_type* photon_cloud, float radius, photon_cloud_type * cloud_out, AtVector* bounds_n_in = NULL, AtVector* bounds_p_in = NULL) {
 			if (bounds_n_in != NULL && bounds_p_in != NULL) {
-				init_top_accell(photon_cloud, false);
+				init_top_tree(photon_cloud, false);
 				init_bounds_from_vectors(bounds_n_in, bounds_p_in);
 			} else {
-				init_top_accell(photon_cloud, true);				
+				init_top_tree(photon_cloud, true);				
 			}
 
 			int subdivisions = (int) (Log2(len/radius) + 2.0f);
@@ -379,7 +379,7 @@ typedef class photon_accellerator_type{
 			unsigned short photons_per_bucket_hint = 32;
 			unsigned short max_nesting = 11;
 
-			init_top_accell(photon_cloud, true);
+			init_top_tree(photon_cloud, true);
 
 			unsigned short subdivisions_hint = (int) (Log2(len/radius_hint) - 2.0f);
 			unsigned short subdivisions = std::min(subdivisions_hint, max_nesting);
@@ -389,8 +389,8 @@ typedef class photon_accellerator_type{
 			build_structure();
 
 			AiMsgInfo("  Octree stats: %g kilo-substructures. 8^%d max divisions (optimized for radius %g). ", 
-				*accelerator_count/1000.0f, subdivisions, radius_hint);
-			unsigned long long octree_size = *accelerator_count * sizeof(photon_accellerator_type);
+				*octree_count/1000.0f, subdivisions, radius_hint);
+			unsigned long long octree_size = *octree_count * sizeof(photon_octree_type);
 			unsigned long long lists_estimate = photon_cloud->size() * sizeof(size_t);
 			AiMsgInfo("  Octree stats: %g mb. ", (octree_size + lists_estimate) / (1024.0f * 1024.0f));
 		}
@@ -403,7 +403,7 @@ typedef class photon_accellerator_type{
 				delete _photon_list;
 			}
 
-			delete accelerator_count;
+			delete octree_count;
 		}
 
 
@@ -413,13 +413,13 @@ typedef class photon_accellerator_type{
 			}
 
 			for (unsigned char i = 0; i < 8; i++) {
-				if (_sub_accells[i] != NULL) {
-					_sub_accells[i]->ripple_destroy();
-					delete _sub_accells[i];
+				if (_sub_octrees[i] != NULL) {
+					_sub_octrees[i]->ripple_destroy();
+					delete _sub_octrees[i];
 				}
 			}
 		}
-} photon_accellerator_type;
+} photon_octree_type;
 
 
 float blackman_harris(float distance, float radius) {
@@ -457,7 +457,7 @@ unsigned int threaded_cull(void * data) {
 		return 0;
 	}
 
-	photon_accellerator_type octree;
+	photon_octree_type octree;
 	photon_cloud_type reduced_cloud;
 	octree.build_while_culling(thread_data->cloud_in, thread_data->merge_radius, &reduced_cloud, &thread_data->bounds_n, &thread_data->bounds_p);
 	octree.destroy_structure();
@@ -486,7 +486,7 @@ struct ShaderData{
 	bool read_cloud_owner;
 	bool read_octree_owner;
 	photon_cloud_type * read_cloud;
-	photon_accellerator_type * read_cloud_accelerator;
+	photon_octree_type * read_cloud_octree;
 	float read_radius;
 	std::string aov_refr_caustics;
 	std::string aov_refl_caustics;
@@ -565,7 +565,7 @@ node_initialize {
 		data->read_cloud_owner = true;
 		data->read_octree_owner = true;
 		data->read_cloud = NULL;
-		data->read_cloud_accelerator = NULL;
+		data->read_cloud_octree = NULL;
 		data->read_radius = read_radius;
 
 		AtNodeIterator * shader_iterator = AiUniverseGetNodeIterator(AI_NODE_SHADER);
@@ -593,7 +593,7 @@ node_initialize {
 						other_data->read_radius > (read_radius / tolerance_factor)
 						) {
 						AiMsgWarning("JF Photon: Octree already exists, reusing!");
-						data->read_cloud_accelerator = other_data->read_cloud_accelerator;
+						data->read_cloud_octree = other_data->read_cloud_octree;
 						data->read_octree_owner = false;
 					}
 					break;
@@ -663,9 +663,9 @@ node_initialize {
 		if (data->read_octree_owner == true) {
 			const clock_t photon_process_time = clock();
 			
-			photon_accellerator_type * accel = new photon_accellerator_type;
+			photon_octree_type * accel = new photon_octree_type;
 			accel->build(data->read_cloud, data->read_radius);
-			data->read_cloud_accelerator = accel;
+			data->read_cloud_octree = accel;
 
 			AiMsgInfo("JF Photon: Octree completed in %f seconds", (float(clock() - photon_process_time) /  CLOCKS_PER_SEC));
 		}
@@ -752,7 +752,7 @@ node_finish {
 
 			AtVector universal_bounds_n = AI_V3_ZERO;
 			AtVector universal_bounds_p = AI_V3_ZERO;
-			photon_accellerator_type octree;
+			photon_octree_type octree;
 			for (AtUInt32 i = 0; i < thread_count; i++) { // TO DO: remove this atrocity- (i < thread_count) && (i < thread_count);
 				AtUInt32 thread_ID = i;
 				photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, thread_ID));
@@ -801,7 +801,7 @@ node_finish {
 				if (remerge) {						
 					AiMsgWarning("JF Photon: Rereducing:");
 					photon_cloud_type cloud_out;
-					photon_accellerator_type octree;
+					photon_octree_type octree;
 					octree.build_while_culling(&compiled_cloud, merge_radius, &cloud_out, &universal_bounds_n, &universal_bounds_p);
 					octree.destroy_structure();
 
@@ -846,8 +846,8 @@ node_finish {
 	if ((mode == m_read || mode == m_read_visualize)) {
 		if (data->read_octree_owner) {
 			AiMsgWarning("JF Photon: Destroying Octree...");
-			data->read_cloud_accelerator->destroy_structure();
-			delete data->read_cloud_accelerator;
+			data->read_cloud_octree->destroy_structure();
+			delete data->read_cloud_octree;
 		}		
 		if (data->read_cloud_owner == true) {
 			AiMsgWarning("JF Photon: Destroying Cloud...");
@@ -892,7 +892,7 @@ shader_evaluate {
 			float k_reflected = AiShaderEvalParamFlt(p_reflected_intensity);
 
 			photon_list_type photon_IDs;
-			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, &sg->P, radius);
+			data->read_cloud_octree->get_photons_in_radius(&photon_IDs, &sg->P, radius);
 
 			AtColor refr_energy = AI_RGB_BLACK;
 			AtColor refl_energy = AI_RGB_BLACK;
@@ -926,7 +926,7 @@ shader_evaluate {
 			sg->out.RGBA.a = 1.0f;
 		} else if (mode == m_read_visualize) {
 			photon_list_type photon_IDs;
-			data->read_cloud_accelerator->get_photons_in_radius(&photon_IDs, &sg->P, radius);
+			data->read_cloud_octree->get_photons_in_radius(&photon_IDs, &sg->P, radius);
 			float out_value = ((float) photon_IDs.size() / 300.0f);
 			sg->out.RGBA = AI_RGBA_WHITE * out_value;
 			sg->out.RGBA.a = 1.0f;
