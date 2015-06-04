@@ -626,6 +626,12 @@ node_initialize {
 			infile.seekg (0, infile.end);
 			file_int length = infile.tellg();
 
+			if (length == 0) {
+				data->abort = true;
+				AiMsgWarning("JF Photon: File contains zero photons.");
+				return;
+			}
+
 
 			file_int photon_size = sizeof(photon_type);
 			file_int num_photons = length/photon_size;
