@@ -666,9 +666,14 @@ node_initialize {
 			// photon_type* last_photon = &photon_array[num_photons - 1];
 			// AiMsgWarning("Color of last photon %f %f %f", last_photon->energy.r, last_photon->energy.g, last_photon->energy.b );
 
+			if (length % photon_size != 0) {
+				AiMsgWarning("JF Photon: File size indicates a non-integer number of photons.");
+				data->abort = true;
+			}
 
 			if (num_photons != read_cloud->size()) {
 				AiMsgError("JF Photon: Error in photon read. %d in file, %d in memory.", num_photons, read_cloud->size());
+				data->abort = true;
 			} else {
 				AiMsgInfo("  All photons accounted for.");
 			}
