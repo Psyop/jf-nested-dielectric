@@ -509,6 +509,12 @@ enum jf_photonParams {
 
  
 node_parameters {
+	AiMetaDataSetInt(mds, NULL, "maya.id", 0xc2ce82);
+	AiMetaDataSetStr(mds, NULL, "maya.classification", "shader/surface");
+	AiMetaDataSetStr(mds, NULL, "maya.name", "jf_photon");
+	AiMetaDataSetInt(mds, NULL, "maya.id", 0xc2ce82);
+
+
 	AiParameterEnum("mode", m_read, enum_modes);
 	AiParameterStr("file_path", "c:/photonics.[Frame].caustics");
 	AiParameterInt("frame", 0);
