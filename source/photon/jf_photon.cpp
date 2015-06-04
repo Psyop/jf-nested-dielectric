@@ -516,8 +516,8 @@ node_parameters {
 
 
 	AiParameterEnum("mode", m_read, enum_modes);
-	AiParameterStr("file_path", "c:/photonics.[Frame].caustics");
 	AiParameterInt("frame", 0);
+	AiParameterStr("file_path", "c:/photonics.[Frame].bin");
 	AiParameterBool("write_merge_photons", true);
 	AiParameterBool("write_remerge_photons", true);
 	AiParameterFlt("write_merge_radius", 0.005f);
