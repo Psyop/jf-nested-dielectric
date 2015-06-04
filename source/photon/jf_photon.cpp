@@ -516,8 +516,8 @@ node_parameters {
 
 
 	AiParameterEnum("mode", m_read, enum_modes);
-	AiParameterInt("frame", 0);
 	AiParameterStr("file_path", "c:/photonics.[Frame].bin");
+	AiParameterInt("frame", -1);
 	AiParameterBool("write_merge_photons", true);
 	AiParameterBool("write_remerge_photons", true);
 	AiParameterFlt("write_merge_radius", 0.005f);
@@ -543,6 +543,10 @@ node_initialize {
 
 	std::string file_path = AiNodeGetStr(node, "file_path");
 	int frame = AiNodeGetInt(node, "frame");
+	if (frame == -1) {
+		frame = int( AiNodeGetFlt(render_options, "frame") + 0.49f );
+	}
+
 	char frame_string[4];
  	sprintf(frame_string, "%04d", frame);
 	std::string token = "[Frame]";
