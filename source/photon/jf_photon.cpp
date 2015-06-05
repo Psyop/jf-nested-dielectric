@@ -267,7 +267,7 @@ typedef class photon_octree_type{
 
 		// Recursive tree build
 		void build_structure(bool cull = false, float cull_radius = 1.0f, photon_cloud_type * cull_cloud_out = NULL) {
-			if (_photon_list->size() < _photons_per_bucket_hint || _recursion_level >= _max_recursion) {
+			if (*octree_count > 1 && (_photon_list->size() < _photons_per_bucket_hint || _recursion_level >= _max_recursion)) {
 				// Stop building. Either we're divided enough, or we're at our max recursion depth. 
 				if (cull) {
 					cull_photons_in_bucket(this, cull_radius, cull_cloud_out);
@@ -652,7 +652,8 @@ node_initialize {
 				if (read_bytes != 0) {
 					infile.seekg (i, infile.beg);
 
-					AiMsgInfo("  %d mb chunk, %d kilophotons.", (int) read_bytes/mb, read_photons/1000);
+					//AiMsgInfo("  %d mb chunk, %d kilophotons.", (int) read_bytes/mb, read_photons/1000);
+					AiMsgInfo("  %d mb chunk, %d photons.", (int) read_bytes/mb, read_photons);
 					photon_type* photon_array = new photon_type[read_photons];
 					char * buffer = (char*)(photon_array);
 
