@@ -380,7 +380,8 @@ typedef class photon_octree_type{
 			unsigned short max_nesting = 11;
 
 			init_top_tree(photon_cloud, true);
-
+			_has_sub_octrees = false;
+			
 			unsigned short subdivisions_hint = (int) (Log2(len/radius_hint) - 2.0f);
 			unsigned short subdivisions = std::min(subdivisions_hint, max_nesting);
 
