@@ -1299,9 +1299,12 @@ shader_evaluate
 					AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
 
 					void * brdf_data; 
-
-					switch ( RayState->media_BRDF.v[m_higherPriority] )
-					{						
+					int spec_brdf = RayState->media_BRDF.v[m_higherPriority];
+					bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
+					if (sharp_reflection)
+						spec_brdf = b_stretched_phong;
+					switch ( spec_brdf )
+					{
 						case b_stretched_phong:
 							// Stretched Phong
 							brdf_data = AiStretchedPhongMISCreateData(sg, (0.5f / SQR(spec_roughnessU) - 0.5f));
@@ -1356,61 +1359,52 @@ shader_evaluate
 						}
 
 
+						if (sg->Rt == AI_RAY_CAMERA)
+							RayState->ray_energy_photon /= (float) data->gloss_samples;
 
-						if (spec_roughnessU > ZERO_EPSILON || spec_roughnessV > ZERO_EPSILON)
+						AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
+
+						while ( AiSamplerGetSample(specularIterator, specular_sample) )
 						{
-							if (sg->Rt == AI_RAY_CAMERA)
-								RayState->ray_energy_photon /= (float) data->gloss_samples;
-
-							AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
-
-							while ( AiSamplerGetSample(specularIterator, specular_sample) )
+							if (sharp_reflection) 
 							{
-								switch ( RayState->media_BRDF.v[m_higherPriority] )
-								{
-									case b_stretched_phong:
-										specularRay.dir = AiStretchedPhongMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
-										break;
-									case b_cook_torrance:
-										specularRay.dir = AiCookTorranceMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
-										break;
-									case b_ward_rayTangent:
-										specularRay.dir = AiWardDuerMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
-										break;
-									case b_ward_userTangent:
-										specularRay.dir = AiWardDuerMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
-										break;
-								}
+								specular_sample[0] = 0.5f;
+								specular_sample[1] = 0.5f;
+							}
+							switch ( spec_brdf )
+							{
+								case b_stretched_phong:
+									specularRay.dir = AiStretchedPhongMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
+									break;
+								case b_cook_torrance:
+									specularRay.dir = AiCookTorranceMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
+									break;
+								case b_ward_rayTangent:
+									specularRay.dir = AiWardDuerMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
+									break;
+								case b_ward_userTangent:
+									specularRay.dir = AiWardDuerMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
+									break;
+							}
 								
-								if (AiV3Dot(specularRay.dir,sg->Nf) > ZERO_EPSILON )
-								{									
+							if (AiV3Dot(specularRay.dir,sg->Nf) > ZERO_EPSILON )
+							{									
 
-									const bool tracehit = AiTrace(&specularRay, &sample);
-									if (tracehit || reflect_skies) 
-									{
-										if (do_TIR) 
-											acc_spec_indirect += sample.color * TIR_color * transmissionOnSample(&t1, &sample, tracehit );
-										else 
-											acc_spec_indirect += sample.color * weight * transmissionOnSample(&t1, &sample, tracehit );
-									}
+								const bool tracehit = AiTrace(&specularRay, &sample);
+								if (tracehit || reflect_skies) 
+								{
+									if (do_TIR) 
+										acc_spec_indirect += sample.color * TIR_color * transmissionOnSample(&t1, &sample, tracehit );
+									else 
+										acc_spec_indirect += sample.color * weight * transmissionOnSample(&t1, &sample, tracehit );
 								}
 							}
+							if (sharp_reflection)
+								break;
+						}
+						if (!sharp_reflection)
 							acc_spec_indirect *= (float) AiSamplerGetSampleInvCount(specularIterator);
 
-						}
-						else
-						{
-							AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
-							AiReflectRay(&specularRay, &sg->Nf, sg);
-							const bool tracehit = AiTrace(&specularRay, &sample);
-							if (tracehit || reflect_skies) 
-							{
-								if (do_TIR) 
-									acc_spec_indirect += sample.color * TIR_color * overallResultScale * transmissionOnSample(&t1, &sample, tracehit );
-								else 
-									acc_spec_indirect = sample.color * fresnelTerm * RayState->media_specIndirect.v[m1] * overallResultScale * transmissionOnSample(&t1, &sample, tracehit );
-							}
-						}
 						RayState->ray_energy = energyCache;						
 						RayState->ray_energy_photon = energyCache_photon;						
 					}
