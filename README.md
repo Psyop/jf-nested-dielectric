@@ -49,6 +49,8 @@ make install
  - Vladimir Jankijevic
  - Jan Walter
  - Chad Dombrova 
+ - Daniel Hennies
+ - Vahan Sosoyan  
 
 ### Special Thanks To
 

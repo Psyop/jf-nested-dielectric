@@ -1,0 +1,15 @@
+[node jf_nested_dielectric]
+	desc STRING "JF Nested Dielectric By Jonah Friedman v1.0.5, Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman"
+	c4d.classification STRING "surface"
+	c4d.menu STRING "surface"
+	c4d.command_id INT 1038291
+	
+
+	[attr mediumpriority]
+		
+		min FLOAT 0.0
+		max FLOAT 1.0
+		linkable BOOL TRUE
+
+	[attr mediumtransmittance scale]
+	
