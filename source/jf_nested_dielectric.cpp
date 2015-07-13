@@ -657,9 +657,6 @@ shader_evaluate
 	t2 = RayState->media_transmission.v[m2];
 
 	AtColor cTransmission = transmissionColor(&t1, (float) sg->Rl) ;
-	RayState->ray_energy *= cTransmission;
-	RayState->ray_energy_photon *= cTransmission;
-
 
 	// ---------------------------------------------------//
 	// - Shadow rays
@@ -707,8 +704,11 @@ shader_evaluate
 			updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
 
 		return;
+	} else {
+		RayState->ray_energy *= cTransmission;
+		RayState->ray_energy_photon *= cTransmission;
 	}
-	
+
 
 	// ---------------------------------------------------//
 	// Main Ray Tracing
