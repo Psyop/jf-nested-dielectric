@@ -511,7 +511,7 @@ enum jf_photonParams {
  
 node_parameters {
 	AiMetaDataSetInt(mds, NULL, "maya.id", 0xc2ce82);
-	AiMetaDataSetStr(mds, NULL, "maya.classification", "shader/surface");
+	AiMetaDataSetStr(mds, NULL, "maya.classification", "texture/3d");
 	AiMetaDataSetStr(mds, NULL, "maya.name", "jf_photon");
 	AiMetaDataSetInt(mds, NULL, "maya.id", 0xc2ce82);
 
