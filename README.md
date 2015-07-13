@@ -91,3 +91,4 @@ make install
 #### 1.0.5
 
 - Fixed issue reported by Vahan Sosoyan where a glass of liquid could look wrong in reflection. 
+- Added Cinema 4D helper files by Daniel Hennies
