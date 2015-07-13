@@ -27,7 +27,8 @@ set_target_properties(jf_nested_dielectric PROPERTIES PREFIX "")
 target_link_libraries(jf_nested_dielectric ${ARNOLD_LIBRARY})
 
 install(TARGETS jf_nested_dielectric
-    LIBRARY DESTINATION plugins)
+    LIBRARY DESTINATION plugins
+    ARCHIVE DESTINATION plugins)
 
 install(FILES mtoa/jf_nested_dielectric.mtd
 	DESTINATION plugins)
