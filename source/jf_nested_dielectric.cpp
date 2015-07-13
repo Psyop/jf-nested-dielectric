@@ -1,6 +1,6 @@
 /* 
  * JF Nested Dielectric by Jonah Friedman
- * 1.0.4
+ * 1.0.5
  * Copyright (c) 2014, Psyop Media Company, LLC and Jonah Friedman 
  * Open sourced under the 3 clause BSD license, see license.txt
  */
