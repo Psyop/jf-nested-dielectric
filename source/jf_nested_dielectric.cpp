@@ -344,43 +344,23 @@ shader_evaluate
 	}
 
 
-	{			
-		const AtColor _cMatMediumTransmission_color = AiShaderEvalParamRGB(p_mediumTransmittance);
-		const float _cMatMediumTransmission_scale = 1.0f / AiShaderEvalParamFlt(p_mediumTransmittance_scale);
-		const AtColor cMatMediumTransmission = 
-		{
-			pow(_cMatMediumTransmission_color.r, _cMatMediumTransmission_scale),
-			pow(_cMatMediumTransmission_color.g, _cMatMediumTransmission_scale),
-			pow(_cMatMediumTransmission_color.b, _cMatMediumTransmission_scale)
-		};
-		RayState->media_iOR.v[m_cMatID] = AiShaderEvalParamFlt(p_mediumIOR);
-		RayState->media_disperse.v[m_cMatID] =  AiShaderEvalParamBool(p_disperse);
-		RayState->media_dispersion.v[m_cMatID] = AiShaderEvalParamFlt(p_dispersion);
-		RayState->media_transmission.v[m_cMatID] = cMatMediumTransmission;
-		RayState->media_BTDF.v[m_cMatID] = AiShaderEvalParamEnum(p_btdf);
-		RayState->media_BRDF.v[m_cMatID] = AiShaderEvalParamEnum(p_brdf);
-		RayState->media_refractRoughnessU.v[m_cMatID] = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_u) );
-		RayState->media_specRoughnessU.v[m_cMatID] = AiShaderEvalParamFlt(p_specular_roughness_u);
+	{
+		RayState->setMediaIOR(m_cMatID, AiShaderEvalParamFlt(p_mediumIOR));
+		RayState->setMediaDispersion(m_cMatID, AiShaderEvalParamBool(p_disperse), AiShaderEvalParamFlt(p_dispersion));		
+		const float sScale = AiShaderEvalParamFlt(p_specular_scale);
+		const float sDirect = AiShaderEvalParamFlt(p_direct_specular) * sScale;
+		const float sIndirect = AiShaderEvalParamFlt(p_indirect_specular) * sScale;
+		RayState->setMediaSpecular(m_cMatID, sDirect, sIndirect, AiShaderEvalParamEnum(p_brdf), 
+			AiShaderEvalParamFlt(p_specular_roughness_u), AiShaderEvalParamFlt(p_specular_roughness_v));
+		const float rScale = AiShaderEvalParamFlt(p_refraction_scale);
+		const float rDirect = AiShaderEvalParamFlt(p_direct_refraction) * rScale;
+		const float rIndirect = AiShaderEvalParamFlt(p_indirect_refraction) * rScale;	
+		RayState->setRefractionSettings(m_cMatID, rDirect, rIndirect, AiShaderEvalParamEnum(p_btdf), 
+			refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_u) ), 
+			refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_v) ), 
+			AiShaderEvalParamRGB(p_mediumTransmittance), AiShaderEvalParamFlt(p_mediumTransmittance_scale));
 
-		const float _refractionScale = AiShaderEvalParamFlt(p_refraction_scale);
-		RayState->media_refractDirect.v[m_cMatID] = AiShaderEvalParamFlt(p_direct_refraction) * _refractionScale;
-		RayState->media_refractIndirect.v[m_cMatID] = AiShaderEvalParamFlt(p_indirect_refraction) * _refractionScale;	
-
-		const float _specularScale = AiShaderEvalParamFlt(p_specular_scale);
-		RayState->media_specDirect.v[m_cMatID] = AiShaderEvalParamFlt(p_direct_specular) * _specularScale;
-		RayState->media_specIndirect.v[m_cMatID] = AiShaderEvalParamFlt(p_indirect_specular) * _specularScale;
-
-		if (RayState->media_BTDF.v[m_cMatID] >= 2)
-			RayState->media_refractRoughnessV.v[m_cMatID] = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_v) );
-		else
-			RayState->media_refractRoughnessV.v[m_cMatID] = 0.0f;
-
-		if (RayState->media_BRDF.v[m_cMatID] >= 2)
-			RayState->media_specRoughnessV.v[m_cMatID] = AiShaderEvalParamFlt(p_specular_roughness_v);
-		else
-			RayState->media_specRoughnessV.v[m_cMatID] = 0;
-
-		RayState->media_blurAnisotropicPoles.v[m_cMatID] = AiShaderEvalParamFlt(p_blur_anisotropic_poles);
+		RayState->setAnisotropySettings(m_cMatID, AiShaderEvalParamFlt(p_blur_anisotropic_poles));
 	}
 
 	// ---------------------------------------------------//
@@ -411,9 +391,8 @@ shader_evaluate
 	int startingMedium = 0, startingMediumSecondary = 0; 
 
 	for( int i = 0; i < max_media_count; i++ )
-	{
-	
-	if ( media_inside_ptr->v[i] > 0 ) // if we find a medium that we're inside
+	{	
+		if ( media_inside_ptr->v[i] > 0 ) // if we find a medium that we're inside
 		{
 			if ( startingMedium == 0 ) // ..and we havent found our current medium yet
 			{

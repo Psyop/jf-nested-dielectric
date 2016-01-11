@@ -311,6 +311,58 @@ typedef struct Ray_State_Datatype {
 		RayStateCache->ray_invalidDepth 	= this->ray_invalidDepth;
 		RayStateCache->ray_energy 			= this->ray_energy;
 	}
+
+	void setMediaIOR(int i, float ior)
+	{
+		this->media_iOR.v[i] = ior;
+	}
+
+	void setMediaDispersion(int i, bool disperse, float dispersion)
+	{
+		this->media_disperse.v[i] = disperse;
+		this->media_dispersion.v[i] = dispersion;
+	}
+		
+	void setMediaSpecular(int i, float direct, float indirect, int BRDF, float roughnessU, 
+		float roughnessV)
+	{
+		this->media_BRDF.v[i] = BRDF;
+		this->media_specRoughnessU.v[i] = roughnessU;
+		this->media_specDirect.v[i] = direct;
+		this->media_specIndirect.v[i] = indirect;
+		if (BRDF >= 2)
+			this->media_specRoughnessV.v[i] = roughnessV;
+		else
+			this->media_specRoughnessV.v[i] = 0;
+	}
+
+	void setRefractionSettings(int i, float direct, float indirect, int BTDF, float roughnessU, 
+		float roughnessV, AtColor transmission, float transmissionScale)
+	{
+		this->media_refractDirect.v[i] = direct;
+		this->media_refractIndirect.v[i] = indirect;
+		this->media_BTDF.v[i] = BTDF;
+		this->media_refractRoughnessU.v[i] = roughnessU;
+		if (BTDF >= 2)
+			this->media_refractRoughnessV.v[i] = roughnessV;
+		else
+			this->media_refractRoughnessV.v[i] = 0.0f;
+		
+		const float tScale = 1.0f / transmissionScale;
+		const AtColor scaledTransmission = 
+		{
+			pow(transmission.r, tScale),
+			pow(transmission.g, tScale),
+			pow(transmission.b, tScale)
+		};
+		this->media_transmission.v[i] = scaledTransmission;
+	}
+
+	void setAnisotropySettings(int i, float blurAnisotropicPoles) 
+	{
+		this->media_blurAnisotropicPoles.v[i] = blurAnisotropicPoles;
+	}
+
 } Ray_State_Datatype;
 
 
