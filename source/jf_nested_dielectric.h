@@ -146,8 +146,9 @@ typedef struct Ray_State_Cache_Datatype {
 } Ray_State_Cache_Datatype;
 
 
+const int base_sampler_seed = 5;
 
-struct ShaderData{
+struct jfnd_shader_data{
 	AtSampler * dispersion_sampler;
 	AtSampler * specular_sampler;
 	AtSampler * refraction_sampler;
@@ -160,9 +161,76 @@ struct ShaderData{
 	AtVector polarizationVector;
 	int gloss_samples;
 	int refr_samples;
-};
 
-const int base_sampler_seed = 5;
+
+	~jfnd_shader_data() {
+		AiSamplerDestroy(this->dispersion_sampler);
+		AiSamplerDestroy(this->specular_sampler);
+		AiSamplerDestroy(this->refraction_sampler);
+		AiSamplerDestroy(this->russian_roullete_single_sampler);
+	}
+
+	jfnd_shader_data() {
+		this->dispersion_sampler = NULL;
+		this->specular_sampler = NULL;
+		this->refraction_sampler = NULL;
+		this->russian_roullete_single_sampler = NULL;
+	}
+
+	void update( AtNode* node ) {
+		AiSamplerDestroy(this->dispersion_sampler);
+		AiSamplerDestroy(this->specular_sampler);
+		AiSamplerDestroy(this->refraction_sampler);
+		AiSamplerDestroy(this->russian_roullete_single_sampler);
+
+		AtNode* render_options = AiUniverseGetOptions();
+
+		this->refr_samples = AiNodeGetInt(render_options, "GI_refraction_samples");
+		this->gloss_samples = AiNodeGetInt(render_options, "GI_glossy_samples");
+
+		this->dispersion_sampler = AiSamplerSeeded( base_sampler_seed + 1, this->refr_samples, 2 );	
+		this->specular_sampler = AiSamplerSeeded( base_sampler_seed + 2, this->gloss_samples, 2);
+		this->refraction_sampler = AiSamplerSeeded( base_sampler_seed + 3, this->refr_samples, 2 );
+		this->russian_roullete_single_sampler = AiSamplerSeeded( base_sampler_seed + 7, 1, 2 );
+
+		this->aov_direct_refraction = AiNodeGetStr(node, "aov_direct_refraction");
+		this->aov_indirect_refraction = AiNodeGetStr(node, "aov_indirect_refraction");
+		this->aov_direct_specular = AiNodeGetStr(node, "aov_direct_specular");
+		this->aov_indirect_specular = AiNodeGetStr(node, "aov_indirect_specular");
+
+		this->refr_samples *= this->refr_samples;
+		this->gloss_samples *= this->gloss_samples;
+
+		const bool do_disperse = AiNodeGetBool(node, "disperse");
+		if (do_disperse)
+		{
+			const int spectrum_selection = AiNodeGetInt(node, "spectral_distribution");
+			const int gamut_selection = AiNodeGetInt(node, "spectral_gamut");
+			const float saturation = AiNodeGetFlt(node, "spectral_saturation");
+			const bool clamp = AiNodeGetBool(node, "spectral_clamp_negative_colors");
+			this->spectral_LUT_ = build_nonuniform_spectral_LUT(spectrum_selection, gamut_selection, saturation, clamp, AI_RGB_WHITE);
+		}
+		const bool polarize = AiNodeGetBool(node, "polarize");
+		if (polarize)
+		{
+			const float polarizerRotation = AiNodeGetFlt(node, "polarization_angle") * (float) AI_PI;
+			AtMatrix cameramatrix;
+			AiNodeGetMatrix( AiUniverseGetCamera(), "matrix", cameramatrix );
+			AtVector pfilterInCameraSpace;
+			AiV3Create(pfilterInCameraSpace, sinf(polarizerRotation), cosf(polarizerRotation), 0.0f);
+			AtVector pfilterInWorldSpace;
+			AiM4VectorByMatrixMult(&pfilterInWorldSpace, cameramatrix, &pfilterInCameraSpace) ;
+
+			this->polarizationVector = AiV3Normalize(pfilterInWorldSpace);
+		}
+		else
+		{
+			this->polarizationVector = AI_V3_ZERO;
+		}
+
+	}
+
+};
 
 
 

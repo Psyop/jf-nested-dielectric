@@ -188,25 +188,15 @@ node_parameters
 
 node_initialize
 {
-	ShaderData* data = new ShaderData;
-	AiNodeSetLocalData(node,data);
-	data->dispersion_sampler = NULL;
-	data->specular_sampler = NULL;
-	data->refraction_sampler = NULL;
-	data->russian_roullete_single_sampler = NULL;
+	jfnd_shader_data* data = new jfnd_shader_data;
+	AiNodeSetLocalData(node, data);
 };
 
 node_finish
 {
 	if (AiNodeGetLocalData(node) != NULL)
 	{
-		ShaderData* data = (ShaderData*) AiNodeGetLocalData(node);
-
-		AiSamplerDestroy(data->dispersion_sampler);
-		AiSamplerDestroy(data->specular_sampler);
-		AiSamplerDestroy(data->refraction_sampler);
-		AiSamplerDestroy(data->russian_roullete_single_sampler);
-
+		jfnd_shader_data *data = (jfnd_shader_data*) AiNodeGetLocalData(node);
 		AiNodeSetLocalData(node, NULL);
 		delete data;
 	}
@@ -215,58 +205,10 @@ node_finish
 
 node_update
 {
-	// AiBegin();
-	// AiEnd();
 	AtNode* render_options = AiUniverseGetOptions();
 
-	ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
-	AiSamplerDestroy(data->dispersion_sampler);
-	AiSamplerDestroy(data->specular_sampler);
-	AiSamplerDestroy(data->refraction_sampler);
-	AiSamplerDestroy(data->russian_roullete_single_sampler);
-
-	data->refr_samples = AiNodeGetInt(render_options, "GI_refraction_samples");
-	data->gloss_samples = AiNodeGetInt(render_options, "GI_glossy_samples");
-
-	data->dispersion_sampler = AiSamplerSeeded( base_sampler_seed + 1, data->refr_samples, 2 );	
-	data->specular_sampler = AiSamplerSeeded( base_sampler_seed + 2, data->gloss_samples, 2);
-	data->refraction_sampler = AiSamplerSeeded( base_sampler_seed + 3, data->refr_samples, 2 );
-	data->russian_roullete_single_sampler = AiSamplerSeeded( base_sampler_seed + 7, 1, 2 );
-
-	data->aov_direct_refraction = AiNodeGetStr(node, "aov_direct_refraction");
-	data->aov_indirect_refraction = AiNodeGetStr(node, "aov_indirect_refraction");
-	data->aov_direct_specular = AiNodeGetStr(node, "aov_direct_specular");
-	data->aov_indirect_specular = AiNodeGetStr(node, "aov_indirect_specular");
-
-	data->refr_samples *= data->refr_samples;
-	data->gloss_samples *= data->gloss_samples;
-
-	const bool do_disperse = AiNodeGetBool(node, "disperse");
-	if (do_disperse)
-	{
-		const int spectrum_selection = AiNodeGetInt(node, "spectral_distribution");
-		const int gamut_selection = AiNodeGetInt(node, "spectral_gamut");
-		const float saturation = AiNodeGetFlt(node, "spectral_saturation");
-		const bool clamp = AiNodeGetBool(node, "spectral_clamp_negative_colors");
-		data->spectral_LUT_ = build_nonuniform_spectral_LUT(spectrum_selection, gamut_selection, saturation, clamp, AI_RGB_WHITE);
-	}
-	const bool polarize = AiNodeGetBool(node, "polarize");
-	if (polarize)
-	{
-		const float polarizerRotation = AiNodeGetFlt(node, "polarization_angle") * (float) AI_PI;
-		AtMatrix cameramatrix;
-		AiNodeGetMatrix( AiUniverseGetCamera(), "matrix", cameramatrix );
-		AtVector pfilterInCameraSpace;
-		AiV3Create(pfilterInCameraSpace, sinf(polarizerRotation), cosf(polarizerRotation), 0.0f);
-		AtVector pfilterInWorldSpace;
-		AiM4VectorByMatrixMult(&pfilterInWorldSpace, cameramatrix, &pfilterInCameraSpace) ;
-
-		data->polarizationVector = AiV3Normalize(pfilterInWorldSpace);
-	}
-	else
-	{
-		data->polarizationVector = AI_V3_ZERO;
-	}
+	jfnd_shader_data *data = (jfnd_shader_data*)AiNodeGetLocalData(node);
+	data->update(node);
 }
 
 
@@ -274,7 +216,7 @@ node_update
 
 shader_evaluate
 {
-	ShaderData *data = (ShaderData*)AiNodeGetLocalData(node);
+	jfnd_shader_data *data = (jfnd_shader_data*)AiNodeGetLocalData(node);
 	Ray_State_Datatype *RayState;
 	Ray_State_Cache_Datatype RayStateCache;
 
