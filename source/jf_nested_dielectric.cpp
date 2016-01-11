@@ -188,7 +188,7 @@ node_parameters
 
 node_initialize
 {
-	jfnd_shader_data* data = new jfnd_shader_data;
+	JFND_Shader_Data* data = new JFND_Shader_Data();
 	AiNodeSetLocalData(node, data);
 };
 
@@ -196,7 +196,7 @@ node_finish
 {
 	if (AiNodeGetLocalData(node) != NULL)
 	{
-		jfnd_shader_data *data = (jfnd_shader_data*) AiNodeGetLocalData(node);
+		JFND_Shader_Data *data = (JFND_Shader_Data*) AiNodeGetLocalData(node);
 		AiNodeSetLocalData(node, NULL);
 		delete data;
 	}
@@ -207,7 +207,7 @@ node_update
 {
 	AtNode* render_options = AiUniverseGetOptions();
 
-	jfnd_shader_data *data = (jfnd_shader_data*)AiNodeGetLocalData(node);
+	JFND_Shader_Data *data = (JFND_Shader_Data*)AiNodeGetLocalData(node);
 	data->update(node);
 }
 
@@ -216,7 +216,7 @@ node_update
 
 shader_evaluate
 {
-	jfnd_shader_data *data = (jfnd_shader_data*)AiNodeGetLocalData(node);
+	JFND_Shader_Data *data = (JFND_Shader_Data*)AiNodeGetLocalData(node);
 	Ray_State_Datatype *RayState;
 	Ray_State_Cache_Datatype RayStateCache;
 
@@ -232,61 +232,17 @@ shader_evaluate
 		void * rayState_ptr;
 		AiStateGetMsgPtr("rayState_ptr", &rayState_ptr);
 		RayState = static_cast<Ray_State_Datatype*>( rayState_ptr );
-
-		cacheRayState( RayState, &RayStateCache );
+		RayState->cacheRayState( &RayStateCache);
 	}
 	else
 	{		
 		RayState = static_cast<Ray_State_Datatype*>( AiShaderGlobalsQuickAlloc(sg, sizeof( Ray_State_Datatype ) ) );
+		RayState->init(data, sg, node);
+
+		RayState->setEnergyCutoff( (float) AiShaderEvalParamInt(p_energy_cutoff_exponent));
+		RayState->setPolarization(AiShaderEvalParamBool(p_polarize), data->polarizationVector);
+
 		AiStateSetMsgPtr("rayState_ptr", RayState);
-
-		RayState->ray_monochromatic = false;
-		RayState->ray_wavelength = 0.0f;
-		RayState->ray_TIRDepth = 0;
-		RayState->ray_invalidDepth = 0;
-		RayState->ray_energy = AI_RGB_WHITE;
-		RayState->ray_energy_photon = AI_RGB_WHITE;
-
-		// Array initialization - possibly unnecessary except mediaInside? TO DO: investigate
-		for( int i = 0; i < max_media_count; i++ )
-		{
-			RayState->media_inside.v[i] = 0;
-			RayState->media_iOR.v[i] = 1.0f;
-			RayState->media_disperse.v[i] = false;
-			RayState->media_dispersion.v[i] = 0.0f;
-			RayState->media_BTDF.v[i] = 0;
-			RayState->media_BRDF.v[i] = 0;
-
-			RayState->media_refractDirect.v[i] = 1.0f;
-			RayState->media_refractIndirect.v[i] = 1.0f;
-			RayState->media_specDirect.v[i] = 1.0f;
-			RayState->media_specIndirect.v[i] = 1.0f;
-
-			RayState->media_refractRoughnessU.v[i] = 0.0f;
-			RayState->media_refractRoughnessV.v[i] = 0.0f;
-			RayState->media_specRoughnessU.v[i] = 0.0f;
-			RayState->media_specRoughnessV.v[i] = 0.0f;
-			RayState->media_transmission.v[i] = AI_RGB_WHITE;
-
-			RayState->media_blurAnisotropicPoles.v[i] = 0.0f;
-		}
-
-		// caustics behavior values get set once a ray enters a medium from a diffuse ray
-		RayState->caustic_behaviorSet = false;
-		RayState->caustic_mode = 0;
-		RayState->caustic_refractDirect =
-			RayState->caustic_refractIndirect =
-			RayState->caustic_TIR =
-			RayState->caustic_specInternal =
-			RayState->caustic_dispersion =
-			RayState->caustic_specDirect =
-			RayState->caustic_specIndirect =
-			false;
-
-		// Set once values - values set at initialization for all descendent rays
-		RayState->energy_cutoff = pow(10.0f, (float) AiShaderEvalParamInt(p_energy_cutoff_exponent) );		
-		RayState->polarized = AiShaderEvalParamBool(p_polarize);
-		RayState->polarizationVector = data->polarizationVector;
 	}
 	AiStateSetMsgBool("msgs_are_valid", true); // Any child rays from this will find valid messages. 
 
@@ -1490,7 +1446,7 @@ shader_evaluate
 	if (msgs_are_valid)
 	{
 		AiStateSetMsgBool("msgs_are_valid", true);
-		uncacheRayState( RayState, &RayStateCache );
+		RayState->uncacheRayState(&RayStateCache);
 	}
 	else
 	{

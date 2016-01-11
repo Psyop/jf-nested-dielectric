@@ -75,80 +75,9 @@ enum specular_raytypes
 
 #define ZERO_EPSILON 0.000000005f 
 
-const int max_media_count = 32 + 1;  // media 0 is reserved for the air everything exists in, so to allow 32 media this has to be set to 33. 
-
-typedef struct mediaIntStruct { int v[max_media_count]; } mediaIntStruct;
-typedef struct mediaFloatStruct { float v[max_media_count]; } mediaFloatStruct;
-typedef struct mediaBoolStruct { bool v[max_media_count]; } mediaBoolStruct;
-typedef struct mediaAtColorStruct { AtColor v[max_media_count]; } mediaAtColorStruct;
-
-// ray_ is tracking something to do wtih the ray tree
-// caustic_ is tracking caustic behavior
-// media_ are arrays about media
-// 
-
-typedef struct Ray_State_Datatype {
-	bool    ray_monochromatic; // branching ray tree data, should be cached
-	float   ray_wavelength;
-	int     ray_TIRDepth; // branching ray tree data, should be cached
-	int     ray_invalidDepth; // branching ray tree data, should be cached
-	AtColor ray_energy; // branching ray tree data, should be cached
-	AtColor ray_energy_photon; // branching ray tree data, should be cached
-
-	bool caustic_behaviorSet; // branching ray tree data, should be cached 
-	int  caustic_mode;
-	bool caustic_refractDirect;
-	bool caustic_refractIndirect;
-	bool caustic_TIR;
-	bool caustic_dispersion;
-	bool caustic_specDirect;
-	bool caustic_specIndirect;
-	bool caustic_specInternal;
-
-	mediaIntStruct   media_inside; // branching ray tree data, should be cached
-	mediaIntStruct   shadow_media_inside;
-	mediaFloatStruct media_iOR;
-	mediaBoolStruct  media_disperse;
-	mediaFloatStruct media_dispersion;
-	mediaIntStruct   media_BTDF;
-	mediaIntStruct   media_BRDF;
-	
-	mediaFloatStruct media_refractDirect;
-	mediaFloatStruct media_refractIndirect;
-	mediaFloatStruct media_specDirect;
-	mediaFloatStruct media_specIndirect;
-
-	mediaFloatStruct media_refractRoughnessU;
-	mediaFloatStruct media_refractRoughnessV;
-	mediaFloatStruct media_specRoughnessU;
-	mediaFloatStruct media_specRoughnessV;
-
-	mediaAtColorStruct media_transmission;
-
-	mediaFloatStruct media_blurAnisotropicPoles;
-
-	spectral_LUT * spectral_LUT_;
-	float energy_cutoff;
-	bool polarized;
-	AtVector polarizationVector;
-
-} Ray_State_Datatype;
-
-
-
-typedef struct Ray_State_Cache_Datatype {
-	bool    ray_monochromatic;
-	int     ray_TIRDepth;
-	int     ray_invalidDepth;
-	AtColor ray_energy;
-	bool caustic_behaviorSet; 
-	mediaIntStruct   media_inside;
-} Ray_State_Cache_Datatype;
-
-
 const int base_sampler_seed = 5;
 
-struct jfnd_shader_data{
+struct JFND_Shader_Data{
 	AtSampler * dispersion_sampler;
 	AtSampler * specular_sampler;
 	AtSampler * refraction_sampler;
@@ -163,14 +92,14 @@ struct jfnd_shader_data{
 	int refr_samples;
 
 
-	~jfnd_shader_data() {
+	~JFND_Shader_Data() {
 		AiSamplerDestroy(this->dispersion_sampler);
 		AiSamplerDestroy(this->specular_sampler);
 		AiSamplerDestroy(this->refraction_sampler);
 		AiSamplerDestroy(this->russian_roullete_single_sampler);
 	}
 
-	jfnd_shader_data() {
+	JFND_Shader_Data() {
 		this->dispersion_sampler = NULL;
 		this->specular_sampler = NULL;
 		this->refraction_sampler = NULL;
@@ -234,35 +163,162 @@ struct jfnd_shader_data{
 
 
 
+const int max_media_count = 32 + 1;  // media 0 is reserved for the air everything exists in, so to allow 32 media this has to be set to 33. 
+
+typedef struct mediaIntStruct { int v[max_media_count]; } mediaIntStruct;
+typedef struct mediaFloatStruct { float v[max_media_count]; } mediaFloatStruct;
+typedef struct mediaBoolStruct { bool v[max_media_count]; } mediaBoolStruct;
+typedef struct mediaAtColorStruct { AtColor v[max_media_count]; } mediaAtColorStruct;
+
+// ray_ is tracking something to do wtih the ray tree
+// caustic_ is tracking caustic behavior
+// media_ are arrays about media
+// 
+
+
+typedef struct Ray_State_Cache_Datatype {
+	bool    ray_monochromatic;
+	int     ray_TIRDepth;
+	int     ray_invalidDepth;
+	AtColor ray_energy;
+	bool caustic_behaviorSet; 
+	mediaIntStruct   media_inside;
+} Ray_State_Cache_Datatype;
+
+
+
+typedef struct Ray_State_Datatype {
+	bool    ray_monochromatic; // branching ray tree data, should be cached
+	float   ray_wavelength;
+	int     ray_TIRDepth; // branching ray tree data, should be cached
+	int     ray_invalidDepth; // branching ray tree data, should be cached
+	AtColor ray_energy; // branching ray tree data, should be cached
+	AtColor ray_energy_photon; // branching ray tree data, should be cached
+
+	bool caustic_behaviorSet; // branching ray tree data, should be cached 
+	int  caustic_mode;
+	bool caustic_refractDirect;
+	bool caustic_refractIndirect;
+	bool caustic_TIR;
+	bool caustic_dispersion;
+	bool caustic_specDirect;
+	bool caustic_specIndirect;
+	bool caustic_specInternal;
+
+	mediaIntStruct   media_inside; // branching ray tree data, should be cached
+	mediaIntStruct   shadow_media_inside;
+	mediaFloatStruct media_iOR;
+	mediaBoolStruct  media_disperse;
+	mediaFloatStruct media_dispersion;
+	mediaIntStruct   media_BTDF;
+	mediaIntStruct   media_BRDF;
+	
+	mediaFloatStruct media_refractDirect;
+	mediaFloatStruct media_refractIndirect;
+	mediaFloatStruct media_specDirect;
+	mediaFloatStruct media_specIndirect;
+
+	mediaFloatStruct media_refractRoughnessU;
+	mediaFloatStruct media_refractRoughnessV;
+	mediaFloatStruct media_specRoughnessU;
+	mediaFloatStruct media_specRoughnessV;
+
+	mediaAtColorStruct media_transmission;
+
+	mediaFloatStruct media_blurAnisotropicPoles;
+
+	spectral_LUT * spectral_LUT_;
+	float energy_cutoff;
+	bool polarized;
+	AtVector polarizationVector;
+
+	void init(JFND_Shader_Data *data, AtShaderGlobals * sg, AtNode * node) {
+		this->ray_monochromatic = false;
+		this->ray_wavelength = 0.0f;
+		this->ray_TIRDepth = 0;
+		this->ray_invalidDepth = 0;
+		this->ray_energy = AI_RGB_WHITE;
+		this->ray_energy_photon = AI_RGB_WHITE;
+
+		// Array initialization - possibly unnecessary except mediaInside? TO DO: investigate
+		for( int i = 0; i < max_media_count; i++ )
+		{
+			this->media_inside.v[i] = 0;
+			this->media_iOR.v[i] = 1.0f;
+			this->media_disperse.v[i] = false;
+			this->media_dispersion.v[i] = 0.0f;
+			this->media_BTDF.v[i] = 0;
+			this->media_BRDF.v[i] = 0;
+
+			this->media_refractDirect.v[i] = 1.0f;
+			this->media_refractIndirect.v[i] = 1.0f;
+			this->media_specDirect.v[i] = 1.0f;
+			this->media_specIndirect.v[i] = 1.0f;
+
+			this->media_refractRoughnessU.v[i] = 0.0f;
+			this->media_refractRoughnessV.v[i] = 0.0f;
+			this->media_specRoughnessU.v[i] = 0.0f;
+			this->media_specRoughnessV.v[i] = 0.0f;
+			this->media_transmission.v[i] = AI_RGB_WHITE;
+
+			this->media_blurAnisotropicPoles.v[i] = 0.0f;
+		}
+
+		// caustics behavior values get set once a ray enters a medium from a diffuse ray
+		this->caustic_behaviorSet = false;
+		this->caustic_mode = 0;
+		this->caustic_refractDirect = false;
+		this->caustic_refractIndirect = false;
+		this->caustic_TIR = false;
+		this->caustic_specInternal = false;
+		this->caustic_dispersion = false;
+		this->caustic_specDirect = false;
+		this->caustic_specIndirect = false;
+
+		// Set once values - values set at initialization for all descendent rays
+		this->energy_cutoff = pow(10.0f, 16);
+		this->polarized = false;
+		AiV3Create(this->polarizationVector, 0.0f, 1.0f, 0.0f);
+	}
+	
+	void setEnergyCutoff( float energy_cutoff_exponent)
+	{
+		this->energy_cutoff = pow(10.0f, energy_cutoff_exponent );
+	}
+
+	void setPolarization(bool polarize, AtVector polarizationVector)
+	{
+		this->polarized = polarize;
+		this->polarizationVector = polarizationVector;
+	}
+
+	void uncacheRayState(Ray_State_Cache_Datatype * RayStateCache )
+	{
+		memcpy(&this->media_inside, &RayStateCache->media_inside, sizeof(mediaIntStruct) );
+		this->ray_monochromatic 	= RayStateCache->ray_monochromatic;
+		this->caustic_behaviorSet 	= RayStateCache->caustic_behaviorSet;
+		this->ray_TIRDepth 			= RayStateCache->ray_TIRDepth;
+		this->ray_invalidDepth 		= RayStateCache->ray_invalidDepth;
+		this->ray_energy 			= RayStateCache->ray_energy;
+	}
+
+	void cacheRayState( Ray_State_Cache_Datatype * RayStateCache )
+	{
+		memcpy(&RayStateCache->media_inside, &this->media_inside, sizeof(mediaIntStruct) );
+		RayStateCache->ray_monochromatic 	= this->ray_monochromatic;
+		RayStateCache->caustic_behaviorSet 	= this->caustic_behaviorSet;
+		RayStateCache->ray_TIRDepth 		= this->ray_TIRDepth;
+		RayStateCache->ray_invalidDepth 	= this->ray_invalidDepth;
+		RayStateCache->ray_energy 			= this->ray_energy;
+	}
+} Ray_State_Datatype;
+
+
+
 
 // ---------------------------------------------------//
 // - utilities  
 // ---------------------------------------------------//
-
-
-void uncacheRayState( Ray_State_Datatype * RayState, Ray_State_Cache_Datatype * RayStateCache )
-{
-	memcpy(&RayState->media_inside, &RayStateCache->media_inside, sizeof(mediaIntStruct) );
-	RayState->ray_monochromatic 	= RayStateCache->ray_monochromatic;
-	RayState->caustic_behaviorSet 	= RayStateCache->caustic_behaviorSet;
-	RayState->ray_TIRDepth 			= RayStateCache->ray_TIRDepth;
-	RayState->ray_invalidDepth 		= RayStateCache->ray_invalidDepth;
-	RayState->ray_energy 			= RayStateCache->ray_energy;
-}
-
-void cacheRayState( Ray_State_Datatype * RayState, Ray_State_Cache_Datatype * RayStateCache )
-{
-	memcpy(&RayStateCache->media_inside, &RayState->media_inside, sizeof(mediaIntStruct) );
-	RayStateCache->ray_monochromatic 	= RayState->ray_monochromatic;
-	RayStateCache->caustic_behaviorSet 	= RayState->caustic_behaviorSet;
-	RayStateCache->ray_TIRDepth 		= RayState->ray_TIRDepth;
-	RayStateCache->ray_invalidDepth 	= RayState->ray_invalidDepth;
-	RayStateCache->ray_energy 			= RayState->ray_energy;
-}
-
-
-
-
 
 
 float snell (float n1, float n2, float cosThetaI)
