@@ -405,28 +405,20 @@ shader_evaluate
 
 	if ( iinfo.validInterface )
 	{
-		bool trace_refract_indirect = RayState->media_refractIndirect.v[iinfo.m1] > ZERO_EPSILON && RayState->media_refractIndirect.v[iinfo.m2] > ZERO_EPSILON;
-		bool trace_refract_direct = RayState->media_refractDirect.v[m_cMatID] > ZERO_EPSILON ; // media exit is AND'd in later. 
-		bool trace_spec_indirect = RayState->media_specIndirect.v[iinfo.m_higherPriority] > ZERO_EPSILON;
-		bool trace_spec_direct = iinfo.mediaEntrance && RayState->media_specDirect.v[iinfo.m_higherPriority] > ZERO_EPSILON;
-		bool trace_TIR = trace_refract_indirect || trace_spec_indirect;
+		TraceSwitch traceSwitch = TraceSwitch(&iinfo);
+		traceSwitch.setInternalReflections(&iinfo, AiShaderEvalParamBool(p_enable_internal_reflections));
 
 		float overallResultScale = 1.0f;
 
-		bool photon_ray_type = false;
-		AiStateGetMsgBool("photon_ray_type", &photon_ray_type);
+		const bool photon_ray_type = rayIsPhoton(sg);
 
 		bool traceCaust_photon = false;
 		bool traceCaust_pathtraced = false;
-
-		if (!iinfo.mediaEntrance && !AiShaderEvalParamBool(p_enable_internal_reflections) )
-			trace_spec_indirect = false;
 
 		bool causticPath = photon_ray_type || sg->Rr_diff > 0 ;
 		if ( causticPath ) 
 		{
 			// caustic controls
-
 			if (sg->Rt == AI_RAY_DIFFUSE)
 			{
 				const float caustic_max_distance = AiShaderEvalParamFlt(p_caustic_max_distance);
@@ -435,7 +427,7 @@ shader_evaluate
 					const float raylength = (float) sg->Rl;
 					if ( raylength > caustic_max_distance ) 
 					{
-						trace_refract_indirect = trace_refract_direct = trace_spec_indirect = trace_spec_direct = trace_TIR = false;
+						traceSwitch.setTraceNone();
 					}
 					else 
 					{
@@ -464,56 +456,16 @@ shader_evaluate
 			if (traceCaust_pathtraced) //means we're in the right kind of caustics for the right kind of ray.
 			{
 				do_disperse = do_disperse && RayState->caustic_dispersion;
-
-				trace_refract_direct = trace_refract_direct && RayState->caustic_refractDirect;
-				trace_spec_indirect  = trace_spec_indirect  && RayState->caustic_specIndirect;
-				trace_spec_direct    = trace_spec_direct    && RayState->caustic_specDirect;
-				trace_TIR = trace_TIR && RayState->caustic_TIR && (RayState->caustic_refractDirect || RayState->caustic_refractIndirect); // TO DO: does that really work?
-
-				if (iinfo.mediaExit)
-				{
-					// Indirect refraction is only needed on mediaExit if we actually want caustics from indirect refractions.
-					// Otherwise they are carriers for direct refraction. 
-					trace_refract_indirect = trace_refract_indirect && RayState->caustic_refractIndirect;
-				}
-				else
-				{
-					// Indrect refraction is needed if we want caustics from indirect refraction, or direct refraction, 
-					trace_refract_indirect = trace_refract_indirect && (RayState->caustic_refractDirect || RayState->caustic_refractIndirect);
-				}
-
-				if (iinfo.mediaEntrance)
-				{
-					// if we have an inside out surface, TIR caustics will only be traced if indirect specular is on. 
-					trace_TIR = trace_spec_indirect;
-				}
-				else
-				{
-					trace_spec_indirect = trace_spec_indirect && RayState->caustic_specInternal;
-				}
+				traceSwitch.setPathtracedCaustic(&iinfo);
 			}
 			else if (traceCaust_photon)
 			{
-				// in photon land, direct refractions means the light refracts straight through.
-				// indirect refractions means.. very little. 
-				// to the renderer this would always be indirect refraction though. 
-				trace_refract_indirect = trace_refract_indirect && RayState->caustic_refractDirect;
-
-				// in photon land, direct specular caustics will mean reflections off the outside of the surface.
-				// indirect specular will mean the caustics will beounce off interior surfaces too. 
-				// to the renderer this would always be indirect specular though. 
-				trace_spec_indirect = trace_spec_indirect && (
-					(RayState->caustic_specDirect && iinfo.entering)
-					|| (RayState->caustic_specIndirect)
-					);
-
-				trace_TIR = trace_TIR && RayState->caustic_TIR;
-				trace_refract_direct = trace_spec_direct = false;
 				do_disperse = do_disperse && RayState->caustic_dispersion;
+				traceSwitch.setPhotonCaustic(&iinfo);
 			}
 			else
 			{
-				trace_refract_indirect = trace_refract_direct = trace_spec_indirect = trace_spec_direct = trace_TIR = false;
+				traceSwitch.setTraceNone();
 			}
 		}
 
@@ -531,19 +483,13 @@ shader_evaluate
 			energySignificant = true;
 		}
 
-		trace_refract_direct = trace_refract_direct && iinfo.mediaExit;
-
-		const bool traceAnyRefraction = trace_refract_indirect || trace_refract_direct;
-		const bool traceAnySpecular = trace_spec_indirect || trace_spec_direct;
-		const bool traceAnything = (traceAnyRefraction || traceAnySpecular) && energySignificant;
-
 		// ---------------------------------------------------//
 		// Main Ray Tracing
 		// Valid interfaces
 		// ---------------------------------------------------//
 
 		// decision point- trace anything
-		if ( traceAnything ) 
+		if ( energySignificant && traceSwitch.traceAnything() ) 
 		{
 			AtRay ray;
 			AtScrSample sample;
@@ -557,13 +503,7 @@ shader_evaluate
 			AtVector vTangent;
 			AtVector tangentSourceVector;
 
-			float spec_roughnessU = (RayState->media_specRoughnessU.v[iinfo.m2] + RayState->media_specRoughnessU.v[iinfo.m1]) / 2.0f;
-			float spec_roughnessV = (RayState->media_specRoughnessV.v[iinfo.m2] + RayState->media_specRoughnessV.v[iinfo.m1]) / 2.0f;
-
-			float refr_roughnessU = refractiveRoughness( RayState->media_refractRoughnessU.v[iinfo.m1], RayState->media_refractRoughnessU.v[iinfo.m2], iinfo.n1, iinfo.n2 );
-			float refr_roughnessV = refractiveRoughness( RayState->media_refractRoughnessV.v[iinfo.m1], RayState->media_refractRoughnessV.v[iinfo.m2], iinfo.n1, iinfo.n2 );
-				
-			if ( traceAnyRefraction )
+			if ( traceSwitch.traceAnyRefraction() )
 			{
 				int refractSamplesTaken = 0;
 
@@ -583,6 +523,8 @@ shader_evaluate
 				// BTDF preprocessing
 				// ---------------------------------------------------//
 
+				float refr_roughnessU = iinfo.getRefrRoughnessU();
+				float refr_roughnessV = iinfo.getRefrRoughnessV();
 
 				if (causticPath)
 				{
@@ -599,7 +541,8 @@ shader_evaluate
 					parallelPark(ray.dir, &ppsg);
 
 				// decision point- indirect refraction
-				if ( trace_refract_indirect )
+				// if ( trace_refract_indirect )
+				if ( traceSwitch.refr_ind )
 				{
 					const float cMediaIndirectRefractionProduct = RayState->media_refractIndirect.v[iinfo.m1] * RayState->media_refractIndirect.v[iinfo.m2];
 					void * btdf_data = NULL;
@@ -787,7 +730,8 @@ shader_evaluate
 					}
 					else
 					{						
-						if ( trace_TIR && !refracted && !do_disperse )
+						// if ( trace_TIR && !refracted && !do_disperse )
+						if ( traceSwitch.TIR && !refracted && !do_disperse )
 						{
 							TIR_color = AI_RGB_WHITE;
 							do_TIR = true;
@@ -809,7 +753,8 @@ shader_evaluate
 				// ---------------------------------------------------//
 
 				// decision point- direct refraction
-				if (trace_refract_direct && refracted )
+				// if (trace_refract_direct && refracted )
+				if (traceSwitch.refr_dir && refracted )
 				{
 					const bool use_refraction_btdf = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
 					float dr_roughnessU;
@@ -959,9 +904,12 @@ shader_evaluate
 					RayState->ray_monochromatic = false;
 				}
 
-			// decision point- any specular
-			if ( traceAnySpecular || do_TIR ) 
-			{
+				// decision point- any specular
+				if ( traceSwitch.traceAnySpecular() || do_TIR ) 
+				{
+					float spec_roughnessU = iinfo.getSpecRoughnessU();
+					float spec_roughnessV = iinfo.getSpecRoughnessV();
+
 					SAMPLETYPE specular_sample[2];
 					AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
 					AtRay specularRay;
@@ -975,6 +923,7 @@ shader_evaluate
 						rayType = AI_RAY_REFRACTED;
 
 					AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
+
 
 					void * brdf_data; 
 					int spec_brdf = RayState->media_BRDF.v[iinfo.m_higherPriority];
@@ -1013,7 +962,8 @@ shader_evaluate
 					// ---------------------------------------------------//
 
 					// decision point- indirect specular
-					if ( trace_spec_indirect || do_TIR )
+					// if ( trace_spec_indirect || do_TIR )
+					if ( traceSwitch.spec_ind || do_TIR )
 					{
 						const float weight = fresnelTerm * RayState->media_specIndirect.v[iinfo.m1] * overallResultScale;
 						const AtColor energyCache = RayState->ray_energy;						
@@ -1092,7 +1042,8 @@ shader_evaluate
 					// ---------------------------------------------------//
 
 					// decision point- direct specular
-					if ( trace_spec_direct )
+					// if ( trace_spec_direct )
+					if ( traceSwitch.spec_dir )
 					{
 						AtColor weight = AI_RGB_WHITE * fresnelTerm * RayState->media_specDirect.v[iinfo.m_higherPriority] * overallResultScale;
 						if (do_TIR)
@@ -1106,8 +1057,7 @@ shader_evaluate
 							float l_weight = AiLightGetSpecular(sg->Lp);
 
 							if ( 
-								(reflect_skydomes || !AiNodeIs( sg->Lp,"skydome_light" )) && 
-								l_weight > ZERO_EPSILON
+								(reflect_skydomes || !AiNodeIs( sg->Lp,"skydome_light" )) && l_weight > ZERO_EPSILON
 								)
 							{
 								switch ( RayState->media_BRDF.v[iinfo.m_higherPriority] )

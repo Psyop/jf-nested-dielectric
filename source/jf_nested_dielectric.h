@@ -558,6 +558,11 @@ void updateMediaInsideLists(int m_cMatID, bool entering, mediaIntStruct * media_
 
 
 
+bool rayIsPhoton(AtShaderGlobals * sg) {
+	bool result = false;
+	AiStateGetMsgBool("photon_ray_type", &result);
+	return result;
+}
 
 
 
@@ -568,6 +573,7 @@ void updateMediaInsideLists(int m_cMatID, bool entering, mediaIntStruct * media_
 
 
 typedef struct InterfaceInfo {
+	int currentID; // the ID of the material currently being evaluated
 	int startingMedium;
 	int startingMediumSecondary;
 	int m1;
@@ -585,8 +591,9 @@ typedef struct InterfaceInfo {
 
 	Ray_State_Datatype * RayState;
 
-	InterfaceInfo(Ray_State_Datatype * RayState, int mediumID, AtShaderGlobals * sg) 
+	InterfaceInfo(Ray_State_Datatype * RayState, int currentID, AtShaderGlobals * sg) 
 	{
+		this->currentID = currentID;
 		this->startingMedium = 0;
 		this->startingMediumSecondary = 0;
 		this->m1 = 0;
@@ -609,7 +616,7 @@ typedef struct InterfaceInfo {
 
 		bool shadowRay = (sg->Rt == AI_RAY_SHADOW);
 		this->setCurrentMediaInfo(shadowRay);
-		this->setIntersectionIDs(mediumID, sg);
+		this->setIntersectionIDs(sg);
 		this->setInterfaceProperties();
 		this->setPolarizationTerm(sg);
 	}
@@ -656,7 +663,7 @@ typedef struct InterfaceInfo {
 		}
 	}
 
-	void setIntersectionIDs(int mediumID, AtShaderGlobals* sg) 
+	void setIntersectionIDs(AtShaderGlobals* sg) 
 	{
 		/*
 		 * m = medium ID, n = IOR, T = transmission
@@ -674,16 +681,16 @@ typedef struct InterfaceInfo {
 				this->validInterface = true;
 				this->mediaEntrance = true;
 				this->m1 = 0;
-				this->m2 = mediumID;
+				this->m2 = this->currentID;
 			}
-			else if ( mediumID < this->startingMedium )
+			else if ( this->currentID < this->startingMedium )
 			{
 				// entering a new highest priority medium
 				this->validInterface = true;
 				this->m1 = this->startingMedium;
-				this->m2 = mediumID;
+				this->m2 = this->currentID;
 			}
-			else if ( mediumID >= this->startingMedium )
+			else if ( this->currentID >= this->startingMedium )
 			{
 				// entering a medium that is not higher priority, interface is invalid
 				// or entering the same medium we're already in, interface is also invalid
@@ -692,7 +699,7 @@ typedef struct InterfaceInfo {
 		}
 		else // (leaving a possible medium)
 		{
-			if (this->startingMedium == mediumID)
+			if (this->startingMedium == this->currentID)
 			{
 				// leaving the highest priority medium, which may be 0 (meaning no medium)
 				this->validInterface = true;
@@ -835,5 +842,133 @@ typedef struct InterfaceInfo {
 
 	}
 
+	float getSpecRoughnessU() 
+	{
+		return (this->RayState->media_specRoughnessU.v[this->m2] + this->RayState->media_specRoughnessU.v[this->m1]) / 2.0f;
+	}
+
+	float getSpecRoughnessV()
+	{
+		return (this->RayState->media_specRoughnessV.v[this->m2] + this->RayState->media_specRoughnessV.v[this->m1]) / 2.0f;		
+	}
+
+	float getRefrRoughnessU()
+	{
+		return refractiveRoughness( this->RayState->media_refractRoughnessU.v[this->m1], this->RayState->media_refractRoughnessU.v[this->m2], this->n1, this->n2 );
+	}
+	
+	float getRefrRoughnessV() 
+	{
+		return refractiveRoughness( this->RayState->media_refractRoughnessV.v[this->m1], this->RayState->media_refractRoughnessV.v[this->m2], this->n1, this->n2 );
+	}
+
 } InterfaceInfo;
 
+
+
+typedef struct TraceSwitch
+{
+	bool refr_ind;
+	bool refr_dir;
+	bool spec_ind;
+	bool spec_dir;
+	bool TIR;
+
+	TraceSwitch(InterfaceInfo * iinfo) 
+	{
+		Ray_State_Datatype * rs = iinfo->RayState;
+		this->refr_ind = rs->media_refractIndirect.v[iinfo->m1] > ZERO_EPSILON 
+			&& rs->media_refractIndirect.v[iinfo->m2] > ZERO_EPSILON;
+		this->refr_dir = rs->media_refractDirect.v[iinfo->currentID] > ZERO_EPSILON 
+			&& iinfo->mediaExit; // media exit is AND'd in later. 
+		this->spec_ind = rs->media_specIndirect.v[iinfo->m_higherPriority] > ZERO_EPSILON;
+		this->spec_dir = iinfo->mediaEntrance && rs->media_specDirect.v[iinfo->m_higherPriority] > ZERO_EPSILON;
+		this->TIR = this->refr_ind || this->spec_ind;
+	}
+
+
+	void setTraceNone() 
+	{
+		this->refr_ind = false;
+		this->refr_dir = false;
+		this->spec_ind = false;
+		this->spec_dir = false;
+		this->TIR = false;
+	}
+
+	void setInternalReflections(InterfaceInfo * iinfo, bool internal_reflections_enabled) 
+	{
+		bool internal = !iinfo->mediaEntrance;
+		if (internal && !internal_reflections_enabled)
+			this->spec_ind = false;
+	}
+
+	void setPathtracedCaustic(InterfaceInfo * iinfo) 
+	{
+		Ray_State_Datatype * rs = iinfo->RayState;
+		this->refr_dir = this->refr_dir && rs->caustic_refractDirect;
+		this->refr_ind = this->refr_ind && true;
+		this->spec_ind = this->spec_ind && rs->caustic_specIndirect;;
+		this->spec_dir = this->spec_dir && rs->caustic_specDirect;
+		this->TIR = this->TIR && rs->caustic_TIR && (rs->caustic_refractDirect || rs->caustic_refractIndirect);
+
+		if (iinfo->mediaExit)
+		{
+			// Indirect refraction is only needed on mediaExit if we actually want caustics from indirect refractions.
+			// Otherwise they are carriers for direct refraction. 
+			this->refr_ind = this->refr_ind && rs->caustic_refractIndirect;
+		}
+		else
+		{
+			// Indrect refraction is needed if we want caustics from indirect refraction, or direct refraction, 
+			this->refr_ind = this->refr_ind && (rs->caustic_refractDirect || rs->caustic_refractIndirect);
+		}
+
+		if (iinfo->mediaEntrance)
+		{
+			// if we have an inside out surface, TIR caustics will only be traced if indirect specular is on. 
+			this->TIR = this->spec_ind;
+		}
+		else
+		{
+			this->spec_ind = this->spec_ind && rs->caustic_specInternal;
+		}
+
+	}
+
+	void setPhotonCaustic(InterfaceInfo * iinfo) 
+	{
+		Ray_State_Datatype * rs = iinfo->RayState;
+		this->refr_dir = false;
+		// in photon land, direct refractions means the light refracts straight through.
+		// indirect refractions means.. very little. 
+		// to the renderer this would always be indirect refraction though. 
+		this->refr_ind = this->refr_ind && rs->caustic_refractDirect;
+
+		// in photon land, direct specular caustics will mean reflections off the outside of the surface.
+		// indirect specular will mean the caustics will beounce off interior surfaces too. 
+		// to the renderer this would always be indirect specular though. 
+		this->spec_ind = this->spec_ind && (
+			(rs->caustic_specDirect && iinfo->entering)
+			|| (rs->caustic_specIndirect)
+		);
+
+		this->spec_dir = false;
+		this->TIR = this->TIR && rs->caustic_TIR;
+	}
+
+	bool traceAnyRefraction() 
+	{
+		return this->refr_ind || this->refr_dir;
+	}
+
+	bool traceAnySpecular()
+	{
+		return this->spec_ind || this->spec_dir;
+	}
+
+	bool traceAnything()
+	{
+		return this->traceAnyRefraction() || this->traceAnySpecular();
+	}
+};
