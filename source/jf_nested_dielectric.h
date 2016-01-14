@@ -175,40 +175,6 @@ typedef struct mediaAtColorStruct { AtColor v[max_media_count]; } mediaAtColorSt
 // media_ are arrays about media
 // 
 
-typedef struct InterfaceInfo {
-	int startingMedium;
-	int startingMediumSecondary;
-	int m1;
-	int m2;
-	int m_higherPriority;
-	float n1;
-	float n2;
-	AtColor t1;
-	AtColor t2;
-	bool entering;
-	bool validInterface;
-	bool mediaExit;
-	bool mediaEntrance;
-
-	InterfaceInfo() 
-	{
-		this->startingMedium = 0;
-		this->startingMediumSecondary = 0;
-		this->m1 = 0.0f;
-		this->m2 = 0.0f;
-		this->m_higherPriority = 0;
-		this->n1 = 0.0f;
-		this->n2 = 0.0f;
-		this->t1 = AI_RGB_WHITE;
-		this->t2 = AI_RGB_WHITE;
-		this->entering = false;
-		this->validInterface = false;
-		this->mediaExit = false;
-		this->mediaEntrance = false;
-	}
-
-} InterfaceInfo;
-
 
 
 typedef struct Ray_State_Cache_Datatype {
@@ -398,182 +364,7 @@ typedef struct Ray_State_Datatype {
 		this->media_blurAnisotropicPoles.v[i] = blurAnisotropicPoles;
 	}
 
-	bool doBlurryRefraction(InterfaceInfo * info) {
-		bool do_blurryRefraction = false;
-		if ( this->media_refractRoughnessU.v[info->m1] > ZERO_EPSILON ||
-			 this->media_refractRoughnessV.v[info->m1] > ZERO_EPSILON ||
-			 this->media_refractRoughnessU.v[info->m2] > ZERO_EPSILON ||
-			 this->media_refractRoughnessV.v[info->m2] > ZERO_EPSILON )
-		{
-			do_blurryRefraction = true;
-		}
-		return do_blurryRefraction;
-	}
-
-	bool setupDispersion( InterfaceInfo * info, int mediumID, JFND_Shader_Data * data ) {
-		bool do_disperse = false;
-
-		if (!this->ray_monochromatic)
-		{
-			// already monochromatic means don't disperse, just keep the existing wavelength and trace that way
-			if ( this->media_disperse.v[mediumID] )
-				this->spectral_LUT_ptr = &data->spectral_LUT_ptr;
-
-			do_disperse = this->media_disperse.v[info->m2]; // only disperse if the medium we're entering is dispersey, and the ray is not already monochromatic
-		}
-
-		return do_disperse;
-	}
-
-	void getCurrentMediaInfo(InterfaceInfo * info, bool shadowRay) 
-	{
-		// ---------------------------------------------------//
-		// - media logic     
-		// 		(determine what media we're in based on mediaInside arrays. )
-		// ---------------------------------------------------//
-
-		/*
-		 * info.startingMedium is the medium we were already inside when we started tracing
-		 * info.startingMediumSecondary is the next medium we will be inside, if it turns out we're leaving this one
-		 *
-		 * example: we're inside glass and water, glass is the priority. startingMedium is glass, startingMediumSecondary is water.
-		 * This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
-		 */
-
-		mediaIntStruct * media_inside_ptr = shadowRay ? &this->shadow_media_inside : &this->media_inside;
-
-		for( int i = 0; i < max_media_count; i++ )
-		{	
-			if ( media_inside_ptr->v[i] > 0 ) // if we find a medium that we're inside
-			{
-				if ( info->startingMedium == 0 ) // ..and we havent found our current medium yet
-				{
-					info->startingMedium = i;  // then we've found our medium.
-					if (media_inside_ptr->v[i] > 1) // ...and if we're in more than one of these
-					{
-						info->startingMediumSecondary = i; // then our second medium is the same medium.
-						break;
-					}
-				}
-				else if ( info->startingMediumSecondary == 0 )  // ..and we've already found our current medium
-				{
-					info->startingMediumSecondary = i; // ..then we've found our second medium
-					break;
-				}
-			}
-		}
-	}
-
-	void getIntersectionIDs(InterfaceInfo * info, int mediumID, AtShaderGlobals* sg) 
-	{
-		/*
-		 * m = medium ID, n = IOR, T = transmission
-		 * 1 is the previous medium, 2 is the next, as seen in n1 and n2 of refraction diagrams
-		 * such diagrams: http://en.wikipedia.org/wiki/File:Snells_law.svg
-		 */
-
-		info->entering = ( AiV3Dot(sg->Ng, sg->Rd) < 0.0f ) ;
-		
-		if (info->entering) // (entering a possible medium)
-		{
-			if (info->startingMedium == 0)
-			{
-				// entering the first medium, so no media information is available
-				info->validInterface = true;
-				info->mediaEntrance = true;
-				info->m1 = 0;
-				info->m2 = mediumID;
-			}
-			else if ( mediumID < info->startingMedium )
-			{
-				// entering a new highest priority medium
-				info->validInterface = true;
-				info->m1 = info->startingMedium;
-				info->m2 = mediumID;
-			}
-			else if ( mediumID >= info->startingMedium )
-			{
-				// entering a medium that is not higher priority, interface is invalid
-				// or entering the same medium we're already in, interface is also invalid
-				info->m1 = info->m2 = info->startingMedium;
-			}
-		}
-		else // (leaving a possible medium)
-		{
-			if (info->startingMedium == mediumID)
-			{
-				// leaving the highest priority medium, which may be 0 (meaning no medium)
-				info->validInterface = true;
-				info->m1 = info->startingMedium;
-				info->m2 = info->startingMediumSecondary;
-				if (info->startingMediumSecondary == 0)
-				{
-					// and there is no second medium, meaning we're leaving all media
-					info->mediaExit = true;
-				}
-			}
-			else
-			{
-				// leaving a medium that is not the current medium, interface invalid
-				info->m1 = info->m2;
-				info->m1 = info->startingMedium;
-			}
-		}
-
-		if (info->m1 == 0) 
-			info->m_higherPriority = info->m2;
-		else if (info->m2 == 0) 
-			info->m_higherPriority = info->m1;
-		else if (info->m1 < info->m2) 
-			info->m_higherPriority = info->m1;
-		else if (info->m1 > info->m2) 
-			info->m_higherPriority = info->m2;
-	}
-
-	void getInterfaceProperties(InterfaceInfo * info) 
-	{
-		// - Interface Logic
-		// 		(Disperse and multisample)
-
-		if ( info->validInterface )
-		{	
-			if (this->ray_monochromatic)
-			{
-				info->n1 = dispersedIOR( this->media_iOR.v[info->m1], this->media_dispersion.v[info->m1], this->ray_wavelength );
-				info->n2 = dispersedIOR( this->media_iOR.v[info->m2], this->media_dispersion.v[info->m2], this->ray_wavelength );
-			}
-			else
-			{
-				info->n1 = this->media_iOR.v[info->m1];
-				info->n2 = this->media_iOR.v[info->m2];
-			}
-
-
-			if (info->n1 == info->n2)
-			{			
-				info->validInterface = false;
-			}
-		}
-
-		info->t1 = this->media_transmission.v[info->m1];
-		info->t2 = this->media_transmission.v[info->m2];
-	}
-
-	InterfaceInfo getInterfaceInfo(int mediumID, AtShaderGlobals* sg) 
-	{
-		InterfaceInfo info = InterfaceInfo();
-
-		bool shadowRay = (sg->Rt == AI_RAY_SHADOW);
-		this->getCurrentMediaInfo(&info, shadowRay);
-		this->getIntersectionIDs(&info, mediumID, sg);
-		this->getInterfaceProperties(&info);
-
-		return info;
-	}
-
-
 } Ray_State_Datatype;
-
 
 
 
@@ -762,3 +553,287 @@ void updateMediaInsideLists(int m_cMatID, bool entering, mediaIntStruct * media_
 	else
 		media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? -1 : 1 );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+typedef struct InterfaceInfo {
+	int startingMedium;
+	int startingMediumSecondary;
+	int m1;
+	int m2;
+	int m_higherPriority;
+	float n1;
+	float n2;
+	float polarizationTerm;
+	AtColor t1;
+	AtColor t2;
+	bool entering;
+	bool validInterface;
+	bool mediaExit;
+	bool mediaEntrance;
+
+	Ray_State_Datatype * RayState;
+
+	InterfaceInfo(Ray_State_Datatype * RayState, int mediumID, AtShaderGlobals * sg) 
+	{
+		this->startingMedium = 0;
+		this->startingMediumSecondary = 0;
+		this->m1 = 0;
+		this->m2 = 0;
+		this->m_higherPriority = 0;
+
+		this->n1 = 0.0f;
+		this->n2 = 0.0f;
+
+		this->polarizationTerm = 0.5f;
+
+		this->t1 = AI_RGB_WHITE;
+		this->t2 = AI_RGB_WHITE;
+		this->entering = false;
+		this->validInterface = false;
+		this->mediaExit = false;
+		this->mediaEntrance = false;
+
+		this->RayState = RayState;
+
+		bool shadowRay = (sg->Rt == AI_RAY_SHADOW);
+		this->setCurrentMediaInfo(shadowRay);
+		this->setIntersectionIDs(mediumID, sg);
+		this->setInterfaceProperties();
+		this->setPolarizationTerm(sg);
+	}
+
+
+	private: 
+
+	void setCurrentMediaInfo(bool shadowRay) 
+	{
+		// ---------------------------------------------------//
+		// - media logic     
+		// 		(determine what media we're in based on mediaInside arrays. )
+		// ---------------------------------------------------//
+
+		/*
+		 * info.startingMedium is the medium we were already inside when we started tracing
+		 * info.startingMediumSecondary is the next medium we will be inside, if it turns out we're leaving this one
+		 *
+		 * example: we're inside glass and water, glass is the priority. startingMedium is glass, startingMediumSecondary is water.
+		 * This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
+		 */
+
+		mediaIntStruct * media_inside_ptr = shadowRay ? &this->RayState->shadow_media_inside : &this->RayState->media_inside;
+
+		for( int i = 0; i < max_media_count; i++ )
+		{	
+			if ( media_inside_ptr->v[i] > 0 ) // if we find a medium that we're inside
+			{
+				if ( this->startingMedium == 0 ) // ..and we havent found our current medium yet
+				{
+					this->startingMedium = i;  // then we've found our medium.
+					if (media_inside_ptr->v[i] > 1) // ...and if we're in more than one of these
+					{
+						this->startingMediumSecondary = i; // then our second medium is the same medium.
+						break;
+					}
+				}
+				else if ( this->startingMediumSecondary == 0 )  // ..and we've already found our current medium
+				{
+					this->startingMediumSecondary = i; // ..then we've found our second medium
+					break;
+				}
+			}
+		}
+	}
+
+	void setIntersectionIDs(int mediumID, AtShaderGlobals* sg) 
+	{
+		/*
+		 * m = medium ID, n = IOR, T = transmission
+		 * 1 is the previous medium, 2 is the next, as seen in n1 and n2 of refraction diagrams
+		 * such diagrams: http://en.wikipedia.org/wiki/File:Snells_law.svg
+		 */
+
+		this->entering = ( AiV3Dot(sg->Ng, sg->Rd) < 0.0f ) ;
+		
+		if (this->entering) // (entering a possible medium)
+		{
+			if (this->startingMedium == 0)
+			{
+				// entering the first medium, so no media information is available
+				this->validInterface = true;
+				this->mediaEntrance = true;
+				this->m1 = 0;
+				this->m2 = mediumID;
+			}
+			else if ( mediumID < this->startingMedium )
+			{
+				// entering a new highest priority medium
+				this->validInterface = true;
+				this->m1 = this->startingMedium;
+				this->m2 = mediumID;
+			}
+			else if ( mediumID >= this->startingMedium )
+			{
+				// entering a medium that is not higher priority, interface is invalid
+				// or entering the same medium we're already in, interface is also invalid
+				this->m1 = this->m2 = this->startingMedium;
+			}
+		}
+		else // (leaving a possible medium)
+		{
+			if (this->startingMedium == mediumID)
+			{
+				// leaving the highest priority medium, which may be 0 (meaning no medium)
+				this->validInterface = true;
+				this->m1 = this->startingMedium;
+				this->m2 = this->startingMediumSecondary;
+				if (this->startingMediumSecondary == 0)
+				{
+					// and there is no second medium, meaning we're leaving all media
+					this->mediaExit = true;
+				}
+			}
+			else
+			{
+				// leaving a medium that is not the current medium, interface invalid
+				this->m1 = this->m2;
+				this->m1 = this->startingMedium;
+			}
+		}
+
+		if (this->m1 == 0) 
+			this->m_higherPriority = this->m2;
+		else if (this->m2 == 0) 
+			this->m_higherPriority = this->m1;
+		else if (this->m1 < this->m2) 
+			this->m_higherPriority = this->m1;
+		else if (this->m1 > this->m2) 
+			this->m_higherPriority = this->m2;
+	}
+
+	void setInterfaceProperties() 
+	{
+		// - Interface Logic
+		// 		(Disperse and multisample)
+
+		if ( this->validInterface )
+		{	
+			if (this->RayState->ray_monochromatic)
+			{
+				this->n1 = dispersedIOR( this->RayState->media_iOR.v[this->m1], this->RayState->media_dispersion.v[this->m1], this->RayState->ray_wavelength );
+				this->n2 = dispersedIOR( this->RayState->media_iOR.v[this->m2], this->RayState->media_dispersion.v[this->m2], this->RayState->ray_wavelength );
+			}
+			else
+			{
+				this->n1 = this->RayState->media_iOR.v[this->m1];
+				this->n2 = this->RayState->media_iOR.v[this->m2];
+			}
+
+
+			if (this->n1 == this->n2)
+			{			
+				this->validInterface = false;
+			}
+		}
+
+		this->t1 = this->RayState->media_transmission.v[this->m1];
+		this->t2 = this->RayState->media_transmission.v[this->m2];
+	}
+
+
+	void setPolarizationTerm(AtShaderGlobals * sg) 
+	{
+		if (this->RayState->polarized)
+		{
+			this->polarizationTerm = std::abs( AiV3Dot(sg->Nf, this->RayState->polarizationVector ));
+		}
+		else 
+		{
+			this->polarizationTerm = 0.5f;
+		}
+	}
+
+	public:
+	bool doBlurryRefraction() 
+	{
+		bool do_blurryRefraction = false;
+		if ( this->RayState->media_refractRoughnessU.v[this->m1] > ZERO_EPSILON ||
+			 this->RayState->media_refractRoughnessV.v[this->m1] > ZERO_EPSILON ||
+			 this->RayState->media_refractRoughnessU.v[this->m2] > ZERO_EPSILON ||
+			 this->RayState->media_refractRoughnessV.v[this->m2] > ZERO_EPSILON )
+		{
+			do_blurryRefraction = true;
+		}
+		return do_blurryRefraction;
+	}
+
+	bool setupDispersion(int mediumID, JFND_Shader_Data * data ) 
+	{
+		bool do_disperse = false;
+
+		if (!this->RayState->ray_monochromatic)
+		{
+			// already monochromatic means don't disperse, just keep the existing wavelength and trace that way
+			if ( this->RayState->media_disperse.v[mediumID] )
+				this->RayState->spectral_LUT_ptr = &data->spectral_LUT_ptr;
+
+			do_disperse = this->RayState->media_disperse.v[this->m2]; // only disperse if the medium we're entering is dispersey, and the ray is not already monochromatic
+		}
+
+		return do_disperse;
+	}
+
+	AtColor getTransmissionColor(AtShaderGlobals * sg)
+	{
+		float depth = sg->Rl;
+		if (this->t1 != AI_RGB_WHITE)
+		{		
+			return AiColorCreate( 
+				pow(this->t1.r, depth), 
+				pow(this->t1.g, depth), 
+				pow(this->t1.b, depth));
+		}
+		else
+		{
+			return AI_RGB_WHITE;
+		}
+	}
+
+	AtColor getShadowTransparency(AtShaderGlobals * sg, int shadowMode) 
+	{
+		float fresnelTerm = 0.0f;
+		switch ( shadowMode )
+		{
+			case sh_black:
+				return AI_RGB_BLACK;
+			case sh_transmit_only:		
+				return this->getTransmissionColor(sg);
+			case sh_transmit_and_outer_fresnels:
+				if (this->validInterface && this->entering)
+				{					
+					fresnelTerm = fresnelEquations (this->n1, this->n2, AiV3Dot(sg->Nf, -sg->Rd), this->polarizationTerm, false);
+				}
+				return this->getTransmissionColor(sg) * (AI_RGB_WHITE - fresnelTerm);
+			case sh_transmit_and_all_fresnels:
+				if (this->validInterface)
+				{
+					fresnelTerm = fresnelEquations (this->n1, this->n2, AiV3Dot(sg->Nf, -sg->Rd), this->polarizationTerm, false);
+				}
+				return this->getTransmissionColor(sg) * (AI_RGB_WHITE - fresnelTerm);
+		}
+
+	}
+
+} InterfaceInfo;
+
