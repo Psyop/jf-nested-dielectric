@@ -346,21 +346,22 @@ shader_evaluate
 
 	{
 		RayState->setMediaIOR(m_cMatID, AiShaderEvalParamFlt(p_mediumIOR));
-		RayState->setMediaDispersion(m_cMatID, AiShaderEvalParamBool(p_disperse), AiShaderEvalParamFlt(p_dispersion));		
+		RayState->setMediaDispersion(m_cMatID, AiShaderEvalParamBool(p_disperse), AiShaderEvalParamFlt(p_dispersion));	
+		RayState->setAnisotropySettings(m_cMatID, AiShaderEvalParamFlt(p_blur_anisotropic_poles));
+			
 		const float sScale = AiShaderEvalParamFlt(p_specular_scale);
 		const float sDirect = AiShaderEvalParamFlt(p_direct_specular) * sScale;
 		const float sIndirect = AiShaderEvalParamFlt(p_indirect_specular) * sScale;
 		RayState->setMediaSpecular(m_cMatID, sDirect, sIndirect, AiShaderEvalParamEnum(p_brdf), 
 			AiShaderEvalParamFlt(p_specular_roughness_u), AiShaderEvalParamFlt(p_specular_roughness_v));
+
 		const float rScale = AiShaderEvalParamFlt(p_refraction_scale);
 		const float rDirect = AiShaderEvalParamFlt(p_direct_refraction) * rScale;
-		const float rIndirect = AiShaderEvalParamFlt(p_indirect_refraction) * rScale;	
-		RayState->setRefractionSettings(m_cMatID, rDirect, rIndirect, AiShaderEvalParamEnum(p_btdf), 
-			refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_u) ), 
-			refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_v) ), 
+		const float rIndirect = AiShaderEvalParamFlt(p_indirect_refraction) * rScale;
+		const float rURough = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_u) );
+		const float rVRough = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_v) );
+		RayState->setRefractionSettings(m_cMatID, rDirect, rIndirect, AiShaderEvalParamEnum(p_btdf), rURough, rVRough, 
 			AiShaderEvalParamRGB(p_mediumTransmittance), AiShaderEvalParamFlt(p_mediumTransmittance_scale));
-
-		RayState->setAnisotropySettings(m_cMatID, AiShaderEvalParamFlt(p_blur_anisotropic_poles));
 	}
 
 	// ---------------------------------------------------//
@@ -376,164 +377,33 @@ shader_evaluate
 	}
 
 	// ---------------------------------------------------//
-	// - media logic     
-	// 		(determine what media we're in based on mediaInside arrays. )
+	// - get interface info     
+	// 		interfaceinfo contains the following: 
+	// 			int startingMedium;
+	// 			int startingMediumSecondary;
+	// 			int m1;
+	// 			int m2;
+	// 			int m_higherPriority;
+	// 			float n1;
+	// 			float n2;
+	// 			AtColor t1;
+	// 			AtColor t2;
+	// 			bool entering;
+	// 			bool validInterface;
+	// 			bool mediaExit;
+	// 			bool mediaEntrance;
 	// ---------------------------------------------------//
 
-	/*
-	 * startingMedium is the medium we were already inside when we started tracing
-	 * startingMediumSecondary is the next medium we will be inside, if it turns out we're leaving this one
-	 *
-	 * example: we're inside glass and water, glass is the priority. startingMedium is glass, startingMediumSecondary is water.
-	 * This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
-	 */
+	InterfaceInfo info = RayState->getInterfaceInfo(m_cMatID, sg);
 
-	int startingMedium = 0, startingMediumSecondary = 0; 
-
-	for( int i = 0; i < max_media_count; i++ )
-	{	
-		if ( media_inside_ptr->v[i] > 0 ) // if we find a medium that we're inside
-		{
-			if ( startingMedium == 0 ) // ..and we havent found our current medium yet
-			{
-				startingMedium = i;  // then we've found our medium.
-				if (media_inside_ptr->v[i] > 1) // ...and if we're in more than one of these
-				{
-					startingMediumSecondary = i; // then our second medium is the same medium.
-					break;
-				}
-			}
-			else if ( startingMediumSecondary == 0 )  // ..and we've already found our current medium
-			{
-				startingMediumSecondary = i; // ..then we've found our second medium
-				break;
-			}
-		}
-	}
-
-	// ---------------------------------------------------//
-	// - interface logic 
-	//		(Figure out the properties and validity of the interface we're tracing. )
-	// ---------------------------------------------------//
-		
-	const bool entering = ( AiV3Dot(sg->Ng, sg->Rd) < 0.0f ) ;
-
-	/*
-	 * m = medium ID, n = IOR, T = transmission
-	 * 1 is the previous medium, 2 is the next, as seen in n1 and n2 of refraction diagrams
-	 * such diagrams: http://en.wikipedia.org/wiki/File:Snells_law.svg
-	 */
-
-	int m1 = 0, m2 = 0;
-	float n1 = 1.0f, n2 = 1.0f;
-	AtColor t1;
-	AtColor t2;
-
-	bool validInterface = false, mediaExit = false, mediaEntrance = false;
-	
-	if (entering) // (entering a possible medium)
-	{
-		if (startingMedium == 0)
-		{
-			// entering the first medium, so no media information is available
-			validInterface = mediaEntrance = true;
-			m1 = 0;
-			m2 = m_cMatID;
-		}
-		else if ( m_cMatID < startingMedium )
-		{
-			// entering a new highest priority medium
-			validInterface = true;
-			m1 = startingMedium;
-			m2 = m_cMatID;
-		}
-		else if ( m_cMatID >= startingMedium )
-		{
-			// entering a medium that is not higher priority, interface is invalid
-			// or entering the same medium we're already in, interface is also invalid
-			m1 = m2 = startingMedium;
-		}
-	}
-	else // (leaving a possible medium)
-	{
-		if (startingMedium == m_cMatID)
-		{
-			// leaving the highest priority medium, which may be 0 (meaning no medium)
-			validInterface = true;
-			m1 = startingMedium;
-			m2 = startingMediumSecondary;
-			if (startingMediumSecondary == 0)
-			{
-				// and there is no second medium, meaning we're leaving all media
-				mediaExit = true;
-			}
-		}
-		else
-		{
-			// leaving a medium that is not the current medium, interface invalid
-			m1 = m2 = startingMedium;
-		}
-	}
-
-	int m_higherPriority;
-	if (m1 == 0) 
-		m_higherPriority = m2;
-	else if (m2 == 0) 
-		m_higherPriority = m1;
-	else if (m1 < m2) 
-		m_higherPriority = m1;
-	else if (m1 > m2) 
-		m_higherPriority = m2;
-
-	// - Interface Logic
-	// 		(Disperse and multisample)
-
-	bool do_blurryRefraction = false;
-	if ( RayState->media_refractRoughnessU.v[m1] > ZERO_EPSILON ||
-		 RayState->media_refractRoughnessV.v[m1] > ZERO_EPSILON ||
-		 RayState->media_refractRoughnessU.v[m2] > ZERO_EPSILON ||
-		 RayState->media_refractRoughnessV.v[m2] > ZERO_EPSILON )
-	{
-		do_blurryRefraction = true;
-	}
-	bool do_disperse = false;
-	if (!RayState->ray_monochromatic)
-	{
-		// already monochromatic means don't disperse, just keep the existing wavelength and trace that way
-		if ( RayState->media_disperse.v[m_cMatID] )
-			RayState->spectral_LUT_ = &data->spectral_LUT_; // copy over the pointer to the spectral LUT
-
-		if (RayState->media_disperse.v[m2])
-			do_disperse = RayState->media_disperse.v[m2];
-	}
+	bool do_blurryRefraction = RayState->doBlurryRefraction(&info);
+	bool do_disperse = RayState->setupDispersion(&info, m_cMatID, data);
 	const bool do_multiSampleRefraction = do_disperse || do_blurryRefraction;
 
 
-	if ( validInterface )
-	{	
-		if (RayState->ray_monochromatic)
-		{
-			n1 = dispersedIOR( RayState->media_iOR.v[m1], RayState->media_dispersion.v[m1], RayState->ray_wavelength );
-			n2 = dispersedIOR( RayState->media_iOR.v[m2], RayState->media_dispersion.v[m2], RayState->ray_wavelength );
-		}
-		else
-		{
-			n1 = RayState->media_iOR.v[m1];
-			n2 = RayState->media_iOR.v[m2];
-		}
+	AtColor cTransmission = transmissionColor(&info.t1, (float) sg->Rl) ;
 
 
-		if (n1 == n2)
-		{			
-			validInterface = false;
-		}
-	}
-
-
-	t1 = RayState->media_transmission.v[m1];
-	t2 = RayState->media_transmission.v[m2];
-
-	AtColor cTransmission = transmissionColor(&t1, (float) sg->Rl) ;
 
 	// ---------------------------------------------------//
 	// - Shadow rays
@@ -561,16 +431,16 @@ shader_evaluate
 				transparency = cTransmission;
 				break;
 			case sh_transmit_and_outer_fresnels:
-				if (validInterface && entering)
+				if (info.validInterface && info.entering)
 				{					
-					fresnelTerm = fresnelEquations (n1, n2,  AiV3Dot(sg->Nf, -sg->Rd), cPolarizationTerm, false);
+					fresnelTerm = fresnelEquations (info.n1, info.n2, AiV3Dot(sg->Nf, -sg->Rd), cPolarizationTerm, false);
 				}
 				transparency = cTransmission * (AI_RGB_WHITE - fresnelTerm);
 				break;
 			case sh_transmit_and_all_fresnels:
-				if (validInterface)
+				if (info.validInterface)
 				{
-					fresnelTerm = fresnelEquations (n1, n2,  AiV3Dot(sg->Nf, -sg->Rd), cPolarizationTerm, false);
+					fresnelTerm = fresnelEquations (info.n1, info.n2, AiV3Dot(sg->Nf, -sg->Rd), cPolarizationTerm, false);
 				}
 				transparency = cTransmission * (AI_RGB_WHITE - fresnelTerm);
 				break;
@@ -578,7 +448,7 @@ shader_evaluate
 
 		AiShaderGlobalsApplyOpacity(sg, AI_RGB_WHITE - transparency);
 		if (sg->out_opacity != AI_RGB_WHITE)
-			updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
+			updateMediaInsideLists(m_cMatID, info.entering, media_inside_ptr, false);
 
 		return;
 	} else {
@@ -597,12 +467,12 @@ shader_evaluate
 	AtColor acc_spec_indirect = AI_RGB_BLACK;
 	AtColor acc_spec_direct = AI_RGB_BLACK;
 
-	if ( validInterface )
+	if ( info.validInterface )
 	{
-		bool trace_refract_indirect = RayState->media_refractIndirect.v[m1] > ZERO_EPSILON && RayState->media_refractIndirect.v[m2] > ZERO_EPSILON;
+		bool trace_refract_indirect = RayState->media_refractIndirect.v[info.m1] > ZERO_EPSILON && RayState->media_refractIndirect.v[info.m2] > ZERO_EPSILON;
 		bool trace_refract_direct = RayState->media_refractDirect.v[m_cMatID] > ZERO_EPSILON ; // media exit is AND'd in later. 
-		bool trace_spec_indirect = RayState->media_specIndirect.v[m_higherPriority] > ZERO_EPSILON;
-		bool trace_spec_direct = mediaEntrance && RayState->media_specDirect.v[m_higherPriority] > ZERO_EPSILON;
+		bool trace_spec_indirect = RayState->media_specIndirect.v[info.m_higherPriority] > ZERO_EPSILON;
+		bool trace_spec_direct = info.mediaEntrance && RayState->media_specDirect.v[info.m_higherPriority] > ZERO_EPSILON;
 		bool trace_TIR = trace_refract_indirect || trace_spec_indirect;
 
 		float overallResultScale = 1.0f;
@@ -613,7 +483,7 @@ shader_evaluate
 		bool traceCaust_photon = false;
 		bool traceCaust_pathtraced = false;
 
-		if (!mediaEntrance && !AiShaderEvalParamBool(p_enable_internal_reflections) )
+		if (!info.mediaEntrance && !AiShaderEvalParamBool(p_enable_internal_reflections) )
 			trace_spec_indirect = false;
 
 		bool causticPath = photon_ray_type || sg->Rr_diff > 0 ;
@@ -638,7 +508,7 @@ shader_evaluate
 				}
 			}
 
-			if (mediaEntrance || !RayState->caustic_behaviorSet)
+			if (info.mediaEntrance || !RayState->caustic_behaviorSet)
 			{
 				RayState->caustic_behaviorSet = true;
 				RayState->caustic_mode = AiShaderEvalParamInt(p_caustic_mode);
@@ -664,7 +534,7 @@ shader_evaluate
 				trace_spec_direct    = trace_spec_direct    && RayState->caustic_specDirect;
 				trace_TIR = trace_TIR && RayState->caustic_TIR && (RayState->caustic_refractDirect || RayState->caustic_refractIndirect); // TO DO: does that really work?
 
-				if (mediaExit)
+				if (info.mediaExit)
 				{
 					// Indirect refraction is only needed on mediaExit if we actually want caustics from indirect refractions.
 					// Otherwise they are carriers for direct refraction. 
@@ -676,7 +546,7 @@ shader_evaluate
 					trace_refract_indirect = trace_refract_indirect && (RayState->caustic_refractDirect || RayState->caustic_refractIndirect);
 				}
 
-				if (mediaEntrance)
+				if (info.mediaEntrance)
 				{
 					// if we have an inside out surface, TIR caustics will only be traced if indirect specular is on. 
 					trace_TIR = trace_spec_indirect;
@@ -697,7 +567,7 @@ shader_evaluate
 				// indirect specular will mean the caustics will beounce off interior surfaces too. 
 				// to the renderer this would always be indirect specular though. 
 				trace_spec_indirect = trace_spec_indirect && (
-					(RayState->caustic_specDirect && entering)
+					(RayState->caustic_specDirect && info.entering)
 					|| (RayState->caustic_specIndirect)
 					);
 
@@ -707,12 +577,7 @@ shader_evaluate
 			}
 			else
 			{
-				trace_refract_indirect 
-				= trace_refract_direct 
-				= trace_spec_indirect 
-				= trace_spec_direct 
-				= trace_TIR
-				= false;
+				trace_refract_indirect = trace_refract_direct = trace_spec_indirect = trace_spec_direct = trace_TIR = false;
 			}
 		}
 
@@ -730,7 +595,7 @@ shader_evaluate
 			energySignificant = true;
 		}
 
-		trace_refract_direct = trace_refract_direct && mediaExit;
+		trace_refract_direct = trace_refract_direct && info.mediaExit;
 
 		const bool traceAnyRefraction = trace_refract_indirect || trace_refract_direct;
 		const bool traceAnySpecular = trace_spec_indirect || trace_spec_direct;
@@ -747,7 +612,7 @@ shader_evaluate
 			AtRay ray;
 			AtScrSample sample;
 			
-			float fresnelTerm = fresnelEquations (n1, n2,  AiV3Dot(sg->Nf, -sg->Rd), cPolarizationTerm, true);
+			float fresnelTerm = fresnelEquations (info.n1, info.n2,  AiV3Dot(sg->Nf, -sg->Rd), cPolarizationTerm, true);
 
 			bool do_TIR = false;
 			AtColor TIR_color = AI_RGB_BLACK;
@@ -756,11 +621,11 @@ shader_evaluate
 			AtVector vTangent;
 			AtVector tangentSourceVector;
 
-			float spec_roughnessU = (RayState->media_specRoughnessU.v[m2] + RayState->media_specRoughnessU.v[m1]) / 2.0f;
-			float spec_roughnessV = (RayState->media_specRoughnessV.v[m2] + RayState->media_specRoughnessV.v[m1]) / 2.0f;
+			float spec_roughnessU = (RayState->media_specRoughnessU.v[info.m2] + RayState->media_specRoughnessU.v[info.m1]) / 2.0f;
+			float spec_roughnessV = (RayState->media_specRoughnessV.v[info.m2] + RayState->media_specRoughnessV.v[info.m1]) / 2.0f;
 
-			float refr_roughnessU = refractiveRoughness( RayState->media_refractRoughnessU.v[m1], RayState->media_refractRoughnessU.v[m2], n1, n2 );
-			float refr_roughnessV = refractiveRoughness( RayState->media_refractRoughnessV.v[m1], RayState->media_refractRoughnessV.v[m2], n1, n2 );
+			float refr_roughnessU = refractiveRoughness( RayState->media_refractRoughnessU.v[info.m1], RayState->media_refractRoughnessU.v[info.m2], info.n1, info.n2 );
+			float refr_roughnessV = refractiveRoughness( RayState->media_refractRoughnessV.v[info.m1], RayState->media_refractRoughnessV.v[info.m2], info.n1, info.n2 );
 				
 			if ( traceAnyRefraction )
 			{
@@ -791,7 +656,7 @@ shader_evaluate
 				}
 
 				AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 				
-				const bool refracted = AiRefractRay(&ray, &sg->Nf, n1, n2, sg);
+				const bool refracted = AiRefractRay(&ray, &sg->Nf, info.n1, info.n2, sg);
 
 				AtShaderGlobals ppsg = *sg;
 				if (!do_disperse)
@@ -800,11 +665,11 @@ shader_evaluate
 				// decision point- indirect refraction
 				if ( trace_refract_indirect )
 				{
-					const float cMediaIndirectRefractionProduct = RayState->media_refractIndirect.v[m1] * RayState->media_refractIndirect.v[m2];
+					const float cMediaIndirectRefractionProduct = RayState->media_refractIndirect.v[info.m1] * RayState->media_refractIndirect.v[info.m2];
 					void * btdf_data = NULL;
 					if (!do_disperse && do_blurryRefraction)
 					{
-						switch ( RayState->media_BTDF.v[m_higherPriority] )
+						switch ( RayState->media_BTDF.v[info.m_higherPriority] )
 						{
 							case b_stretched_phong:
 								// Stretched Phong
@@ -817,7 +682,7 @@ shader_evaluate
 							case b_ward_rayTangent:
 								// Ward with refraction-derivitive tangents
 								tangentSourceVector = AiV3Normalize(ppsg.Rd);
-								blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
+								blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->N, &tangentSourceVector);
 								uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 								vTangent = AiV3Cross(ppsg.Nf, uTangent);
 								btdf_data = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV); 
@@ -825,7 +690,7 @@ shader_evaluate
 							case b_ward_userTangent:
 								// Ward with user tangents
 								tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-								blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
+								blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->N, &tangentSourceVector);
 								uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 								vTangent = AiV3Cross(ppsg.Nf, uTangent);
 								btdf_data = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
@@ -862,12 +727,12 @@ shader_evaluate
 								const float LUT_value = fmod( (float) (dispersal_seed + dispersion_sample[0]), 1.0f );
 
 								float cWavelength; 
-								get_interpolated_LUT_value( RayState->spectral_LUT_, LUT_value, &cWavelength, &monochromaticColor);
+								get_interpolated_LUT_value( RayState->spectral_LUT_ptr, LUT_value, &cWavelength, &monochromaticColor);
 								RayState->ray_monochromatic = true;
 								RayState->ray_wavelength = cWavelength;
 
-								const float n1_dispersed = dispersedIOR(n1, RayState->media_dispersion.v[m1], cWavelength);
-								const float n2_dispersed = dispersedIOR(n2, RayState->media_dispersion.v[m2], cWavelength);
+								const float n1_dispersed = dispersedIOR(info.n1, RayState->media_dispersion.v[info.m1], cWavelength);
+								const float n2_dispersed = dispersedIOR(info.n2, RayState->media_dispersion.v[info.m2], cWavelength);
 
 								AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 								
 								refracted_dispersion = AiRefractRay(&dispersalRay, &sg->Nf, n1_dispersed, n2_dispersed, sg);
@@ -876,7 +741,7 @@ shader_evaluate
 								if ( do_blurryRefraction )
 								{									
 									parallelPark(ray.dir, &ppsg);
-									switch ( RayState->media_BTDF.v[m_higherPriority] )
+									switch ( RayState->media_BTDF.v[info.m_higherPriority] )
 									{
 										case b_stretched_phong:
 											// Stretched Phong
@@ -889,7 +754,7 @@ shader_evaluate
 										case b_ward_rayTangent:
 											// Ward with refraction-derivitive tangents
 											tangentSourceVector = AiV3Normalize(ppsg.Rd);
-											blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
+											blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->N, &tangentSourceVector);
 											uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 											vTangent = AiV3Cross(ppsg.Nf, uTangent);
 											btdf_data = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV); 
@@ -897,7 +762,7 @@ shader_evaluate
 										case b_ward_userTangent:
 											// Ward with user tangents
 											tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-											blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->N, &tangentSourceVector);
+											blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->N, &tangentSourceVector);
 											uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 											vTangent = AiV3Cross(ppsg.Nf, uTangent);
 											btdf_data = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
@@ -908,7 +773,7 @@ shader_evaluate
 
 							if ( do_blurryRefraction )
 							{
-								switch ( RayState->media_BTDF.v[m_higherPriority] )
+								switch ( RayState->media_BTDF.v[info.m_higherPriority] )
 								{
 									case b_stretched_phong:
 										ray.dir = AiStretchedPhongMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
@@ -934,7 +799,7 @@ shader_evaluate
 							}
 							else if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO))
 							{
-								updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
+								updateMediaInsideLists(m_cMatID, info.entering, media_inside_ptr, false);
 								const AtColor weight = (1.0f - fresnelTerm) 
 										* monochromaticColor
 										* cMediaIndirectRefractionProduct
@@ -954,13 +819,13 @@ shader_evaluate
 								const bool tracehit = AiTrace(&ray, &sample);
 								if (tracehit || refract_skies) 
 								{
-									acc_refract_indirect += sample.color * weight * transmissionOnSample(&t2, &sample, tracehit );
+									acc_refract_indirect += sample.color * weight * transmissionOnSample(&info.t2, &sample, tracehit );
 								}
 
 								RayState->ray_energy = energyCache;
 								RayState->ray_energy_photon = energyCache_photon;
 
-								updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, true);
+								updateMediaInsideLists(m_cMatID, info.entering, media_inside_ptr, true);
 							}
 
 							if (!do_multiSampleRefraction)
@@ -1034,8 +899,8 @@ shader_evaluate
 					const float dr_roughnessDepthAdder = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
 					const float dr_roughnessDepthMultiplier = AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier );
 
-					dr_roughnessU =  (dr_roughnessU) * pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
-					dr_roughnessV =  (dr_roughnessV) * pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
+					dr_roughnessU = (dr_roughnessU) * pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
+					dr_roughnessV = (dr_roughnessV) * pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
 
 					float drs_roughnessU;
 					float drs_roughnessV;
@@ -1068,8 +933,8 @@ shader_evaluate
 						case b_ward_rayTangent:
 							// Ward with refraction-derivitive tangents
 							tangentSourceVector = AiV3Normalize(ppsg.Rd);
-							blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
-							blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->Nf, &tangentSourceVector);
 							uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 							vTangent = AiV3Cross(ppsg.Nf, uTangent);
 							btdf_data_direct = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessV); 
@@ -1078,8 +943,8 @@ shader_evaluate
 						case b_ward_userTangent:
 							// Ward with user tangents
 							tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-							blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
-							blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->Nf, &tangentSourceVector);
 							uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
 							vTangent = AiV3Cross(ppsg.Nf, uTangent);					
 							btdf_data_direct = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessV ) ; 
@@ -1176,7 +1041,7 @@ shader_evaluate
 					AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
 
 					void * brdf_data; 
-					int spec_brdf = RayState->media_BRDF.v[m_higherPriority];
+					int spec_brdf = RayState->media_BRDF.v[info.m_higherPriority];
 					bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
 					if (sharp_reflection)
 						spec_brdf = b_stretched_phong;
@@ -1192,7 +1057,7 @@ shader_evaluate
 							break;
 						case b_ward_rayTangent:
 							// Ward with refraction-derivitive tangents
-							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->Nf, &tangentSourceVector);
 							AiV3Cross(uTangent, sg->N, sg->Rd); 
 							AiV3Cross(vTangent, sg->N, uTangent);
 							brdf_data = AiWardDuerMISCreateData(sg, &uTangent, &vTangent, spec_roughnessU, spec_roughnessV); 
@@ -1200,7 +1065,7 @@ shader_evaluate
 						case b_ward_userTangent:
 							// Ward with user tangents
 							tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[info.m_higherPriority], &sg->Nf, &tangentSourceVector);
 							AiV3Cross( uTangent, sg->N, tangentSourceVector ) ;
 							AiV3Cross( vTangent, sg->N, uTangent ) ;
 							brdf_data = AiWardDuerMISCreateData( sg, &vTangent, &uTangent, spec_roughnessU, spec_roughnessV ) ; 
@@ -1214,7 +1079,7 @@ shader_evaluate
 					// decision point- indirect specular
 					if ( trace_spec_indirect || do_TIR )
 					{
-						const float weight = fresnelTerm * RayState->media_specIndirect.v[m1] * overallResultScale;
+						const float weight = fresnelTerm * RayState->media_specIndirect.v[info.m1] * overallResultScale;
 						const AtColor energyCache = RayState->ray_energy;						
 						const AtColor energyCache_photon = RayState->ray_energy_photon;						
 						const bool reflect_skies = AiShaderEvalParamBool(p_reflect_skies);
@@ -1271,9 +1136,9 @@ shader_evaluate
 								if (tracehit || reflect_skies) 
 								{
 									if (do_TIR) 
-										acc_spec_indirect += sample.color * TIR_color * transmissionOnSample(&t1, &sample, tracehit );
+										acc_spec_indirect += sample.color * TIR_color * transmissionOnSample(&info.t1, &sample, tracehit );
 									else 
-										acc_spec_indirect += sample.color * weight * transmissionOnSample(&t1, &sample, tracehit );
+										acc_spec_indirect += sample.color * weight * transmissionOnSample(&info.t1, &sample, tracehit );
 								}
 							}
 							if (sharp_reflection)
@@ -1293,7 +1158,7 @@ shader_evaluate
 					// decision point- direct specular
 					if ( trace_spec_direct )
 					{
-						AtColor weight = AI_RGB_WHITE * fresnelTerm * RayState->media_specDirect.v[m_higherPriority] * overallResultScale;
+						AtColor weight = AI_RGB_WHITE * fresnelTerm * RayState->media_specDirect.v[info.m_higherPriority] * overallResultScale;
 						if (do_TIR)
 							weight *= TIR_color;
 						
@@ -1309,7 +1174,7 @@ shader_evaluate
 								l_weight > ZERO_EPSILON
 								)
 							{
-								switch ( RayState->media_BRDF.v[m_higherPriority] )
+								switch ( RayState->media_BRDF.v[info.m_higherPriority] )
 								{
 									case b_stretched_phong:
 										acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
@@ -1339,9 +1204,9 @@ shader_evaluate
 	// - Invalid Interface Tracing
 	// ---------------------------------------------------//
 
-	AtRGBA invalidInterfaceResult = AI_RGBA_BLACK;
+	AtRGBA validInterfaceResult = AI_RGBA_BLACK;
 
-	if ( !validInterface )
+	if ( !info.validInterface )
 	{
 		if ( RayState->ray_invalidDepth < 70 )
 		{
@@ -1349,7 +1214,7 @@ shader_evaluate
 			AtScrSample sample;
 
 			RayState->ray_invalidDepth ++;
-			updateMediaInsideLists(m_cMatID, entering, media_inside_ptr, false);
+			updateMediaInsideLists(m_cMatID, info.entering, media_inside_ptr, false);
 
 			AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, NULL, AI_BIG, sg);
 			ray.dir = sg->Rd;
@@ -1357,8 +1222,8 @@ shader_evaluate
 			ray.refr_bounces --;
 			const bool tracehit = AiTrace(&ray, &sample);
 
-			AiRGBtoRGBA( sample.color * transmissionOnSample(&t2, &sample, tracehit ), invalidInterfaceResult );
-			invalidInterfaceResult.a = sample.alpha;			
+			AiRGBtoRGBA( sample.color * transmissionOnSample(&info.t2, &sample, tracehit ), validInterfaceResult );
+			validInterfaceResult.a = sample.alpha;			
 		}
 		else
 		{
@@ -1374,15 +1239,15 @@ shader_evaluate
 	// ---------------------------------------------------//
 
 	AtColor emission = AI_RGB_BLACK;
-	if (validInterface)
+	if (info.validInterface)
 	{
 		AiStateSetMsgBool("opaqueShadowMode", true);
 		emission += AiShaderEvalParamRGB(p_emission_at_interfaces);
-		if (mediaExit)
+		if (info.mediaExit)
 		{
 			emission += AiShaderEvalParamRGB(p_emission_at_exits);
 		}
-		else if (mediaEntrance)
+		else if (info.mediaEntrance)
 		{
 			emission += AiShaderEvalParamRGB(p_emission_at_entrances);
 		}
@@ -1393,7 +1258,7 @@ shader_evaluate
 	// - Output and AOVs
 	// ---------------------------------------------------//	
 
-	if ( validInterface )
+	if ( info.validInterface )
 	{
 		AiAOVSetRGBA(sg, data->aov_direct_refraction.c_str(), AiRGBtoRGBA( acc_refract_direct + acc_refract_direct_second ));			
 		AiAOVSetRGBA(sg, data->aov_direct_specular.c_str(), AiRGBtoRGBA( acc_spec_direct ));			
@@ -1412,7 +1277,7 @@ shader_evaluate
 	}
 	else
 	{
-		sg->out.RGBA = invalidInterfaceResult;
+		sg->out.RGBA = validInterfaceResult;
 	}
 
 	// ---------------------------------------------------//
