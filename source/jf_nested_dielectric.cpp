@@ -683,88 +683,38 @@ shader_evaluate
 				// if (trace_refract_direct && refracted )
 				if (traceSwitch.refr_dir && refracted )
 				{
-					const bool use_refraction_btdf = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
-					float dr_roughnessU = refr_roughnessU;
-					float dr_roughnessV = refr_roughnessV;
-					int dr_btdf;
-
-					if (!use_refraction_btdf)
-					{
-						// manual mode
-						dr_roughnessU = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) );
-						dr_roughnessV = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) );
-						dr_btdf =  AiShaderEvalParamEnum( p_dr_btdf );
-					} else {
-						dr_btdf = iinfo.getBTDFType();
-					}
+					const bool use_refr_settings = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
+					float dr_roughnessU = use_refr_settings ? refr_roughnessU : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) );
+					float dr_roughnessV = use_refr_settings ? refr_roughnessV : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) );
+					int dr_btdf 		= use_refr_settings ? iinfo.getBTDFType() : AiShaderEvalParamEnum( p_dr_btdf );
 
 					// offsets and depth modification
-					const float dr_roughnessOffset = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessOffset ) );
-					const float dr_roughnessDepthAdder = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
-					const float dr_roughnessDepthMultiplier = AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier );
+					const float rOffset = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessOffset ) );
+					const float rDepthAdder = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
+					const float rDepthMultiplier = AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier );
 
-					dr_roughnessU *= pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
-					dr_roughnessV *= pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
+					dr_roughnessU *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
+					dr_roughnessV *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
 
 					float dr_first_scale = RayState->media_refractDirect.v[m_cMatID];
-					float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale );
+					float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale ) * dr_first_scale;
+					dr_first_scale -= dr_second_scale;
 
-					float drs_roughnessU;
-					float drs_roughnessV;
-					if (dr_second_scale > ZERO_EPSILON)
-					{
-						const float dr_second_roughnessMultiplier = AiShaderEvalParamFlt( p_dr_second_roughnessMultiplier );
-						drs_roughnessU = dr_roughnessU * dr_second_roughnessMultiplier;
-						drs_roughnessV = dr_roughnessV * dr_second_roughnessMultiplier;
-						dr_first_scale = (1.0f - dr_second_scale) * RayState->media_refractDirect.v[m_cMatID];
-						dr_second_scale = dr_second_scale * RayState->media_refractDirect.v[m_cMatID];
-					}
+					const bool two_lobes = dr_second_scale > ZERO_EPSILON;
+					const float drs_rDepthMultiplier = two_lobes ? AiShaderEvalParamFlt( p_dr_second_roughnessMultiplier ) : 0.0f;
+					const float drs_roughnessU = dr_roughnessU * drs_rDepthMultiplier;
+					const float drs_roughnessV = dr_roughnessV * drs_rDepthMultiplier;
 
 					void * btdf_data_direct = NULL;
 					void * btdf_data_direct2 = NULL;
 					iinfo.getDirectRefractionBTDFs(dr_btdf, &ppsg, dr_roughnessU, dr_roughnessV, drs_roughnessU, drs_roughnessV, custom_tangent, &btdf_data_direct, &btdf_data_direct2);
 
-					AiStateSetMsgBool("opaqueShadowMode", true);
-					AiLightsPrepare(&ppsg);
 					const bool refract_skydomes = AiShaderEvalParamBool(p_refract_skydomes);
-					while (AiLightsGetSample(&ppsg))
-					{
-						if ( refract_skydomes || !AiNodeIs( ppsg.Lp,"skydome_light" ))
-						{
-							switch ( dr_btdf )
-							{
-								case b_stretched_phong:
-									acc_refract_direct += AiEvaluateLightSample(&ppsg, btdf_data_direct, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
-									if (dr_second_scale > ZERO_EPSILON)
-									{
-										acc_refract_direct_second += AiEvaluateLightSample(&ppsg, btdf_data_direct2, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
-									}
-									break;
-								case b_cook_torrance:
-									acc_refract_direct += AiEvaluateLightSample(&ppsg, btdf_data_direct, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
-									if (dr_second_scale > ZERO_EPSILON)
-									{
-										acc_refract_direct_second += AiEvaluateLightSample(&ppsg, btdf_data_direct2, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
-									}
-									break;
-								case b_ward_rayTangent:
-									acc_refract_direct += AiEvaluateLightSample(&ppsg, btdf_data_direct, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-									if (dr_second_scale > ZERO_EPSILON)
-									{
-										acc_refract_direct_second += AiEvaluateLightSample(&ppsg, btdf_data_direct2, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-									}
-									break;
-								case b_ward_userTangent:
-									acc_refract_direct += AiEvaluateLightSample(&ppsg, btdf_data_direct, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-									if (dr_second_scale > ZERO_EPSILON)
-									{
-										acc_refract_direct_second += AiEvaluateLightSample(&ppsg, btdf_data_direct2, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-									}
-									break;
-							}
-						}
-						AiStateSetMsgBool("opaqueShadowMode", false);
-					}
+					AiLightsPrepare(&ppsg);
+					AiStateSetMsgBool("opaqueShadowMode", true);
+
+					iinfo.directRefractionSampleLights(&ppsg, dr_btdf, refract_skydomes, two_lobes, btdf_data_direct, btdf_data_direct2, &acc_refract_direct, &acc_refract_direct_second);
+
 					acc_refract_direct *= dr_first_scale * (1.0f - fresnelTerm) * overallResultScale;
 					acc_refract_direct_second *= dr_second_scale * (1.0f - fresnelTerm) * overallResultScale;
 				}				

@@ -965,6 +965,43 @@ typedef struct InterfaceInfo {
 		}
 	}
 
+	void directRefractionSampleLights(AtShaderGlobals * sg, int dr_btdf, bool refract_skydomes, bool two_lobes, 
+		void* btdf_data_direct, void* btdf_data_direct2, AtColor * acc_refract_direct, 
+		AtColor * acc_refract_direct_second) 
+	{
+		AiLightsPrepare(sg);
+		AiStateSetMsgBool("opaqueShadowMode", true);
+		while (AiLightsGetSample(sg))
+		{
+			if ( refract_skydomes || !AiNodeIs( sg->Lp,"skydome_light" ))
+			{
+				switch ( dr_btdf )
+				{
+					case b_stretched_phong:
+						*acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
+						if (two_lobes)
+							*acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
+						break;
+					case b_cook_torrance:
+						*acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
+						if (two_lobes)
+							*acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
+						break;
+					case b_ward_rayTangent:
+						*acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
+						if (two_lobes)
+							*acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
+						break;
+					case b_ward_userTangent:
+						*acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
+						if (two_lobes)
+							*acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
+						break;
+				}
+			}
+		}
+		AiStateSetMsgBool("opaqueShadowMode", false);
+	}
 
 
 
