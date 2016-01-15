@@ -165,10 +165,10 @@ struct JFND_Shader_Data{
 
 const int max_media_count = 32 + 1;  // media 0 is reserved for the air everything exists in, so to allow 32 media this has to be set to 33. 
 
-typedef struct mediaIntStruct { int v[max_media_count]; } mediaIntStruct;
-typedef struct mediaFloatStruct { float v[max_media_count]; } mediaFloatStruct;
-typedef struct mediaBoolStruct { bool v[max_media_count]; } mediaBoolStruct;
-typedef struct mediaAtColorStruct { AtColor v[max_media_count]; } mediaAtColorStruct;
+typedef struct MediaIntStruct { int v[max_media_count]; } MediaIntStruct;
+typedef struct MediaFloatStruct { float v[max_media_count]; } MediaFloatStruct;
+typedef struct MediaBoolStruct { bool v[max_media_count]; } MediaBoolStruct;
+typedef struct MediaAtColorStruct { AtColor v[max_media_count]; } MediaAtColorStruct;
 
 // ray_ is tracking something to do wtih the ray tree
 // caustic_ is tracking caustic behavior
@@ -177,18 +177,18 @@ typedef struct mediaAtColorStruct { AtColor v[max_media_count]; } mediaAtColorSt
 
 
 
-typedef struct Ray_State_Cache_Datatype {
+typedef struct Ray_State_Cache {
 	bool    ray_monochromatic;
 	int     ray_TIRDepth;
 	int     ray_invalidDepth;
 	AtColor ray_energy;
 	bool caustic_behaviorSet; 
-	mediaIntStruct   media_inside;
-} Ray_State_Cache_Datatype;
+	MediaIntStruct   media_inside;
+} Ray_State_Cache;
 
 
 
-typedef struct Ray_State_Datatype {
+typedef struct Ray_State {
 	bool    ray_monochromatic; // branching ray tree data, should be cached
 	float   ray_wavelength;
 	int     ray_TIRDepth; // branching ray tree data, should be cached
@@ -206,27 +206,27 @@ typedef struct Ray_State_Datatype {
 	bool caustic_specIndirect;
 	bool caustic_specInternal;
 
-	mediaIntStruct   media_inside; // branching ray tree data, should be cached
-	mediaIntStruct   shadow_media_inside;
-	mediaFloatStruct media_iOR;
-	mediaBoolStruct  media_disperse;
-	mediaFloatStruct media_dispersion;
-	mediaIntStruct   media_BTDF;
-	mediaIntStruct   media_BRDF;
+	MediaIntStruct   media_inside; // branching ray tree data, should be cached
+	MediaIntStruct   shadow_media_inside;
+	MediaFloatStruct media_iOR;
+	MediaBoolStruct  media_disperse;
+	MediaFloatStruct media_dispersion;
+	MediaIntStruct   media_BTDF;
+	MediaIntStruct   media_BRDF;
 	
-	mediaFloatStruct media_refractDirect;
-	mediaFloatStruct media_refractIndirect;
-	mediaFloatStruct media_specDirect;
-	mediaFloatStruct media_specIndirect;
+	MediaFloatStruct media_refractDirect;
+	MediaFloatStruct media_refractIndirect;
+	MediaFloatStruct media_specDirect;
+	MediaFloatStruct media_specIndirect;
 
-	mediaFloatStruct media_refractRoughnessU;
-	mediaFloatStruct media_refractRoughnessV;
-	mediaFloatStruct media_specRoughnessU;
-	mediaFloatStruct media_specRoughnessV;
+	MediaFloatStruct media_refractRoughnessU;
+	MediaFloatStruct media_refractRoughnessV;
+	MediaFloatStruct media_specRoughnessU;
+	MediaFloatStruct media_specRoughnessV;
 
-	mediaAtColorStruct media_transmission;
+	MediaAtColorStruct media_transmission;
 
-	mediaFloatStruct media_blurAnisotropicPoles;
+	MediaFloatStruct media_blurAnisotropicPoles;
 
 	spectral_LUT * spectral_LUT_ptr;
 	float energy_cutoff;
@@ -293,24 +293,24 @@ typedef struct Ray_State_Datatype {
 		this->polarizationVector = polarizationVector;
 	}
 
-	void uncacheRayState(Ray_State_Cache_Datatype * RayStateCache )
+	void uncacheRayState(Ray_State_Cache * rayStateCache )
 	{
-		memcpy(&this->media_inside, &RayStateCache->media_inside, sizeof(mediaIntStruct) );
-		this->ray_monochromatic 	= RayStateCache->ray_monochromatic;
-		this->caustic_behaviorSet 	= RayStateCache->caustic_behaviorSet;
-		this->ray_TIRDepth 			= RayStateCache->ray_TIRDepth;
-		this->ray_invalidDepth 		= RayStateCache->ray_invalidDepth;
-		this->ray_energy 			= RayStateCache->ray_energy;
+		memcpy(&this->media_inside, &rayStateCache->media_inside, sizeof(MediaIntStruct) );
+		this->ray_monochromatic 	= rayStateCache->ray_monochromatic;
+		this->caustic_behaviorSet 	= rayStateCache->caustic_behaviorSet;
+		this->ray_TIRDepth 			= rayStateCache->ray_TIRDepth;
+		this->ray_invalidDepth 		= rayStateCache->ray_invalidDepth;
+		this->ray_energy 			= rayStateCache->ray_energy;
 	}
 
-	void cacheRayState( Ray_State_Cache_Datatype * RayStateCache )
+	void cacheRayState( Ray_State_Cache * rayStateCache )
 	{
-		memcpy(&RayStateCache->media_inside, &this->media_inside, sizeof(mediaIntStruct) );
-		RayStateCache->ray_monochromatic 	= this->ray_monochromatic;
-		RayStateCache->caustic_behaviorSet 	= this->caustic_behaviorSet;
-		RayStateCache->ray_TIRDepth 		= this->ray_TIRDepth;
-		RayStateCache->ray_invalidDepth 	= this->ray_invalidDepth;
-		RayStateCache->ray_energy 			= this->ray_energy;
+		memcpy(&rayStateCache->media_inside, &this->media_inside, sizeof(MediaIntStruct) );
+		rayStateCache->ray_monochromatic 	= this->ray_monochromatic;
+		rayStateCache->caustic_behaviorSet 	= this->caustic_behaviorSet;
+		rayStateCache->ray_TIRDepth 		= this->ray_TIRDepth;
+		rayStateCache->ray_invalidDepth 	= this->ray_invalidDepth;
+		rayStateCache->ray_energy 			= this->ray_energy;
 	}
 
 	void setMediaIOR(int i, float ior)
@@ -364,7 +364,7 @@ typedef struct Ray_State_Datatype {
 		this->media_blurAnisotropicPoles.v[i] = blurAnisotropicPoles;
 	}
 
-} Ray_State_Datatype;
+} Ray_State;
 
 
 
@@ -543,7 +543,7 @@ AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool
 }
 
 
-void updateMediaInsideLists(int m_cMatID, bool entering, mediaIntStruct * media_inside_list, bool reverse = false)
+void updateMediaInsideLists(int m_cMatID, bool entering, MediaIntStruct * media_inside_list, bool reverse = false)
 {
 	// If we're entering an object, increment, if we're leaving, decrement. 
 	// Reverse reverses the behavior. 
@@ -589,9 +589,9 @@ typedef struct InterfaceInfo {
 	bool mediaExit;
 	bool mediaEntrance;
 
-	Ray_State_Datatype * rs;
+	Ray_State * rs;
 
-	InterfaceInfo(Ray_State_Datatype * RayState, int currentID, AtShaderGlobals * sg) 
+	InterfaceInfo(Ray_State * rayState, int currentID, AtShaderGlobals * sg) 
 	{
 		this->currentID = currentID;
 		this->startingMedium = 0;
@@ -612,7 +612,7 @@ typedef struct InterfaceInfo {
 		this->mediaExit = false;
 		this->mediaEntrance = false;
 
-		this->rs = RayState;
+		this->rs = rayState;
 
 		bool shadowRay = (sg->Rt == AI_RAY_SHADOW);
 		this->setCurrentMediaInfo(shadowRay);
@@ -639,7 +639,7 @@ typedef struct InterfaceInfo {
 		 * This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
 		 */
 
-		mediaIntStruct * media_inside_ptr = shadowRay ? &this->rs->shadow_media_inside : &this->rs->media_inside;
+		MediaIntStruct * media_inside_ptr = shadowRay ? &this->rs->shadow_media_inside : &this->rs->media_inside;
 
 		for( int i = 0; i < max_media_count; i++ )
 		{	
@@ -1021,7 +1021,7 @@ typedef struct TraceSwitch
 
 	TraceSwitch(InterfaceInfo * iinfo) 
 	{
-		Ray_State_Datatype * rs = iinfo->rs;
+		Ray_State * rs = iinfo->rs;
 		this->refr_ind = rs->media_refractIndirect.v[iinfo->m1] > ZERO_EPSILON 
 			&& rs->media_refractIndirect.v[iinfo->m2] > ZERO_EPSILON;
 		this->refr_dir = rs->media_refractDirect.v[iinfo->currentID] > ZERO_EPSILON 
@@ -1050,7 +1050,7 @@ typedef struct TraceSwitch
 
 	void setPathtracedCaustic(InterfaceInfo * iinfo) 
 	{
-		Ray_State_Datatype * rs = iinfo->rs;
+		Ray_State * rs = iinfo->rs;
 		this->refr_dir = this->refr_dir && rs->caustic_refractDirect;
 		this->refr_ind = this->refr_ind && true;
 		this->spec_ind = this->spec_ind && rs->caustic_specIndirect;;
@@ -1083,7 +1083,7 @@ typedef struct TraceSwitch
 
 	void setPhotonCaustic(InterfaceInfo * iinfo) 
 	{
-		Ray_State_Datatype * rs = iinfo->rs;
+		Ray_State * rs = iinfo->rs;
 		this->refr_dir = false;
 		// in photon land, direct refractions means the light refracts straight through.
 		// indirect refractions means.. very little. 

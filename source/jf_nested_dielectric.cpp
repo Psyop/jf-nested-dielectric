@@ -217,8 +217,8 @@ node_update
 shader_evaluate
 {
 	JFND_Shader_Data *data = (JFND_Shader_Data*)AiNodeGetLocalData(node);
-	Ray_State_Datatype *RayState;
-	Ray_State_Cache_Datatype RayStateCache;
+	Ray_State *RayState;
+	Ray_State_Cache RayStateCache;
 
 	// ---------------------------------------------------//
 	// - Array and messaging preprocess 
@@ -231,12 +231,12 @@ shader_evaluate
 	{
 		void * rayState_ptr;
 		AiStateGetMsgPtr("rayState_ptr", &rayState_ptr);
-		RayState = static_cast<Ray_State_Datatype*>( rayState_ptr );
+		RayState = static_cast<Ray_State*>( rayState_ptr );
 		RayState->cacheRayState( &RayStateCache);
 	}
 	else
 	{		
-		RayState = static_cast<Ray_State_Datatype*>( AiShaderGlobalsQuickAlloc(sg, sizeof( Ray_State_Datatype ) ) );
+		RayState = static_cast<Ray_State*>( AiShaderGlobalsQuickAlloc(sg, sizeof( Ray_State ) ) );
 		RayState->init(data, sg, node);
 
 		RayState->setEnergyCutoff( (float) AiShaderEvalParamInt(p_energy_cutoff_exponent));
@@ -247,7 +247,7 @@ shader_evaluate
 	AiStateSetMsgBool("msgs_are_valid", true); // Any child rays from this will find valid messages. 
 
 
-	mediaIntStruct * media_inside_ptr;
+	MediaIntStruct * media_inside_ptr;
 	
 	if (sg->Rt == AI_RAY_SHADOW)
 	{
@@ -279,7 +279,7 @@ shader_evaluate
 		if ( !shadowlist_is_valid || transp_index_reset )  // if there has been another kind of ray, or the transp_index did not increase
 		{
 			// intialize the shadow media inside list
-			memcpy(&RayState->shadow_media_inside, &RayState->media_inside, sizeof(mediaIntStruct) );
+			memcpy(&RayState->shadow_media_inside, &RayState->media_inside, sizeof(MediaIntStruct) );
 		}
 
 		AiStateSetMsgInt("prev_transp_index", sg->transp_index);
@@ -392,7 +392,13 @@ shader_evaluate
 	}
 
 
-	AtVector custom_tangent = AiShaderEvalParamVec(p_ward_tangent);
+	// ---------------------------------------------------//
+	// param caching
+	//     caching select parameters if it improves the code to do so
+	// ---------------------------------------------------//
+	const AtVector pval_custom_tangent = AiShaderEvalParamVec(p_ward_tangent);
+	const int pval_specular_ray_type = AiShaderEvalParamInt(p_specular_ray_type);
+	const bool pval_enable_internal_reflections = AiShaderEvalParamBool(p_enable_internal_reflections);
 
 	// ---------------------------------------------------//
 	// Main Ray Tracing
@@ -407,7 +413,7 @@ shader_evaluate
 	if ( iinfo.validInterface )
 	{
 		TraceSwitch traceSwitch = TraceSwitch(&iinfo);
-		traceSwitch.setInternalReflections(&iinfo, AiShaderEvalParamBool(p_enable_internal_reflections));
+		traceSwitch.setInternalReflections(&iinfo, pval_enable_internal_reflections);
 
 		float overallResultScale = 1.0f;
 		const bool photon_ray_type = rayIsPhoton(sg);
@@ -541,7 +547,7 @@ shader_evaluate
 					void * btdf_data = NULL;
 					if (!do_disperse && do_blurryRefraction)
 					{
-						btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, custom_tangent);
+						btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
 					}
 					// ---------------------------------------------------//
 					// Refraction - Indirect
@@ -586,7 +592,7 @@ shader_evaluate
 								if ( do_blurryRefraction )
 								{									
 									parallelPark(ray.dir, &ppsg);
-									btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, custom_tangent);
+									btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
 								}
 							}
 
@@ -606,10 +612,10 @@ shader_evaluate
 							{
 								updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
 								const AtColor weight = (1.0f - fresnelTerm) 
-										* monochromaticColor
-										* RayState->media_refractIndirect.v[iinfo.m1]
-										* RayState->media_refractIndirect.v[iinfo.m2]
-										* overallResultScale;
+									* monochromaticColor
+									* RayState->media_refractIndirect.v[iinfo.m1]
+									* RayState->media_refractIndirect.v[iinfo.m2]
+									* overallResultScale;
 
 								const AtColor energyCache = RayState->ray_energy;
 								RayState->ray_energy *= weight;
@@ -683,16 +689,15 @@ shader_evaluate
 				// if (trace_refract_direct && refracted )
 				if (traceSwitch.refr_dir && refracted )
 				{
-					const bool use_refr_settings = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
-					float dr_roughnessU = use_refr_settings ? refr_roughnessU : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) );
-					float dr_roughnessV = use_refr_settings ? refr_roughnessV : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) );
-					int dr_btdf 		= use_refr_settings ? iinfo.getBTDFType() : AiShaderEvalParamEnum( p_dr_btdf );
-
 					// offsets and depth modification
 					const float rOffset = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessOffset ) );
 					const float rDepthAdder = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
 					const float rDepthMultiplier = AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier );
 
+					const bool use_refr_settings = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
+					int dr_btdf 		= use_refr_settings ? iinfo.getBTDFType() : AiShaderEvalParamEnum( p_dr_btdf );
+					float dr_roughnessU = use_refr_settings ? refr_roughnessU : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) );
+					float dr_roughnessV = use_refr_settings ? refr_roughnessV : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) );
 					dr_roughnessU *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
 					dr_roughnessV *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
 
@@ -707,7 +712,7 @@ shader_evaluate
 
 					void * btdf_data_direct = NULL;
 					void * btdf_data_direct2 = NULL;
-					iinfo.getDirectRefractionBTDFs(dr_btdf, &ppsg, dr_roughnessU, dr_roughnessV, drs_roughnessU, drs_roughnessV, custom_tangent, &btdf_data_direct, &btdf_data_direct2);
+					iinfo.getDirectRefractionBTDFs(dr_btdf, &ppsg, dr_roughnessU, dr_roughnessV, drs_roughnessU, drs_roughnessV, pval_custom_tangent, &btdf_data_direct, &btdf_data_direct2);
 
 					const bool refract_skydomes = AiShaderEvalParamBool(p_refract_skydomes);
 					AiLightsPrepare(&ppsg);
@@ -757,9 +762,9 @@ shader_evaluate
 					AtRay specularRay;
 					AtUInt32 rayType;
 
-					if (AiShaderEvalParamInt(p_specular_ray_type) == 0)  
+					if (pval_specular_ray_type == 0)  
 						rayType = AI_RAY_GLOSSY;
-					else if (AiShaderEvalParamInt(p_specular_ray_type) == 1)  
+					else if (pval_specular_ray_type == 1)  
 						rayType = AI_RAY_REFLECTED;
 					if (do_TIR) 
 						rayType = AI_RAY_REFRACTED;
@@ -791,7 +796,7 @@ shader_evaluate
 							break;
 						case b_ward_userTangent:
 							// Ward with user tangents
-							tangentSourceVector = AiV3Normalize( custom_tangent );
+							tangentSourceVector = AiV3Normalize( pval_custom_tangent );
 							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
 							AiV3Cross( uTangent, sg->N, tangentSourceVector ) ;
 							AiV3Cross( vTangent, sg->N, uTangent ) ;
