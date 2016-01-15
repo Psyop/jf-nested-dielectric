@@ -544,37 +544,12 @@ shader_evaluate
 				// if ( trace_refract_indirect )
 				if ( traceSwitch.refr_ind )
 				{
-					const float cMediaIndirectRefractionProduct = RayState->media_refractIndirect.v[iinfo.m1] * RayState->media_refractIndirect.v[iinfo.m2];
 					void * btdf_data = NULL;
 					if (!do_disperse && do_blurryRefraction)
 					{
-						switch ( RayState->media_BTDF.v[iinfo.m_higherPriority] )
-						{
-							case b_stretched_phong:
-								// Stretched Phong
-								btdf_data = AiStretchedPhongMISCreateData(&ppsg, (0.5f / SQR(refr_roughnessU) - 0.5f));
-								break;
-							case b_cook_torrance:
-								// Cook Torrance
-								btdf_data = AiCookTorranceMISCreateData(&ppsg, &AI_V3_ZERO, &AI_V3_ZERO, refr_roughnessU, refr_roughnessU);
-								break;
-							case b_ward_rayTangent:
-								// Ward with refraction-derivitive tangents
-								tangentSourceVector = AiV3Normalize(ppsg.Rd);
-								blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->N, &tangentSourceVector);
-								uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
-								vTangent = AiV3Cross(ppsg.Nf, uTangent);
-								btdf_data = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV); 
-								break;
-							case b_ward_userTangent:
-								// Ward with user tangents
-								tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-								blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->N, &tangentSourceVector);
-								uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
-								vTangent = AiV3Cross(ppsg.Nf, uTangent);
-								btdf_data = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
-								break;
-						}
+						if (iinfo.refractionNeedsUserTangent() )
+							tangentSourceVector = AiShaderEvalParamVec(p_ward_tangent);
+						btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, tangentSourceVector);
 					}
 					// ---------------------------------------------------//
 					// Refraction - Indirect
@@ -620,53 +595,15 @@ shader_evaluate
 								if ( do_blurryRefraction )
 								{									
 									parallelPark(ray.dir, &ppsg);
-									switch ( RayState->media_BTDF.v[iinfo.m_higherPriority] )
-									{
-										case b_stretched_phong:
-											// Stretched Phong
-											btdf_data = AiStretchedPhongMISCreateData(&ppsg, (0.5f / SQR(refr_roughnessU) - 0.5f));
-											break;
-										case b_cook_torrance:
-											// Cook Torrance
-											btdf_data = AiCookTorranceMISCreateData(&ppsg, &AI_V3_ZERO, &AI_V3_ZERO, refr_roughnessU, refr_roughnessU);
-											break;
-										case b_ward_rayTangent:
-											// Ward with refraction-derivitive tangents
-											tangentSourceVector = AiV3Normalize(ppsg.Rd);
-											blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->N, &tangentSourceVector);
-											uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
-											vTangent = AiV3Cross(ppsg.Nf, uTangent);
-											btdf_data = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV); 
-											break;
-										case b_ward_userTangent:
-											// Ward with user tangents
-											tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-											blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->N, &tangentSourceVector);
-											uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
-											vTangent = AiV3Cross(ppsg.Nf, uTangent);
-											btdf_data = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
-											break;
-									}
+									if (iinfo.refractionNeedsUserTangent() )
+										tangentSourceVector = AiShaderEvalParamVec(p_ward_tangent);
+									btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, tangentSourceVector);
 								}
 							}
 
 							if ( do_blurryRefraction )
 							{
-								switch ( RayState->media_BTDF.v[iinfo.m_higherPriority] )
-								{
-									case b_stretched_phong:
-										ray.dir = AiStretchedPhongMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-										break;
-									case b_cook_torrance:
-										ray.dir = AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-										break;
-									case b_ward_rayTangent:
-										ray.dir = AiWardDuerMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-										break;
-									case b_ward_userTangent:
-										ray.dir = AiWardDuerMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-										break;
-								}
+								ray.dir = iinfo.getBTDFSample(btdf_data, refraction_sample);
 							}
 
 							if (!refracted_dispersion)
@@ -681,7 +618,8 @@ shader_evaluate
 								updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
 								const AtColor weight = (1.0f - fresnelTerm) 
 										* monochromaticColor
-										* cMediaIndirectRefractionProduct
+										* RayState->media_refractIndirect.v[iinfo.m1]
+										* RayState->media_refractIndirect.v[iinfo.m2]
 										* overallResultScale;
 
 								const AtColor energyCache = RayState->ray_energy;

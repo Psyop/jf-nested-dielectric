@@ -589,7 +589,7 @@ typedef struct InterfaceInfo {
 	bool mediaExit;
 	bool mediaEntrance;
 
-	Ray_State_Datatype * RayState;
+	Ray_State_Datatype * rs;
 
 	InterfaceInfo(Ray_State_Datatype * RayState, int currentID, AtShaderGlobals * sg) 
 	{
@@ -612,7 +612,7 @@ typedef struct InterfaceInfo {
 		this->mediaExit = false;
 		this->mediaEntrance = false;
 
-		this->RayState = RayState;
+		this->rs = RayState;
 
 		bool shadowRay = (sg->Rt == AI_RAY_SHADOW);
 		this->setCurrentMediaInfo(shadowRay);
@@ -639,7 +639,7 @@ typedef struct InterfaceInfo {
 		 * This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
 		 */
 
-		mediaIntStruct * media_inside_ptr = shadowRay ? &this->RayState->shadow_media_inside : &this->RayState->media_inside;
+		mediaIntStruct * media_inside_ptr = shadowRay ? &this->rs->shadow_media_inside : &this->rs->media_inside;
 
 		for( int i = 0; i < max_media_count; i++ )
 		{	
@@ -736,15 +736,15 @@ typedef struct InterfaceInfo {
 
 		if ( this->validInterface )
 		{	
-			if (this->RayState->ray_monochromatic)
+			if (this->rs->ray_monochromatic)
 			{
-				this->n1 = dispersedIOR( this->RayState->media_iOR.v[this->m1], this->RayState->media_dispersion.v[this->m1], this->RayState->ray_wavelength );
-				this->n2 = dispersedIOR( this->RayState->media_iOR.v[this->m2], this->RayState->media_dispersion.v[this->m2], this->RayState->ray_wavelength );
+				this->n1 = dispersedIOR( this->rs->media_iOR.v[this->m1], this->rs->media_dispersion.v[this->m1], this->rs->ray_wavelength );
+				this->n2 = dispersedIOR( this->rs->media_iOR.v[this->m2], this->rs->media_dispersion.v[this->m2], this->rs->ray_wavelength );
 			}
 			else
 			{
-				this->n1 = this->RayState->media_iOR.v[this->m1];
-				this->n2 = this->RayState->media_iOR.v[this->m2];
+				this->n1 = this->rs->media_iOR.v[this->m1];
+				this->n2 = this->rs->media_iOR.v[this->m2];
 			}
 
 
@@ -754,16 +754,16 @@ typedef struct InterfaceInfo {
 			}
 		}
 
-		this->t1 = this->RayState->media_transmission.v[this->m1];
-		this->t2 = this->RayState->media_transmission.v[this->m2];
+		this->t1 = this->rs->media_transmission.v[this->m1];
+		this->t2 = this->rs->media_transmission.v[this->m2];
 	}
 
 
 	void setPolarizationTerm(AtShaderGlobals * sg) 
 	{
-		if (this->RayState->polarized)
+		if (this->rs->polarized)
 		{
-			this->polarizationTerm = std::abs( AiV3Dot(sg->Nf, this->RayState->polarizationVector ));
+			this->polarizationTerm = std::abs( AiV3Dot(sg->Nf, this->rs->polarizationVector ));
 		}
 		else 
 		{
@@ -775,10 +775,10 @@ typedef struct InterfaceInfo {
 	bool doBlurryRefraction() 
 	{
 		bool do_blurryRefraction = false;
-		if ( this->RayState->media_refractRoughnessU.v[this->m1] > ZERO_EPSILON ||
-			 this->RayState->media_refractRoughnessV.v[this->m1] > ZERO_EPSILON ||
-			 this->RayState->media_refractRoughnessU.v[this->m2] > ZERO_EPSILON ||
-			 this->RayState->media_refractRoughnessV.v[this->m2] > ZERO_EPSILON )
+		if ( this->rs->media_refractRoughnessU.v[this->m1] > ZERO_EPSILON ||
+			 this->rs->media_refractRoughnessV.v[this->m1] > ZERO_EPSILON ||
+			 this->rs->media_refractRoughnessU.v[this->m2] > ZERO_EPSILON ||
+			 this->rs->media_refractRoughnessV.v[this->m2] > ZERO_EPSILON )
 		{
 			do_blurryRefraction = true;
 		}
@@ -789,13 +789,13 @@ typedef struct InterfaceInfo {
 	{
 		bool do_disperse = false;
 
-		if (!this->RayState->ray_monochromatic)
+		if (!this->rs->ray_monochromatic)
 		{
 			// already monochromatic means don't disperse, just keep the existing wavelength and trace that way
-			if ( this->RayState->media_disperse.v[mediumID] )
-				this->RayState->spectral_LUT_ptr = &data->spectral_LUT_ptr;
+			if ( this->rs->media_disperse.v[mediumID] )
+				this->rs->spectral_LUT_ptr = &data->spectral_LUT_ptr;
 
-			do_disperse = this->RayState->media_disperse.v[this->m2]; // only disperse if the medium we're entering is dispersey, and the ray is not already monochromatic
+			do_disperse = this->rs->media_disperse.v[this->m2]; // only disperse if the medium we're entering is dispersey, and the ray is not already monochromatic
 		}
 
 		return do_disperse;
@@ -844,23 +844,86 @@ typedef struct InterfaceInfo {
 
 	float getSpecRoughnessU() 
 	{
-		return (this->RayState->media_specRoughnessU.v[this->m2] + this->RayState->media_specRoughnessU.v[this->m1]) / 2.0f;
+		return (this->rs->media_specRoughnessU.v[this->m2] + this->rs->media_specRoughnessU.v[this->m1]) / 2.0f;
 	}
 
 	float getSpecRoughnessV()
 	{
-		return (this->RayState->media_specRoughnessV.v[this->m2] + this->RayState->media_specRoughnessV.v[this->m1]) / 2.0f;		
+		return (this->rs->media_specRoughnessV.v[this->m2] + this->rs->media_specRoughnessV.v[this->m1]) / 2.0f;		
 	}
 
 	float getRefrRoughnessU()
 	{
-		return refractiveRoughness( this->RayState->media_refractRoughnessU.v[this->m1], this->RayState->media_refractRoughnessU.v[this->m2], this->n1, this->n2 );
+		return refractiveRoughness( this->rs->media_refractRoughnessU.v[this->m1], this->rs->media_refractRoughnessU.v[this->m2], this->n1, this->n2 );
 	}
 	
 	float getRefrRoughnessV() 
 	{
-		return refractiveRoughness( this->RayState->media_refractRoughnessV.v[this->m1], this->RayState->media_refractRoughnessV.v[this->m2], this->n1, this->n2 );
+		return refractiveRoughness( this->rs->media_refractRoughnessV.v[this->m1], this->rs->media_refractRoughnessV.v[this->m2], this->n1, this->n2 );
 	}
+
+	int getBTDFType() 
+	{
+		return this->rs->media_BTDF.v[this->m_higherPriority];
+	}
+
+	bool refractionNeedsUserTangent() 
+	{
+		return this->getBTDFType() == b_ward_userTangent;
+	}
+
+	void* getBTDFData(AtShaderGlobals *ppsg, float refr_roughnessU, float refr_roughnessV, AtVector customTangentVector) 
+	{		
+		AtVector tangentSourceVector, uTangent, vTangent;
+		switch ( this->getBTDFType() )
+		{
+			case b_stretched_phong:
+				// Stretched Phong
+				return AiStretchedPhongMISCreateData(ppsg, (0.5f / SQR(refr_roughnessU) - 0.5f));
+				break;
+			case b_cook_torrance:
+				// Cook Torrance
+				return AiCookTorranceMISCreateData(ppsg, &AI_V3_ZERO, &AI_V3_ZERO, refr_roughnessU, refr_roughnessU);
+				break;
+			case b_ward_rayTangent:
+				// Ward with refraction-derivitive tangents
+				tangentSourceVector = AiV3Normalize(ppsg->Rd);
+				blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->N, &tangentSourceVector);
+				uTangent = AiV3Cross(ppsg->Nf, AiV3Normalize(ppsg->Rd)); 
+				vTangent = AiV3Cross(ppsg->Nf, uTangent);
+				return AiWardDuerMISCreateData(ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV); 
+				break;
+			case b_ward_userTangent:
+				// Ward with user tangents
+				tangentSourceVector = AiV3Normalize( customTangentVector );
+				blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->N, &tangentSourceVector);
+				uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector); 
+				vTangent = AiV3Cross(ppsg->Nf, uTangent);
+				return AiWardDuerMISCreateData( ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
+				break;
+		}
+	}
+
+	AtVector getBTDFSample( void* btdf_data, SAMPLETYPE refraction_sample[2]) {
+		switch ( this->getBTDFType() )
+		{
+			case b_stretched_phong:
+				return AiStretchedPhongMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
+			case b_cook_torrance:
+				return AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
+			case b_ward_rayTangent:
+				return AiWardDuerMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
+			case b_ward_userTangent:
+				return AiWardDuerMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
+		}
+		return AI_V3_ZERO;
+	}
+
+
+
+
+
+
 
 } InterfaceInfo;
 
@@ -876,7 +939,7 @@ typedef struct TraceSwitch
 
 	TraceSwitch(InterfaceInfo * iinfo) 
 	{
-		Ray_State_Datatype * rs = iinfo->RayState;
+		Ray_State_Datatype * rs = iinfo->rs;
 		this->refr_ind = rs->media_refractIndirect.v[iinfo->m1] > ZERO_EPSILON 
 			&& rs->media_refractIndirect.v[iinfo->m2] > ZERO_EPSILON;
 		this->refr_dir = rs->media_refractDirect.v[iinfo->currentID] > ZERO_EPSILON 
@@ -905,7 +968,7 @@ typedef struct TraceSwitch
 
 	void setPathtracedCaustic(InterfaceInfo * iinfo) 
 	{
-		Ray_State_Datatype * rs = iinfo->RayState;
+		Ray_State_Datatype * rs = iinfo->rs;
 		this->refr_dir = this->refr_dir && rs->caustic_refractDirect;
 		this->refr_ind = this->refr_ind && true;
 		this->spec_ind = this->spec_ind && rs->caustic_specIndirect;;
@@ -938,7 +1001,7 @@ typedef struct TraceSwitch
 
 	void setPhotonCaustic(InterfaceInfo * iinfo) 
 	{
-		Ray_State_Datatype * rs = iinfo->RayState;
+		Ray_State_Datatype * rs = iinfo->rs;
 		this->refr_dir = false;
 		// in photon land, direct refractions means the light refracts straight through.
 		// indirect refractions means.. very little. 
