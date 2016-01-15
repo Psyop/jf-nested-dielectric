@@ -343,7 +343,6 @@ shader_evaluate
 		return;
 	}
 
-
 	{
 		RayState->setMediaIOR(m_cMatID, AiShaderEvalParamFlt(p_mediumIOR));
 		RayState->setMediaDispersion(m_cMatID, AiShaderEvalParamBool(p_disperse), AiShaderEvalParamFlt(p_dispersion));	
@@ -372,7 +371,7 @@ shader_evaluate
 	InterfaceInfo iinfo = InterfaceInfo( RayState, m_cMatID, sg);
 
 	bool do_blurryRefraction = iinfo.doBlurryRefraction();
-	bool do_disperse = iinfo.setupDispersion(m_cMatID, data);
+	bool do_disperse = iinfo.setupDispersion(data);
 	const bool do_multiSampleRefraction = do_disperse || do_blurryRefraction;
 
 	// ---------------------------------------------------//
@@ -393,6 +392,8 @@ shader_evaluate
 	}
 
 
+	AtVector custom_tangent = AiShaderEvalParamVec(p_ward_tangent);
+
 	// ---------------------------------------------------//
 	// Main Ray Tracing
 	// ---------------------------------------------------//
@@ -409,15 +410,23 @@ shader_evaluate
 		traceSwitch.setInternalReflections(&iinfo, AiShaderEvalParamBool(p_enable_internal_reflections));
 
 		float overallResultScale = 1.0f;
-
 		const bool photon_ray_type = rayIsPhoton(sg);
-
-		bool traceCaust_photon = false;
-		bool traceCaust_pathtraced = false;
-
-		bool causticPath = photon_ray_type || sg->Rr_diff > 0 ;
+		const bool causticPath = photon_ray_type || sg->Rr_diff > 0 ;
 		if ( causticPath ) 
 		{
+			if (iinfo.mediaEntrance || !RayState->caustic_behaviorSet)
+			{
+				RayState->caustic_behaviorSet = true;
+				RayState->caustic_mode = AiShaderEvalParamInt(p_caustic_mode);
+				RayState->caustic_refractDirect = AiShaderEvalParamBool(p_caustic_refractions_direct);
+				RayState->caustic_refractIndirect = AiShaderEvalParamBool(p_caustic_refractions_indirect);
+				RayState->caustic_TIR = AiShaderEvalParamBool(p_caustic_TIR);
+				RayState->caustic_specInternal = AiShaderEvalParamBool(p_caustic_internal_speculars);
+				RayState->caustic_dispersion = AiShaderEvalParamBool(p_caustic_dispersion);
+				RayState->caustic_specDirect = AiShaderEvalParamBool(p_caustic_specular_direct);
+				RayState->caustic_specIndirect = AiShaderEvalParamBool(p_caustic_specular_indirect);
+			}
+
 			// caustic controls
 			if (sg->Rt == AI_RAY_DIFFUSE)
 			{
@@ -436,29 +445,13 @@ shader_evaluate
 				}
 			}
 
-			if (iinfo.mediaEntrance || !RayState->caustic_behaviorSet)
-			{
-				RayState->caustic_behaviorSet = true;
-				RayState->caustic_mode = AiShaderEvalParamInt(p_caustic_mode);
-				RayState->caustic_refractDirect = AiShaderEvalParamBool(p_caustic_refractions_direct);
-				RayState->caustic_refractIndirect = AiShaderEvalParamBool(p_caustic_refractions_indirect);
-				RayState->caustic_TIR = AiShaderEvalParamBool(p_caustic_TIR);
-				RayState->caustic_specInternal = AiShaderEvalParamBool(p_caustic_internal_speculars);
-				RayState->caustic_dispersion = AiShaderEvalParamBool(p_caustic_dispersion);
-				RayState->caustic_specDirect = AiShaderEvalParamBool(p_caustic_specular_direct);
-				RayState->caustic_specIndirect = AiShaderEvalParamBool(p_caustic_specular_indirect);
-			}
 
-			traceCaust_photon = (photon_ray_type && RayState->caustic_mode == 1);
-			traceCaust_pathtraced = (sg->Rr_diff > 0 && RayState->caustic_mode == 0);
-			causticPath = traceCaust_pathtraced || traceCaust_photon;
-
-			if (traceCaust_pathtraced) //means we're in the right kind of caustics for the right kind of ray.
+			if ((sg->Rr_diff > 0 && RayState->caustic_mode == 0)) //means we're in the right kind of caustics for the right kind of ray.
 			{
 				do_disperse = do_disperse && RayState->caustic_dispersion;
 				traceSwitch.setPathtracedCaustic(&iinfo);
 			}
-			else if (traceCaust_photon)
+			else if ((photon_ray_type))
 			{
 				do_disperse = do_disperse && RayState->caustic_dispersion;
 				traceSwitch.setPhotonCaustic(&iinfo);
@@ -536,6 +529,7 @@ shader_evaluate
 				AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 				
 				const bool refracted = AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
 
+				AtVector old_Rd = sg->Rd;
 				AtShaderGlobals ppsg = *sg;
 				if (!do_disperse)
 					parallelPark(ray.dir, &ppsg);
@@ -547,9 +541,7 @@ shader_evaluate
 					void * btdf_data = NULL;
 					if (!do_disperse && do_blurryRefraction)
 					{
-						if (iinfo.refractionNeedsUserTangent() )
-							tangentSourceVector = AiShaderEvalParamVec(p_ward_tangent);
-						btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, tangentSourceVector);
+						btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, custom_tangent);
 					}
 					// ---------------------------------------------------//
 					// Refraction - Indirect
@@ -579,7 +571,6 @@ shader_evaluate
 									dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
 								}
 								const float LUT_value = fmod( (float) (dispersal_seed + dispersion_sample[0]), 1.0f );
-
 								float cWavelength; 
 								get_interpolated_LUT_value( RayState->spectral_LUT_ptr, LUT_value, &cWavelength, &monochromaticColor);
 								RayState->ray_monochromatic = true;
@@ -595,9 +586,7 @@ shader_evaluate
 								if ( do_blurryRefraction )
 								{									
 									parallelPark(ray.dir, &ppsg);
-									if (iinfo.refractionNeedsUserTangent() )
-										tangentSourceVector = AiShaderEvalParamVec(p_ward_tangent);
-									btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, tangentSourceVector);
+									btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, custom_tangent);
 								}
 							}
 
@@ -695,22 +684,18 @@ shader_evaluate
 				if (traceSwitch.refr_dir && refracted )
 				{
 					const bool use_refraction_btdf = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
-					float dr_roughnessU;
-					float dr_roughnessV;
+					float dr_roughnessU = refr_roughnessU;
+					float dr_roughnessV = refr_roughnessV;
 					int dr_btdf;
 
-					if (use_refraction_btdf)
-					{
-						dr_roughnessU = refr_roughnessU;
-						dr_roughnessV = refr_roughnessV;
-						dr_btdf = RayState->media_BTDF.v[m_cMatID];
-					}
-					else
+					if (!use_refraction_btdf)
 					{
 						// manual mode
 						dr_roughnessU = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) );
 						dr_roughnessV = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) );
 						dr_btdf =  AiShaderEvalParamEnum( p_dr_btdf );
+					} else {
+						dr_btdf = iinfo.getBTDFType();
 					}
 
 					// offsets and depth modification
@@ -718,13 +703,14 @@ shader_evaluate
 					const float dr_roughnessDepthAdder = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
 					const float dr_roughnessDepthMultiplier = AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier );
 
-					dr_roughnessU = (dr_roughnessU) * pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
-					dr_roughnessV = (dr_roughnessV) * pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
+					dr_roughnessU *= pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
+					dr_roughnessV *= pow(dr_roughnessDepthMultiplier, (float) sg->Rr) + (dr_roughnessDepthAdder * (float) sg->Rr) + dr_roughnessOffset;
+
+					float dr_first_scale = RayState->media_refractDirect.v[m_cMatID];
+					float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale );
 
 					float drs_roughnessU;
 					float drs_roughnessV;
-					float dr_first_scale = RayState->media_refractDirect.v[m_cMatID];
-					float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale );
 					if (dr_second_scale > ZERO_EPSILON)
 					{
 						const float dr_second_roughnessMultiplier = AiShaderEvalParamFlt( p_dr_second_roughnessMultiplier );
@@ -736,40 +722,8 @@ shader_evaluate
 
 					void * btdf_data_direct = NULL;
 					void * btdf_data_direct2 = NULL;
+					iinfo.getDirectRefractionBTDFs(dr_btdf, &ppsg, dr_roughnessU, dr_roughnessV, drs_roughnessU, drs_roughnessV, custom_tangent, &btdf_data_direct, &btdf_data_direct2);
 
-					switch ( dr_btdf )
-					{
-						case b_stretched_phong:
-							// Stretched Phong
-							btdf_data_direct = AiStretchedPhongMISCreateData(&ppsg, (0.5f / SQR(dr_roughnessU) - 0.5f));
-							btdf_data_direct2 = AiStretchedPhongMISCreateData(&ppsg, (0.5f / SQR(drs_roughnessU) - 0.5f));
-							break;
-						case b_cook_torrance:
-							// Cook Torrance
-							btdf_data_direct = AiCookTorranceMISCreateData(&ppsg, &AI_V3_ZERO, &AI_V3_ZERO, dr_roughnessU, dr_roughnessU);
-							btdf_data_direct2 = AiCookTorranceMISCreateData(&ppsg, &AI_V3_ZERO, &AI_V3_ZERO, drs_roughnessU, drs_roughnessU);
-							break;
-						case b_ward_rayTangent:
-							// Ward with refraction-derivitive tangents
-							tangentSourceVector = AiV3Normalize(ppsg.Rd);
-							blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
-							blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
-							uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
-							vTangent = AiV3Cross(ppsg.Nf, uTangent);
-							btdf_data_direct = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessV); 
-							btdf_data_direct2 = AiWardDuerMISCreateData(&ppsg, &uTangent, &vTangent, drs_roughnessU, drs_roughnessV); 
-							break;
-						case b_ward_userTangent:
-							// Ward with user tangents
-							tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
-							blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
-							blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
-							uTangent = AiV3Cross( ppsg.Nf, tangentSourceVector ); 
-							vTangent = AiV3Cross(ppsg.Nf, uTangent);					
-							btdf_data_direct = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessV ) ; 
-							btdf_data_direct2 = AiWardDuerMISCreateData( &ppsg, &uTangent, &vTangent, drs_roughnessU, drs_roughnessV ) ; 
-							break;
-					}
 					AiStateSetMsgBool("opaqueShadowMode", true);
 					AiLightsPrepare(&ppsg);
 					const bool refract_skydomes = AiShaderEvalParamBool(p_refract_skydomes);
@@ -887,7 +841,7 @@ shader_evaluate
 							break;
 						case b_ward_userTangent:
 							// Ward with user tangents
-							tangentSourceVector = AiV3Normalize( AiShaderEvalParamVec(p_ward_tangent) );
+							tangentSourceVector = AiV3Normalize( custom_tangent );
 							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
 							AiV3Cross( uTangent, sg->N, tangentSourceVector ) ;
 							AiV3Cross( vTangent, sg->N, uTangent ) ;

@@ -785,14 +785,14 @@ typedef struct InterfaceInfo {
 		return do_blurryRefraction;
 	}
 
-	bool setupDispersion(int mediumID, JFND_Shader_Data * data ) 
+	bool setupDispersion(JFND_Shader_Data * data ) 
 	{
 		bool do_disperse = false;
 
 		if (!this->rs->ray_monochromatic)
 		{
 			// already monochromatic means don't disperse, just keep the existing wavelength and trace that way
-			if ( this->rs->media_disperse.v[mediumID] )
+			if ( this->rs->media_disperse.v[this->currentID] )
 				this->rs->spectral_LUT_ptr = &data->spectral_LUT_ptr;
 
 			do_disperse = this->rs->media_disperse.v[this->m2]; // only disperse if the medium we're entering is dispersey, and the ray is not already monochromatic
@@ -803,7 +803,7 @@ typedef struct InterfaceInfo {
 
 	AtColor getTransmissionColor(AtShaderGlobals * sg)
 	{
-		float depth = sg->Rl;
+		float depth = (float) sg->Rl;
 		if (this->t1 != AI_RGB_WHITE)
 		{		
 			return AiColorCreate( 
@@ -839,7 +839,7 @@ typedef struct InterfaceInfo {
 				}
 				return this->getTransmissionColor(sg) * (AI_RGB_WHITE - fresnelTerm);
 		}
-
+		return AI_RGB_WHITE;
 	}
 
 	float getSpecRoughnessU() 
@@ -902,6 +902,7 @@ typedef struct InterfaceInfo {
 				return AiWardDuerMISCreateData( ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
 				break;
 		}
+		return NULL;
 	}
 
 	AtVector getBTDFSample( void* btdf_data, SAMPLETYPE refraction_sample[2]) {
@@ -919,6 +920,50 @@ typedef struct InterfaceInfo {
 		return AI_V3_ZERO;
 	}
 
+	bool directRefractionNeedsUserTangent(int dr_btdf) 
+	{
+		return dr_btdf == b_ward_userTangent;
+	}
+
+
+	void getDirectRefractionBTDFs(int dr_btdf, AtShaderGlobals *ppsg, float dr_roughnessU, float dr_roughnessV, 
+		float drs_roughnessU, float drs_roughnessV, AtVector customTangentVector, void **btdfA, void **btdfB) 
+	{
+		AtVector tangentSourceVector, uTangent, vTangent;
+		switch ( dr_btdf )
+		{
+			case b_stretched_phong:
+				// Stretched Phong
+				*btdfA = AiStretchedPhongMISCreateData(ppsg, (0.5f / SQR(dr_roughnessU) - 0.5f));
+				*btdfB = AiStretchedPhongMISCreateData(ppsg, (0.5f / SQR(drs_roughnessU) - 0.5f));
+				break;
+			case b_cook_torrance:
+				// Cook Torrance
+				*btdfA = AiCookTorranceMISCreateData(ppsg, &AI_V3_ZERO, &AI_V3_ZERO, dr_roughnessU, dr_roughnessU);
+				*btdfB = AiCookTorranceMISCreateData(ppsg, &AI_V3_ZERO, &AI_V3_ZERO, drs_roughnessU, drs_roughnessU);
+				break;
+			case b_ward_rayTangent:
+				// Ward with refraction-derivitive tangents
+				tangentSourceVector = AiV3Normalize(ppsg->Rd);
+				blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
+				blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
+				uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector ); 
+				vTangent = AiV3Cross(ppsg->Nf, uTangent);
+				*btdfA = AiWardDuerMISCreateData(ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessV); 
+				*btdfB = AiWardDuerMISCreateData(ppsg, &uTangent, &vTangent, drs_roughnessU, drs_roughnessV); 
+				break;
+			case b_ward_userTangent:
+				// Ward with user tangents
+				tangentSourceVector = AiV3Normalize( customTangentVector );
+				blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
+				blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
+				uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector ); 
+				vTangent = AiV3Cross(ppsg->Nf, uTangent);					
+				*btdfA = AiWardDuerMISCreateData( ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessV ) ; 
+				*btdfB = AiWardDuerMISCreateData( ppsg, &uTangent, &vTangent, drs_roughnessU, drs_roughnessV ) ; 
+				break;
+		}
+	}
 
 
 
