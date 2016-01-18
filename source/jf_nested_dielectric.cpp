@@ -712,13 +712,15 @@ shader_evaluate
 
 					void * btdf_data_direct = NULL;
 					void * btdf_data_direct2 = NULL;
-					iinfo.getDirectRefractionBTDFs(dr_btdf, &ppsg, dr_roughnessU, dr_roughnessV, drs_roughnessU, drs_roughnessV, pval_custom_tangent, &btdf_data_direct, &btdf_data_direct2);
+					iinfo.getDirectRefractionBTDFs(dr_btdf, &ppsg, dr_roughnessU, dr_roughnessV, 
+						drs_roughnessU, drs_roughnessV, pval_custom_tangent, &btdf_data_direct, &btdf_data_direct2);
 
 					const bool refract_skydomes = AiShaderEvalParamBool(p_refract_skydomes);
 					AiLightsPrepare(&ppsg);
 					AiStateSetMsgBool("opaqueShadowMode", true);
 
-					iinfo.directRefractionSampleLights(&ppsg, dr_btdf, refract_skydomes, two_lobes, btdf_data_direct, btdf_data_direct2, &acc_refract_direct, &acc_refract_direct_second);
+					iinfo.directRefractionSampleLights(&ppsg, dr_btdf, refract_skydomes, two_lobes, 
+						btdf_data_direct, btdf_data_direct2, &acc_refract_direct, &acc_refract_direct_second);
 
 					acc_refract_direct *= dr_first_scale * (1.0f - fresnelTerm) * overallResultScale;
 					acc_refract_direct_second *= dr_second_scale * (1.0f - fresnelTerm) * overallResultScale;
