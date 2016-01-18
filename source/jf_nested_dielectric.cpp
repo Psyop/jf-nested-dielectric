@@ -555,82 +555,79 @@ shader_evaluate
 					AtRay dispersalRay;
 					float dispersal_seed = -1.0f;
 					int dispersed_TIR_samples = 0;
-					bool dispersed_TIR = false;
-
 					const bool refract_skies = AiShaderEvalParamBool(p_refract_skies);
 
 					while ( AiSamplerGetSample(refractionIterator, refraction_sample) )
 					{
-						AtColor monochromaticColor = AI_RGB_WHITE;
+						if (!refracted && !do_disperse)
+							continue;
+
+						AtColor monochromeColor = AI_RGB_WHITE;
 						bool dispersion_refracted = true;
-						if (refracted || do_disperse)
+						if (do_disperse)
 						{
-							if (do_disperse)
-							{
-								AiSamplerGetSample(dispersionIterator, dispersion_sample);
-								if (dispersal_seed < 0.0f)
-								{   // The job of a dispersal seed is to fix any correlations, but still allow stratefied sampling to work in batches of samples.
-									dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
-								}
-								float n1_dispersed, n2_dispersed;
-								iinfo.disperse((float) (dispersal_seed + dispersion_sample[0]), &n1_dispersed, &n2_dispersed, &monochromaticColor);
-
-								AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 								
-								if (!AiRefractRay(&dispersalRay, &sg->Nf, n1_dispersed, n2_dispersed, sg))
-								{   // TIR
-									dispersion_refracted = false;
-									TIR_color += monochromaticColor;
-									dispersed_TIR = true;
-									dispersed_TIR_samples++;
-									refractSamplesTaken++ ;
-								}
-								ray.dir = dispersalRay.dir;
-								if ( do_blurryRefraction )
-								{   // redo ppsg creation
-									ppsg.Rd = sgrd_cache;
-									parallelPark(ray.dir, &ppsg);
-									btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
-								}
+							AiSamplerGetSample(dispersionIterator, dispersion_sample);
+							if (dispersal_seed < 0.0f)
+							{   // The job of a dispersal seed is to fix any correlations, but still allow stratefied sampling to work in batches of samples.
+								dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
 							}
+							float n1_disp, n2_disp;
+							iinfo.disperse((float) (dispersal_seed + dispersion_sample[0]), &n1_disp, &n2_disp, &monochromeColor);
 
-							if ( do_blurryRefraction )
-							{
-								ray.dir = iinfo.getBTDFSample(btdf_data, refraction_sample);
-							}
-
-							if (dispersion_refracted && (AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO))
-							{
-								updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
-								const AtColor weight = (1.0f - fresnelTerm) 
-									* monochromaticColor
-									* RayState->media_refractIndirect.v[iinfo.m1]
-									* RayState->media_refractIndirect.v[iinfo.m2]
-									* overallResultScale;
-
-								const AtColor energyCache = RayState->updateEnergyReturnOrig(weight);
-								const AtColor energyCache_photon = RayState->updatePhotonEnergyReturnOrig(weight);
-
-								if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction))								
-									RayState->ray_energy_photon /= (float) data->refr_samples;
-
-								AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
-
+							AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 								
+							if (!AiRefractRay(&dispersalRay, &sg->Nf, n1_disp, n2_disp, sg))
+							{   // TIR
+								dispersion_refracted = false;
+								TIR_color += monochromeColor;
+								dispersed_TIR_samples++;
 								refractSamplesTaken++ ;
-								const bool tracehit = AiTrace(&ray, &sample);
-								if (tracehit || refract_skies) 
-								{
-									acc_refract_indirect += sample.color * weight * transmissionOnSample(&iinfo.t2, &sample, tracehit );
-								}
+							}
+							ray.dir = dispersalRay.dir;
+							if ( do_blurryRefraction )
+							{   // redo ppsg creation
+								ppsg.Rd = sgrd_cache;
+								parallelPark(ray.dir, &ppsg);
+								btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
+							}
+						}
 
-								RayState->resetEnergyCache(energyCache);
-								RayState->resetPhotonEnergyCache(energyCache_photon);
+						if ( do_blurryRefraction )
+						{
+							ray.dir = iinfo.getBTDFSample(btdf_data, refraction_sample);
+						}
 
-								updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, true);
+						if (dispersion_refracted && (AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO))
+						{
+							updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
+							const AtColor weight = (1.0f - fresnelTerm) 
+								* monochromeColor
+								* RayState->media_refractIndirect.v[iinfo.m1]
+								* RayState->media_refractIndirect.v[iinfo.m2]
+								* overallResultScale;
+
+							const AtColor energyCache = RayState->updateEnergyReturnOrig(weight);
+							const AtColor energyCache_photon = RayState->updatePhotonEnergyReturnOrig(weight);
+
+							if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction))								
+								RayState->ray_energy_photon /= (float) data->refr_samples;
+
+							AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
+
+							refractSamplesTaken++ ;
+							const bool tracehit = AiTrace(&ray, &sample);
+							if (tracehit || refract_skies) 
+							{
+								acc_refract_indirect += sample.color * weight * transmissionOnSample(&iinfo.t2, &sample, tracehit );
 							}
 
-							if (!do_multiSampleRefraction)
-								break;
+							RayState->resetEnergyCache(energyCache);
+							RayState->resetPhotonEnergyCache(energyCache_photon);
+
+							updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, true);
 						}
+
+						if (!do_multiSampleRefraction)
+							break;
 					}
 					
 					/*
@@ -643,7 +640,7 @@ shader_evaluate
 					// decision point - tir
 					if (do_disperse)
 					{
-						if (dispersed_TIR)
+						if (dispersed_TIR_samples > 0)
 						{
 							TIR_color *= (float) AiSamplerGetSampleInvCount(refractionIterator);
 							do_TIR = true;
