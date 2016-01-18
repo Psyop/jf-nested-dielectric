@@ -313,6 +313,30 @@ typedef struct Ray_State {
 		rayStateCache->ray_energy 			= this->ray_energy;
 	}
 
+	AtColor updateEnergyReturnOrig(AtColor weight) 
+	{
+		const AtColor energyCache = this->ray_energy;
+		this->ray_energy *= weight;
+		return energyCache;
+	}
+
+	AtColor updatePhotonEnergyReturnOrig(AtColor weight) 
+	{
+		const AtColor energyCache = this->ray_energy_photon;
+		this->ray_energy_photon *= weight;
+		return energyCache;
+	}
+
+	void resetEnergyCache(AtColor orig) 
+	{
+		this->ray_energy = orig;
+	}
+
+	void resetPhotonEnergyCache(AtColor orig) 
+	{
+		this->ray_energy_photon = orig;
+	}
+
 	void setMediaIOR(int i, float ior)
 	{
 		this->media_iOR.v[i] = ior;
@@ -1004,6 +1028,14 @@ typedef struct InterfaceInfo {
 	}
 
 
+	void disperse(float sample, float * n1_dispersed, float * n2_dispersed, AtColor *monochromatic_color) 
+	{
+		const float LUT_value = fmod( sample, 1.0f );
+		get_interpolated_LUT_value( this->rs->spectral_LUT_ptr, LUT_value, &this->rs->ray_wavelength, monochromatic_color);
+		this->rs->ray_monochromatic = true;
+		*n1_dispersed = dispersedIOR(this->n1, this->rs->media_dispersion.v[this->m1], this->rs->ray_wavelength);
+		*n2_dispersed = dispersedIOR(this->n2, this->rs->media_dispersion.v[this->m2], this->rs->ray_wavelength);
+	}
 
 
 

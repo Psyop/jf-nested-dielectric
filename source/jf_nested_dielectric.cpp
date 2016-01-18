@@ -410,6 +410,7 @@ shader_evaluate
 	AtColor acc_spec_indirect = AI_RGB_BLACK;
 	AtColor acc_spec_direct = AI_RGB_BLACK;
 
+
 	if ( iinfo.validInterface )
 	{
 		TraceSwitch traceSwitch = TraceSwitch(&iinfo);
@@ -486,6 +487,7 @@ shader_evaluate
 		// Main Ray Tracing
 		// Valid interfaces
 		// ---------------------------------------------------//
+		SAMPLETYPE dispersion_sample[2], refraction_sample[2], specular_sample[2];
 
 		// decision point- trace anything
 		if ( energySignificant && traceSwitch.traceAnything() ) 
@@ -514,9 +516,6 @@ shader_evaluate
 				AtSamplerIterator* dispersionIterator = AiSamplerIterator( data->dispersion_sampler, sg) ;
 				AtSamplerIterator* refractionIterator = AiSamplerIterator( data->refraction_sampler, sg);
 
-				SAMPLETYPE dispersion_sample[2];
-				SAMPLETYPE refraction_sample[2];
-
 				// ---------------------------------------------------//
 				// Refraction
 				// BTDF preprocessing
@@ -535,10 +534,9 @@ shader_evaluate
 				AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 				
 				const bool refracted = AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
 
-				AtVector old_Rd = sg->Rd;
+				AtVector sgrd_cache = sg->Rd;
 				AtShaderGlobals ppsg = *sg;
-				if (!do_disperse)
-					parallelPark(ray.dir, &ppsg);
+				parallelPark(ray.dir, &ppsg);
 
 				// decision point- indirect refraction
 				// if ( trace_refract_indirect )
@@ -564,33 +562,32 @@ shader_evaluate
 					while ( AiSamplerGetSample(refractionIterator, refraction_sample) )
 					{
 						AtColor monochromaticColor = AI_RGB_WHITE;
-						bool refracted_dispersion = true;
+						bool dispersion_refracted = true;
 						if (refracted || do_disperse)
 						{
 							if (do_disperse)
 							{
 								AiSamplerGetSample(dispersionIterator, dispersion_sample);
-
 								if (dispersal_seed < 0.0f)
-								{
-									// The job of a dispersal seed is to fix any correlations, but still allow stratefied sampling to work in batches of samples.
+								{   // The job of a dispersal seed is to fix any correlations, but still allow stratefied sampling to work in batches of samples.
 									dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
 								}
-								const float LUT_value = fmod( (float) (dispersal_seed + dispersion_sample[0]), 1.0f );
-								float cWavelength; 
-								get_interpolated_LUT_value( RayState->spectral_LUT_ptr, LUT_value, &cWavelength, &monochromaticColor);
-								RayState->ray_monochromatic = true;
-								RayState->ray_wavelength = cWavelength;
-
-								const float n1_dispersed = dispersedIOR(iinfo.n1, RayState->media_dispersion.v[iinfo.m1], cWavelength);
-								const float n2_dispersed = dispersedIOR(iinfo.n2, RayState->media_dispersion.v[iinfo.m2], cWavelength);
+								float n1_dispersed, n2_dispersed;
+								iinfo.disperse((float) (dispersal_seed + dispersion_sample[0]), &n1_dispersed, &n2_dispersed, &monochromaticColor);
 
 								AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 								
-								refracted_dispersion = AiRefractRay(&dispersalRay, &sg->Nf, n1_dispersed, n2_dispersed, sg);
+								if (!AiRefractRay(&dispersalRay, &sg->Nf, n1_dispersed, n2_dispersed, sg))
+								{   // TIR
+									dispersion_refracted = false;
+									TIR_color += monochromaticColor;
+									dispersed_TIR = true;
+									dispersed_TIR_samples++;
+									refractSamplesTaken++ ;
+								}
 								ray.dir = dispersalRay.dir;
-
 								if ( do_blurryRefraction )
-								{									
+								{   // redo ppsg creation
+									ppsg.Rd = sgrd_cache;
 									parallelPark(ray.dir, &ppsg);
 									btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
 								}
@@ -601,14 +598,7 @@ shader_evaluate
 								ray.dir = iinfo.getBTDFSample(btdf_data, refraction_sample);
 							}
 
-							if (!refracted_dispersion)
-							{
-								TIR_color += monochromaticColor;
-								dispersed_TIR = true;
-								dispersed_TIR_samples++;
-								refractSamplesTaken++ ;
-							}
-							else if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO))
+							if (dispersion_refracted && (AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO))
 							{
 								updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
 								const AtColor weight = (1.0f - fresnelTerm) 
@@ -617,10 +607,8 @@ shader_evaluate
 									* RayState->media_refractIndirect.v[iinfo.m2]
 									* overallResultScale;
 
-								const AtColor energyCache = RayState->ray_energy;
-								RayState->ray_energy *= weight;
-								const AtColor energyCache_photon = RayState->ray_energy_photon;
-								RayState->ray_energy_photon *= weight;
+								const AtColor energyCache = RayState->updateEnergyReturnOrig(weight);
+								const AtColor energyCache_photon = RayState->updatePhotonEnergyReturnOrig(weight);
 
 								if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction))								
 									RayState->ray_energy_photon /= (float) data->refr_samples;
@@ -634,8 +622,8 @@ shader_evaluate
 									acc_refract_indirect += sample.color * weight * transmissionOnSample(&iinfo.t2, &sample, tracehit );
 								}
 
-								RayState->ray_energy = energyCache;
-								RayState->ray_energy_photon = energyCache_photon;
+								RayState->resetEnergyCache(energyCache);
+								RayState->resetPhotonEnergyCache(energyCache_photon);
 
 								updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, true);
 							}
@@ -759,20 +747,18 @@ shader_evaluate
 					float spec_roughnessU = iinfo.getSpecRoughnessU();
 					float spec_roughnessV = iinfo.getSpecRoughnessV();
 
-					SAMPLETYPE specular_sample[2];
 					AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
 					AtRay specularRay;
-					AtUInt32 rayType;
 
-					if (pval_specular_ray_type == 0)  
+					AtUInt32 rayType;
+					if (do_TIR) 
+						rayType = AI_RAY_REFRACTED;
+					else if (pval_specular_ray_type == 0)  
 						rayType = AI_RAY_GLOSSY;
 					else if (pval_specular_ray_type == 1)  
 						rayType = AI_RAY_REFLECTED;
-					if (do_TIR) 
-						rayType = AI_RAY_REFRACTED;
 
 					AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
-
 
 					void * brdf_data; 
 					int spec_brdf = RayState->media_BRDF.v[iinfo.m_higherPriority];
@@ -815,24 +801,22 @@ shader_evaluate
 					if ( traceSwitch.spec_ind || do_TIR )
 					{
 						const float weight = fresnelTerm * RayState->media_specIndirect.v[iinfo.m1] * overallResultScale;
-						const AtColor energyCache = RayState->ray_energy;						
-						const AtColor energyCache_photon = RayState->ray_energy_photon;						
 						const bool reflect_skies = AiShaderEvalParamBool(p_reflect_skies);
+						AtColor energyCache;
+						AtColor energyCache_photon;	
 
 						if ( do_TIR )
 						{
-							RayState->ray_TIRDepth++ ;
-
+							RayState->ray_TIRDepth++;
 							if (RayState->ray_TIRDepth < 50 && specularRay.refr_bounces > 1)
 								specularRay.refr_bounces-- ;
-
-							RayState->ray_energy *= TIR_color;
-							RayState->ray_energy_photon *= TIR_color;
+							energyCache = RayState->updateEnergyReturnOrig(TIR_color);
+							energyCache_photon = RayState->updatePhotonEnergyReturnOrig(TIR_color);
 						} 
 						else
 						{
-							RayState->ray_energy *= weight;		
-							RayState->ray_energy_photon *= weight;		
+							energyCache = RayState->updateEnergyReturnOrig(weight * AI_RGB_WHITE);
+							energyCache_photon = RayState->updatePhotonEnergyReturnOrig(weight * AI_RGB_WHITE);	
 						}
 
 
@@ -882,8 +866,8 @@ shader_evaluate
 						if (!sharp_reflection)
 							acc_spec_indirect *= (float) AiSamplerGetSampleInvCount(specularIterator);
 
-						RayState->ray_energy = energyCache;						
-						RayState->ray_energy_photon = energyCache_photon;						
+						RayState->resetEnergyCache(energyCache);
+						RayState->resetPhotonEnergyCache(energyCache_photon);				
 					}
 
 					// ---------------------------------------------------//
