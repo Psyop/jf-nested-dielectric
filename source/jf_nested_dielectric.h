@@ -571,7 +571,6 @@ void updateMediaInsideLists(int m_cMatID, bool entering, MediaIntStruct * media_
 {
 	// If we're entering an object, increment, if we're leaving, decrement. 
 	// Reverse reverses the behavior. 
-
 	if ( !reverse)
 		media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? 1 : -1 );
 	else
@@ -1037,7 +1036,10 @@ typedef struct InterfaceInfo {
 		*n2_dispersed = dispersedIOR(this->n2, this->rs->media_dispersion.v[this->m2], this->rs->ray_wavelength);
 	}
 
-
+	float getIndirectRefractionWeight() 
+	{
+		return this->rs->media_refractIndirect.v[this->m1] * this->rs->media_refractIndirect.v[this->m2];
+	}
 
 } InterfaceInfo;
 

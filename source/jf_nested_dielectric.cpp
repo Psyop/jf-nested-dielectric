@@ -217,8 +217,8 @@ node_update
 shader_evaluate
 {
 	JFND_Shader_Data *data = (JFND_Shader_Data*)AiNodeGetLocalData(node);
-	Ray_State *RayState;
-	Ray_State_Cache RayStateCache;
+	Ray_State *rayState;
+	Ray_State_Cache rayStateCache;
 
 	// ---------------------------------------------------//
 	// - Array and messaging preprocess 
@@ -231,18 +231,18 @@ shader_evaluate
 	{
 		void * rayState_ptr;
 		AiStateGetMsgPtr("rayState_ptr", &rayState_ptr);
-		RayState = static_cast<Ray_State*>( rayState_ptr );
-		RayState->cacheRayState( &RayStateCache);
+		rayState = static_cast<Ray_State*>( rayState_ptr );
+		rayState->cacheRayState( &rayStateCache);
 	}
 	else
 	{		
-		RayState = static_cast<Ray_State*>( AiShaderGlobalsQuickAlloc(sg, sizeof( Ray_State ) ) );
-		RayState->init(data, sg, node);
+		rayState = static_cast<Ray_State*>( AiShaderGlobalsQuickAlloc(sg, sizeof( Ray_State ) ) );
+		rayState->init(data, sg, node);
 
-		RayState->setEnergyCutoff( (float) AiShaderEvalParamInt(p_energy_cutoff_exponent));
-		RayState->setPolarization(AiShaderEvalParamBool(p_polarize), data->polarizationVector);
+		rayState->setEnergyCutoff( (float) AiShaderEvalParamInt(p_energy_cutoff_exponent));
+		rayState->setPolarization(AiShaderEvalParamBool(p_polarize), data->polarizationVector);
 
-		AiStateSetMsgPtr("rayState_ptr", RayState);
+		AiStateSetMsgPtr("rayState_ptr", rayState);
 	}
 	AiStateSetMsgBool("msgs_are_valid", true); // Any child rays from this will find valid messages. 
 
@@ -260,7 +260,7 @@ shader_evaluate
 		 *   The shadow list has never been initialzied
 		 */
 
-		media_inside_ptr = &RayState->shadow_media_inside;
+		media_inside_ptr = &rayState->shadow_media_inside;
 
 		bool shadowlist_is_valid = false;
 		AiStateGetMsgBool("shadowlist_is_valid", &shadowlist_is_valid);
@@ -279,7 +279,7 @@ shader_evaluate
 		if ( !shadowlist_is_valid || transp_index_reset )  // if there has been another kind of ray, or the transp_index did not increase
 		{
 			// intialize the shadow media inside list
-			memcpy(&RayState->shadow_media_inside, &RayState->media_inside, sizeof(MediaIntStruct) );
+			memcpy(&rayState->shadow_media_inside, &rayState->media_inside, sizeof(MediaIntStruct) );
 		}
 
 		AiStateSetMsgInt("prev_transp_index", sg->transp_index);
@@ -287,7 +287,7 @@ shader_evaluate
 	}
 	else
 	{
-		media_inside_ptr = &RayState->media_inside;
+		media_inside_ptr = &rayState->media_inside;
 
 		AiStateSetMsgBool("shadowlist_is_valid", false);
 	}
@@ -344,14 +344,14 @@ shader_evaluate
 	}
 
 	{
-		RayState->setMediaIOR(m_cMatID, AiShaderEvalParamFlt(p_mediumIOR));
-		RayState->setMediaDispersion(m_cMatID, AiShaderEvalParamBool(p_disperse), AiShaderEvalParamFlt(p_dispersion));	
-		RayState->setAnisotropySettings(m_cMatID, AiShaderEvalParamFlt(p_blur_anisotropic_poles));
+		rayState->setMediaIOR(m_cMatID, AiShaderEvalParamFlt(p_mediumIOR));
+		rayState->setMediaDispersion(m_cMatID, AiShaderEvalParamBool(p_disperse), AiShaderEvalParamFlt(p_dispersion));	
+		rayState->setAnisotropySettings(m_cMatID, AiShaderEvalParamFlt(p_blur_anisotropic_poles));
 			
 		const float sScale = AiShaderEvalParamFlt(p_specular_scale);
 		const float sDirect = AiShaderEvalParamFlt(p_direct_specular) * sScale;
 		const float sIndirect = AiShaderEvalParamFlt(p_indirect_specular) * sScale;
-		RayState->setMediaSpecular(m_cMatID, sDirect, sIndirect, AiShaderEvalParamEnum(p_brdf), 
+		rayState->setMediaSpecular(m_cMatID, sDirect, sIndirect, AiShaderEvalParamEnum(p_brdf), 
 			AiShaderEvalParamFlt(p_specular_roughness_u), AiShaderEvalParamFlt(p_specular_roughness_v));
 
 		const float rScale = AiShaderEvalParamFlt(p_refraction_scale);
@@ -359,7 +359,7 @@ shader_evaluate
 		const float rIndirect = AiShaderEvalParamFlt(p_indirect_refraction) * rScale;
 		const float rURough = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_u) );
 		const float rVRough = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_v) );
-		RayState->setRefractionSettings(m_cMatID, rDirect, rIndirect, AiShaderEvalParamEnum(p_btdf), rURough, rVRough, 
+		rayState->setRefractionSettings(m_cMatID, rDirect, rIndirect, AiShaderEvalParamEnum(p_btdf), rURough, rVRough, 
 			AiShaderEvalParamRGB(p_mediumTransmittance), AiShaderEvalParamFlt(p_mediumTransmittance_scale));
 	}
 
@@ -368,7 +368,7 @@ shader_evaluate
 	// - get interface info     
 	// ---------------------------------------------------//
 
-	InterfaceInfo iinfo = InterfaceInfo( RayState, m_cMatID, sg);
+	InterfaceInfo iinfo = InterfaceInfo( rayState, m_cMatID, sg);
 
 	bool do_blurryRefraction = iinfo.doBlurryRefraction();
 	bool do_disperse = iinfo.setupDispersion(data);
@@ -387,8 +387,8 @@ shader_evaluate
 		return;
 	} else {
 		AtColor cTransmission = iinfo.getTransmissionColor(sg);
-		RayState->ray_energy *= cTransmission;
-		RayState->ray_energy_photon *= cTransmission;
+		rayState->ray_energy *= cTransmission;
+		rayState->ray_energy_photon *= cTransmission;
 	}
 
 
@@ -421,17 +421,17 @@ shader_evaluate
 		const bool causticPath = photon_ray_type || sg->Rr_diff > 0 ;
 		if ( causticPath ) 
 		{
-			if (iinfo.mediaEntrance || !RayState->caustic_behaviorSet)
+			if (iinfo.mediaEntrance || !rayState->caustic_behaviorSet)
 			{
-				RayState->caustic_behaviorSet = true;
-				RayState->caustic_mode = AiShaderEvalParamInt(p_caustic_mode);
-				RayState->caustic_refractDirect = AiShaderEvalParamBool(p_caustic_refractions_direct);
-				RayState->caustic_refractIndirect = AiShaderEvalParamBool(p_caustic_refractions_indirect);
-				RayState->caustic_TIR = AiShaderEvalParamBool(p_caustic_TIR);
-				RayState->caustic_specInternal = AiShaderEvalParamBool(p_caustic_internal_speculars);
-				RayState->caustic_dispersion = AiShaderEvalParamBool(p_caustic_dispersion);
-				RayState->caustic_specDirect = AiShaderEvalParamBool(p_caustic_specular_direct);
-				RayState->caustic_specIndirect = AiShaderEvalParamBool(p_caustic_specular_indirect);
+				rayState->caustic_behaviorSet = true;
+				rayState->caustic_mode = AiShaderEvalParamInt(p_caustic_mode);
+				rayState->caustic_refractDirect = AiShaderEvalParamBool(p_caustic_refractions_direct);
+				rayState->caustic_refractIndirect = AiShaderEvalParamBool(p_caustic_refractions_indirect);
+				rayState->caustic_TIR = AiShaderEvalParamBool(p_caustic_TIR);
+				rayState->caustic_specInternal = AiShaderEvalParamBool(p_caustic_internal_speculars);
+				rayState->caustic_dispersion = AiShaderEvalParamBool(p_caustic_dispersion);
+				rayState->caustic_specDirect = AiShaderEvalParamBool(p_caustic_specular_direct);
+				rayState->caustic_specIndirect = AiShaderEvalParamBool(p_caustic_specular_indirect);
 			}
 
 			// caustic controls
@@ -453,14 +453,14 @@ shader_evaluate
 			}
 
 
-			if ((sg->Rr_diff > 0 && RayState->caustic_mode == 0)) //means we're in the right kind of caustics for the right kind of ray.
+			if ((sg->Rr_diff > 0 && rayState->caustic_mode == 0)) //means we're in the right kind of caustics for the right kind of ray.
 			{
-				do_disperse = do_disperse && RayState->caustic_dispersion;
+				do_disperse = do_disperse && rayState->caustic_dispersion;
 				traceSwitch.setPathtracedCaustic(&iinfo);
 			}
 			else if ((photon_ray_type))
 			{
-				do_disperse = do_disperse && RayState->caustic_dispersion;
+				do_disperse = do_disperse && rayState->caustic_dispersion;
 				traceSwitch.setPhotonCaustic(&iinfo);
 			}
 			else
@@ -471,9 +471,9 @@ shader_evaluate
 
 		bool energySignificant;
 
-		if (   std::abs( RayState->ray_energy.r ) < RayState->energy_cutoff
-			&& std::abs( RayState->ray_energy.g ) < RayState->energy_cutoff
-			&& std::abs( RayState->ray_energy.b ) < RayState->energy_cutoff
+		if (   std::abs( rayState->ray_energy.r ) < rayState->energy_cutoff
+			&& std::abs( rayState->ray_energy.g ) < rayState->energy_cutoff
+			&& std::abs( rayState->ray_energy.b ) < rayState->energy_cutoff
 			)
 		{
 			energySignificant = false;
@@ -563,7 +563,7 @@ shader_evaluate
 							continue;
 
 						AtColor monochromeColor = AI_RGB_WHITE;
-						bool dispersion_refracted = true;
+						bool dispersion_sample_TIR = false;
 						if (do_disperse)
 						{
 							AiSamplerGetSample(dispersionIterator, dispersion_sample);
@@ -577,51 +577,46 @@ shader_evaluate
 							AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg); 								
 							if (!AiRefractRay(&dispersalRay, &sg->Nf, n1_disp, n2_disp, sg))
 							{   // TIR
-								dispersion_refracted = false;
+								dispersion_sample_TIR = true;
 								TIR_color += monochromeColor;
 								dispersed_TIR_samples++;
 								refractSamplesTaken++ ;
 							}
 							ray.dir = dispersalRay.dir;
-							if ( do_blurryRefraction )
+						}
+
+
+						if ( do_blurryRefraction ) {
+							if ( do_disperse )
 							{   // redo ppsg creation
 								ppsg.Rd = sgrd_cache;
 								parallelPark(ray.dir, &ppsg);
 								btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
 							}
-						}
-
-						if ( do_blurryRefraction )
-						{
 							ray.dir = iinfo.getBTDFSample(btdf_data, refraction_sample);
 						}
 
-						if (dispersion_refracted && (AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO))
+						if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO) && !dispersion_sample_TIR)
 						{
 							updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
-							const AtColor weight = (1.0f - fresnelTerm) 
-								* monochromeColor
-								* RayState->media_refractIndirect.v[iinfo.m1]
-								* RayState->media_refractIndirect.v[iinfo.m2]
-								* overallResultScale;
+							const AtColor weight = (1.0f - fresnelTerm) * monochromeColor 
+								* overallResultScale * iinfo.getIndirectRefractionWeight();
 
-							const AtColor energyCache = RayState->updateEnergyReturnOrig(weight);
-							const AtColor energyCache_photon = RayState->updatePhotonEnergyReturnOrig(weight);
+							const AtColor energyCache = rayState->updateEnergyReturnOrig(weight);
+							const AtColor energyCache_photon = rayState->updatePhotonEnergyReturnOrig(weight);
 
 							if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction))								
-								RayState->ray_energy_photon /= (float) data->refr_samples;
+								rayState->ray_energy_photon /= (float) data->refr_samples;
 
-							AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
+							AiStateSetMsgRGB("photon_energy",rayState->ray_energy_photon);
 
 							refractSamplesTaken++ ;
 							const bool tracehit = AiTrace(&ray, &sample);
 							if (tracehit || refract_skies) 
-							{
 								acc_refract_indirect += sample.color * weight * transmissionOnSample(&iinfo.t2, &sample, tracehit );
-							}
 
-							RayState->resetEnergyCache(energyCache);
-							RayState->resetPhotonEnergyCache(energyCache_photon);
+							rayState->resetEnergyCache(energyCache);
+							rayState->resetPhotonEnergyCache(energyCache_photon);
 
 							updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, true);
 						}
@@ -633,7 +628,7 @@ shader_evaluate
 					/*
 					 * Refraction - TIR
 					 * Total internal reflection sampling
-					 * TIR counts as refraction rays, and depth is counted seperately by RayState->ray_TIRDepth
+					 * TIR counts as refraction rays, and depth is counted seperately by rayState->ray_TIRDepth
 					 * Actually occurs in the specular loop below though. 
 					 */
 
@@ -686,7 +681,7 @@ shader_evaluate
 					dr_roughnessU *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
 					dr_roughnessV *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
 
-					float dr_first_scale = RayState->media_refractDirect.v[m_cMatID];
+					float dr_first_scale = rayState->media_refractDirect.v[m_cMatID];
 					float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale ) * dr_first_scale;
 					dr_first_scale -= dr_second_scale;
 
@@ -735,7 +730,7 @@ shader_evaluate
 				if (do_disperse)
 				{
 					// reflected rays off a dispersive medium aren't monochromatic
-					RayState->ray_monochromatic = false;
+					rayState->ray_monochromatic = false;
 				}
 
 				// decision point- any specular
@@ -758,7 +753,7 @@ shader_evaluate
 					AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
 
 					void * brdf_data; 
-					int spec_brdf = RayState->media_BRDF.v[iinfo.m_higherPriority];
+					int spec_brdf = rayState->media_BRDF.v[iinfo.m_higherPriority];
 					bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
 					if (sharp_reflection)
 						spec_brdf = b_stretched_phong;
@@ -774,7 +769,7 @@ shader_evaluate
 							break;
 						case b_ward_rayTangent:
 							// Ward with refraction-derivitive tangents
-							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
 							AiV3Cross(uTangent, sg->N, sg->Rd); 
 							AiV3Cross(vTangent, sg->N, uTangent);
 							brdf_data = AiWardDuerMISCreateData(sg, &uTangent, &vTangent, spec_roughnessU, spec_roughnessV); 
@@ -782,7 +777,7 @@ shader_evaluate
 						case b_ward_userTangent:
 							// Ward with user tangents
 							tangentSourceVector = AiV3Normalize( pval_custom_tangent );
-							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &RayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
+							blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
 							AiV3Cross( uTangent, sg->N, tangentSourceVector ) ;
 							AiV3Cross( vTangent, sg->N, uTangent ) ;
 							brdf_data = AiWardDuerMISCreateData( sg, &vTangent, &uTangent, spec_roughnessU, spec_roughnessV ) ; 
@@ -797,30 +792,30 @@ shader_evaluate
 					// if ( trace_spec_indirect || do_TIR )
 					if ( traceSwitch.spec_ind || do_TIR )
 					{
-						const float weight = fresnelTerm * RayState->media_specIndirect.v[iinfo.m1] * overallResultScale;
+						const float weight = fresnelTerm * rayState->media_specIndirect.v[iinfo.m1] * overallResultScale;
 						const bool reflect_skies = AiShaderEvalParamBool(p_reflect_skies);
 						AtColor energyCache;
 						AtColor energyCache_photon;	
 
 						if ( do_TIR )
 						{
-							RayState->ray_TIRDepth++;
-							if (RayState->ray_TIRDepth < 50 && specularRay.refr_bounces > 1)
+							rayState->ray_TIRDepth++;
+							if (rayState->ray_TIRDepth < 50 && specularRay.refr_bounces > 1)
 								specularRay.refr_bounces-- ;
-							energyCache = RayState->updateEnergyReturnOrig(TIR_color);
-							energyCache_photon = RayState->updatePhotonEnergyReturnOrig(TIR_color);
+							energyCache = rayState->updateEnergyReturnOrig(TIR_color);
+							energyCache_photon = rayState->updatePhotonEnergyReturnOrig(TIR_color);
 						} 
 						else
 						{
-							energyCache = RayState->updateEnergyReturnOrig(weight * AI_RGB_WHITE);
-							energyCache_photon = RayState->updatePhotonEnergyReturnOrig(weight * AI_RGB_WHITE);	
+							energyCache = rayState->updateEnergyReturnOrig(weight * AI_RGB_WHITE);
+							energyCache_photon = rayState->updatePhotonEnergyReturnOrig(weight * AI_RGB_WHITE);	
 						}
 
 
 						if (sg->Rt == AI_RAY_CAMERA)
-							RayState->ray_energy_photon /= (float) data->gloss_samples;
+							rayState->ray_energy_photon /= (float) data->gloss_samples;
 
-						AiStateSetMsgRGB("photon_energy",RayState->ray_energy_photon);
+						AiStateSetMsgRGB("photon_energy",rayState->ray_energy_photon);
 
 						while ( AiSamplerGetSample(specularIterator, specular_sample) )
 						{
@@ -863,8 +858,8 @@ shader_evaluate
 						if (!sharp_reflection)
 							acc_spec_indirect *= (float) AiSamplerGetSampleInvCount(specularIterator);
 
-						RayState->resetEnergyCache(energyCache);
-						RayState->resetPhotonEnergyCache(energyCache_photon);				
+						rayState->resetEnergyCache(energyCache);
+						rayState->resetPhotonEnergyCache(energyCache_photon);				
 					}
 
 					// ---------------------------------------------------//
@@ -875,7 +870,7 @@ shader_evaluate
 					// if ( trace_spec_direct )
 					if ( traceSwitch.spec_dir )
 					{
-						AtColor weight = AI_RGB_WHITE * fresnelTerm * RayState->media_specDirect.v[iinfo.m_higherPriority] * overallResultScale;
+						AtColor weight = AI_RGB_WHITE * fresnelTerm * rayState->media_specDirect.v[iinfo.m_higherPriority] * overallResultScale;
 						if (do_TIR)
 							weight *= TIR_color;
 						
@@ -890,7 +885,7 @@ shader_evaluate
 								(reflect_skydomes || !AiNodeIs( sg->Lp,"skydome_light" )) && l_weight > ZERO_EPSILON
 								)
 							{
-								switch ( RayState->media_BRDF.v[iinfo.m_higherPriority] )
+								switch ( rayState->media_BRDF.v[iinfo.m_higherPriority] )
 								{
 									case b_stretched_phong:
 										acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
@@ -924,12 +919,12 @@ shader_evaluate
 
 	if ( !iinfo.validInterface )
 	{
-		if ( RayState->ray_invalidDepth < 70 )
+		if ( rayState->ray_invalidDepth < 70 )
 		{
 			AtRay ray;
 			AtScrSample sample;
 
-			RayState->ray_invalidDepth ++;
+			rayState->ray_invalidDepth ++;
 			updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
 
 			AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, NULL, AI_BIG, sg);
@@ -1006,7 +1001,7 @@ shader_evaluate
 	if (msgs_are_valid)
 	{
 		AiStateSetMsgBool("msgs_are_valid", true);
-		RayState->uncacheRayState(&RayStateCache);
+		rayState->uncacheRayState(&rayStateCache);
 	}
 	else
 	{
