@@ -202,7 +202,7 @@ typedef struct subdiv_spectral_distrib { float values[subdiv_distrib_point_num];
 
 
 
-float roundf(float value)
+float jfnd_roundf(float value)
 {
   return floor(value + 0.5f);
 }
@@ -215,7 +215,7 @@ float linear_interpolate( float float1, float float2, float weight)
 float interpolated_distribution_value( const spectral_distrib *distrib, float index )
 {
 	const float index_fraction = index - floor(index);
-	const int index_whole = (int) roundf( index - index_fraction );
+	const int index_whole = (int) jfnd_roundf( index - index_fraction );
 
 	const float lower_value = distrib->values[index_whole];
 	float upper_value;
@@ -237,7 +237,7 @@ float interpolated_distribution_value( const spectral_distrib *distrib, float in
 
 int spectral_LUT_index_from_sample(float sample)
 {
-	return (int) roundf( sample * (float) (spectral_lookup_point_num - 1) );
+	return (int) jfnd_roundf( sample * (float) (spectral_lookup_point_num - 1) );
 }
 
 float spectral_LUT_findex_from_sample(float sample)
