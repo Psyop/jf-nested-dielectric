@@ -1,12 +1,10 @@
+#include <algorithm>
 #include <ai.h>
-
 #include <fstream>
 #include <vector>
 #include <ctime>
 
-
 AI_SHADER_NODE_EXPORT_METHODS(jf_photon_methods);
-
 
 const char * enum_modes[] =
 {

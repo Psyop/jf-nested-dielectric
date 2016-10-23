@@ -5,6 +5,8 @@
  * Open sourced under the 3 clause BSD license, see license.txt
  */
 
+#define NOMINMAX // lets you keep using std::min
+
 #include <ai.h>
 #include <cstring>
 #include <string>
@@ -738,6 +740,7 @@ shader_evaluate
 				{
 					float spec_roughnessU = iinfo.getSpecRoughnessU();
 					float spec_roughnessV = iinfo.getSpecRoughnessV();
+					bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
 
 					AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
 					AtRay specularRay;
@@ -754,7 +757,6 @@ shader_evaluate
 
 					void * brdf_data; 
 					int spec_brdf = rayState->media_BRDF.v[iinfo.m_higherPriority];
-					bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
 					if (sharp_reflection)
 						spec_brdf = b_stretched_phong;
 					switch ( spec_brdf )

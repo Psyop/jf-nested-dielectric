@@ -20,21 +20,20 @@ else()
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fvisibility=hidden")
 endif()
 
-add_library(jf_nested_dielectric SHARED jf_nested_dielectric.cpp)
+add_library(jf_photon SHARED jf_photon.cpp)
 
-set_target_properties(jf_nested_dielectric PROPERTIES PREFIX "")
+set_target_properties(jf_photon PROPERTIES PREFIX "")
 
-target_link_libraries(jf_nested_dielectric ${ARNOLD_LIBRARY})
+target_link_libraries(jf_photon ${ARNOLD_LIBRARY})
 
-install(TARGETS jf_nested_dielectric
-    LIBRARY DESTINATION plugins)
+# install(TARGETS jf_photon
+#     LIBRARY DESTINATION plugins)
 
-install(FILES mtoa/jf_nested_dielectric.mtd
+install(FILES mtoa/jf_photon.mtd
 	DESTINATION plugins)
 
-install(FILES mtoa/jf_nested_dielectricTemplate.py
+install(FILES mtoa/jf_photonTemplate.py
 	DESTINATION mtoa)
 
-install(FILES sitoa/jf_nested_dielectric.spdl
+install(FILES sitoa/jf_photon.spdl
 	DESTINATION sitoa)
-
