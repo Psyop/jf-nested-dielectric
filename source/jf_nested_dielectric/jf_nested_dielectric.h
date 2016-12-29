@@ -23,19 +23,17 @@
 
 const char *  enum_brdfs[] =
 {
-    "stretched_phong",
     "cook_torrance",
-    "ward_rayTangent",
-    "ward_userTangent",
+    "anisotropic_ray_tangent",
+    "anisotropic_user_tangent",
     NULL
 };
 
 enum brdfs
 {
-    b_stretched_phong,
     b_cook_torrance,
-    b_ward_rayTangent,
-    b_ward_userTangent,
+    b_cook_torrance_ray_tangent,
+    b_cook_torrance_user_tangent,
 };
 
 const char *  enum_shadow_modes[] =
@@ -892,7 +890,7 @@ typedef struct InterfaceInfo {
 
     bool refractionNeedsUserTangent() 
     {
-        return this->getBTDFType() == b_ward_userTangent;
+        return this->getBTDFType() == b_cook_torrance_user_tangent;
     }
 
     void* getBTDFData(AtShaderGlobals *ppsg, float refr_roughnessU, float refr_roughnessV, AtVector customTangentVector) 
@@ -900,52 +898,36 @@ typedef struct InterfaceInfo {
         AtVector tangentSourceVector, uTangent, vTangent;
         switch ( this->getBTDFType() )
         {
-            case b_stretched_phong:
-                // Stretched Phong
-                return AiStretchedPhongMISCreateData(ppsg, (0.5f / SQR(refr_roughnessU) - 0.5f));
-                break;
             case b_cook_torrance:
                 // Cook Torrance
-                return AiCookTorranceMISCreateData(ppsg, &AI_V3_ZERO, &AI_V3_ZERO, refr_roughnessU, refr_roughnessU);
+                uTangent = AI_V3_ZERO;
+                vTangent = AI_V3_ZERO;
                 break;
-            case b_ward_rayTangent:
+            case b_cook_torrance_ray_tangent:
                 // Ward with refraction-derivitive tangents
                 tangentSourceVector = AiV3Normalize(ppsg->Rd);
                 blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->N, &tangentSourceVector);
                 uTangent = AiV3Cross(ppsg->Nf, AiV3Normalize(ppsg->Rd)); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);
-                return AiWardDuerMISCreateData(ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV); 
                 break;
-            case b_ward_userTangent:
+            case b_cook_torrance_user_tangent:
                 // Ward with user tangents
                 tangentSourceVector = AiV3Normalize( customTangentVector );
                 blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->N, &tangentSourceVector);
                 uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);
-                return AiWardDuerMISCreateData( ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
                 break;
         }
-        return NULL;
+        return AiCookTorranceMISCreateData( ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
     }
 
     AtVector getBTDFSample( void* btdf_data, SAMPLETYPE refraction_sample[2]) {
-        switch ( this->getBTDFType() )
-        {
-            case b_stretched_phong:
-                return AiStretchedPhongMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-            case b_cook_torrance:
-                return AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-            case b_ward_rayTangent:
-                return AiWardDuerMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-            case b_ward_userTangent:
-                return AiWardDuerMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-        }
-        return AI_V3_ZERO;
+        return AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
     }
 
     bool directRefractionNeedsUserTangent(int dr_btdf) 
     {
-        return dr_btdf == b_ward_userTangent;
+        return dr_btdf == b_cook_torrance_user_tangent;
     }
 
 
@@ -955,37 +937,29 @@ typedef struct InterfaceInfo {
         AtVector tangentSourceVector, uTangent, vTangent;
         switch ( dr_btdf )
         {
-            case b_stretched_phong:
-                // Stretched Phong
-                *btdfA = AiStretchedPhongMISCreateData(ppsg, (0.5f / SQR(dr_roughnessU) - 0.5f));
-                *btdfB = AiStretchedPhongMISCreateData(ppsg, (0.5f / SQR(drs_roughnessU) - 0.5f));
-                break;
             case b_cook_torrance:
                 // Cook Torrance
-                *btdfA = AiCookTorranceMISCreateData(ppsg, &AI_V3_ZERO, &AI_V3_ZERO, dr_roughnessU, dr_roughnessU);
-                *btdfB = AiCookTorranceMISCreateData(ppsg, &AI_V3_ZERO, &AI_V3_ZERO, drs_roughnessU, drs_roughnessU);
-                break;
-            case b_ward_rayTangent:
+                uTangent = AI_V3_ZERO;
+                vTangent = AI_V3_ZERO;
+            case b_cook_torrance_ray_tangent:
                 // Ward with refraction-derivitive tangents
                 tangentSourceVector = AiV3Normalize(ppsg->Rd);
                 blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
                 blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
                 uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector ); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);
-                *btdfA = AiWardDuerMISCreateData(ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessV); 
-                *btdfB = AiWardDuerMISCreateData(ppsg, &uTangent, &vTangent, drs_roughnessU, drs_roughnessV); 
                 break;
-            case b_ward_userTangent:
+            case b_cook_torrance_user_tangent:
                 // Ward with user tangents
                 tangentSourceVector = AiV3Normalize( customTangentVector );
                 blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
                 blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
                 uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector ); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);                   
-                *btdfA = AiWardDuerMISCreateData( ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessV ) ; 
-                *btdfB = AiWardDuerMISCreateData( ppsg, &uTangent, &vTangent, drs_roughnessU, drs_roughnessV ) ; 
                 break;
         }
+        *btdfA = AiCookTorranceMISCreateData(ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessU);
+        *btdfB = AiCookTorranceMISCreateData(ppsg, &uTangent, &vTangent, drs_roughnessU, drs_roughnessU);
     }
 
     void directRefractionSampleLights(AtShaderGlobals * sg, int dr_btdf, bool refract_skydomes, bool two_lobes, 
@@ -998,29 +972,9 @@ typedef struct InterfaceInfo {
         {
             if ( refract_skydomes || !AiNodeIs( sg->Lp,"skydome_light" ))
             {
-                switch ( dr_btdf )
-                {
-                    case b_stretched_phong:
-                        *acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
-                        if (two_lobes)
-                            *acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
-                        break;
-                    case b_cook_torrance:
-                        *acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
-                        if (two_lobes)
-                            *acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
-                        break;
-                    case b_ward_rayTangent:
-                        *acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-                        if (two_lobes)
-                            *acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-                        break;
-                    case b_ward_userTangent:
-                        *acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-                        if (two_lobes)
-                            *acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-                        break;
-                }
+                *acc_refract_direct += AiEvaluateLightSample(sg, btdf_data_direct, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
+                if (two_lobes)
+                    *acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
             }
         }
         AiStateSetMsgBool("opaqueShadowMode", false);

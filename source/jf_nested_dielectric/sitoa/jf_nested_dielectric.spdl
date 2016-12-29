@@ -791,49 +791,6 @@ Defaults
 		}
 	}
 
-	# const char *  enum_shadow_modes[] =
-	# {
-	# 	"black",
-	# 	"transmit_only",
-	# 	"transmit_and_outer_fresnels",
-	# 	"transmit_and_all_fresnels",
-	# 	NULL
-	# };
-	# const char * enum_gamuts[] = 
-	# {
-	# 	"sRGB",
-	# 	"AdobeRGB",
-	# 	"WideGamut",
-	# 	"ProPhotoRGB",
-	# 	"ACES",
-	# 	NULL
-	# };
-	# const char * enum_spectra[] = 
-	# {
-	# 	"full",
-	# 	"daylight",
-	# 	"bluesky",
-	# 	"sunset",
-	# 	"LED",
-	# 	"flourescent",
-	# 	"sodium",
-	# 	NULL
-	# };
-	# const char *  enum_specular_raytypes[] =
-	# {
-	# 	"Glossy",
-	# 	"Reflected",
-	# 	NULL
-	# };
-	# const char *  enum_brdfs[] =
-	# {
-	# 	"stretched_phong",
-	# 	"cook_torrance",
-	# 	"ward_rayTangent",
-	# 	"ward_userTangent",
-	# 	NULL
-	# };
-
 	# enums
 	specular_ray_type
 	{
@@ -897,10 +854,9 @@ Defaults
 		UIType = "Combo";
 		Items
 		{
-			"Stretched Phong" = "stretched_phong";
 			"Cook-Torrance" = "cook_torrance";
-			"Ward-Deur - Ray-derived tangents" = "ward_rayTangent";
-			"Ward-Deur - User Tangents" = "ward_userTangent";
+			"Cook-Torrance Aniso - Ray-derived tangents" = "anisotropic_ray_tangent";
+			"Cook-Torrance Aniso - User Tangents" = "anisotropic_user_tangent";
 		}
 	}
 	dr_btdf
@@ -910,10 +866,9 @@ Defaults
 		UIType = "Combo";
 		Items
 		{
-			"Stretched Phong" = "stretched_phong";
 			"Cook-Torrance" = "cook_torrance";
-			"Ward-Deur - Ray-derived tangents" = "ward_rayTangent";
-			"Ward-Deur - User Tangents" = "ward_userTangent";
+			"Cook-Torrance Aniso - Ray-derived tangents" = "anisotropic_ray_tangent";
+			"Cook-Torrance Aniso - User Tangents" = "anisotropic_user_tangent";
 		}
 	}
 	brdf
@@ -923,10 +878,9 @@ Defaults
 		UIType = "Combo";
 		Items
 		{
-			"Stretched Phong" = "stretched_phong";
 			"Cook-Torrance" = "cook_torrance";
-			"Ward-Deur - Ray-derived tangents" = "ward_rayTangent";
-			"Ward-Deur - User Tangents" = "ward_userTangent";
+			"Cook-Torrance Aniso - Ray-derived tangents" = "anisotropic_ray_tangent";
+			"Cook-Torrance Aniso - User Tangents" = "anisotropic_user_tangent";
 		}
 	}
 
@@ -1271,22 +1225,22 @@ Layout "RenderTree"
 Logic
 {
 	Sub btdf_Onchanged()
-		pset.refraction_roughness_v.Enable( pset.btdf.value = "ward_userTangent" or pset.btdf.value = "ward_rayTangent")
+		pset.refraction_roughness_v.Enable( pset.btdf.value = "anisotropic_user_tangent" or pset.btdf.value = "anisotropic_ray_tangent")
 	End Sub
 
 	Sub dr_btdf_Onchanged()
-		pset.dr_roughness_v.Enable( dr_use_refraction_btdf.Value = False and ( pset.dr_btdf.value = "ward_userTangent" or pset.dr_btdf.value = "ward_rayTangent") )
+		pset.dr_roughness_v.Enable( dr_use_refraction_btdf.Value = False and ( pset.dr_btdf.value = "anisotropic_user_tangent" or pset.dr_btdf.value = "anisotropic_ray_tangent") )
 	End Sub
 
 	Sub dr_use_refraction_btdf_Onchanged()
 		pset.dr_roughnessOffset.Enable( dr_use_refraction_btdf.Value )
 		pset.dr_btdf.Enable( dr_use_refraction_btdf.Value = False )
 		pset.dr_roughness_u.Enable( dr_use_refraction_btdf.Value = False )
-		pset.dr_roughness_v.Enable( dr_use_refraction_btdf.Value = False and ( pset.dr_btdf.value = "ward_userTangent" or pset.dr_btdf.value = "ward_rayTangent") )
+		pset.dr_roughness_v.Enable( dr_use_refraction_btdf.Value = False and ( pset.dr_btdf.value = "anisotropic_user_tangent" or pset.dr_btdf.value = "anisotropic_ray_tangent") )
 	End Sub
 
 	Sub brdf_Onchanged()
-		pset.specular_roughness_v.Enable(pset.brdf.value = "ward_userTangent" or pset.brdf.value = "ward_rayTangent")
+		pset.specular_roughness_v.Enable(pset.brdf.value = "anisotropic_user_tangent" or pset.brdf.value = "anisotropic_ray_tangent")
 	End Sub
 
 	Sub OnInit	

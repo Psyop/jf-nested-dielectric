@@ -502,10 +502,6 @@ shader_evaluate
             bool do_TIR = false;
             AtColor TIR_color = AI_RGB_BLACK;
 
-            AtVector uTangent; 
-            AtVector vTangent;
-            AtVector tangentSourceVector;
-
             if ( traceSwitch.traceAnyRefraction() )
             {
                 int refractSamplesTaken = 0;
@@ -755,36 +751,34 @@ shader_evaluate
 
                     AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
 
-                    void * brdf_data; 
                     int spec_brdf = rayState->media_BRDF.v[iinfo.m_higherPriority];
                     if (sharp_reflection)
-                        spec_brdf = b_stretched_phong;
+                        spec_brdf = b_cook_torrance;
+
+                    AtVector tangentSourceVector, uTangent, vTangent;
                     switch ( spec_brdf )
                     {
-                        case b_stretched_phong:
-                            // Stretched Phong
-                            brdf_data = AiStretchedPhongMISCreateData(sg, (0.5f / SQR(spec_roughnessU) - 0.5f));
-                            break;
                         case b_cook_torrance:
                             // Cook Torrance
-                            brdf_data = AiCookTorranceMISCreateData(sg, &AI_V3_ZERO, &AI_V3_ZERO, spec_roughnessU, spec_roughnessU);
+                            uTangent = AI_V3_ZERO;
+                            vTangent = AI_V3_ZERO;
                             break;
-                        case b_ward_rayTangent:
+                        case b_cook_torrance_ray_tangent:
                             // Ward with refraction-derivitive tangents
+                             // to do: tangentSourceVector is uninitialized? Should this be the eye ray or something?
                             blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
                             AiV3Cross(uTangent, sg->N, sg->Rd); 
                             AiV3Cross(vTangent, sg->N, uTangent);
-                            brdf_data = AiWardDuerMISCreateData(sg, &uTangent, &vTangent, spec_roughnessU, spec_roughnessV); 
                             break;
-                        case b_ward_userTangent:
+                        case b_cook_torrance_user_tangent:
                             // Ward with user tangents
                             tangentSourceVector = AiV3Normalize( pval_custom_tangent );
                             blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
                             AiV3Cross( uTangent, sg->N, tangentSourceVector ) ;
                             AiV3Cross( vTangent, sg->N, uTangent ) ;
-                            brdf_data = AiWardDuerMISCreateData( sg, &vTangent, &uTangent, spec_roughnessU, spec_roughnessV ) ; 
                             break;
                     }
+                    void * brdf_data = AiCookTorranceMISCreateData(sg, &AI_V3_ZERO, &AI_V3_ZERO, spec_roughnessU, spec_roughnessU);
 
                     // ---------------------------------------------------//
                     // Indirect Specular / Reflection
@@ -826,25 +820,11 @@ shader_evaluate
                                 specular_sample[0] = 0.5f;
                                 specular_sample[1] = 0.5f;
                             }
-                            switch ( spec_brdf )
-                            {
-                                case b_stretched_phong:
-                                    specularRay.dir = AiStretchedPhongMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
-                                    break;
-                                case b_cook_torrance:
-                                    specularRay.dir = AiCookTorranceMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
-                                    break;
-                                case b_ward_rayTangent:
-                                    specularRay.dir = AiWardDuerMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
-                                    break;
-                                case b_ward_userTangent:
-                                    specularRay.dir = AiWardDuerMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
-                                    break;
-                            }
+
+                            specularRay.dir = AiCookTorranceMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
                                 
                             if (AiV3Dot(specularRay.dir,sg->Nf) > ZERO_EPSILON )
                             {                                   
-
                                 const bool tracehit = AiTrace(&specularRay, &sample);
                                 if (tracehit || reflect_skies) 
                                 {
@@ -882,26 +862,9 @@ shader_evaluate
                         while ( AiLightsGetSample(sg) ) // loop over the lights to compute direct effects
                         {
                             float l_weight = AiLightGetSpecular(sg->Lp);
-
-                            if ( 
-                                (reflect_skydomes || !AiNodeIs( sg->Lp,"skydome_light" )) && l_weight > ZERO_EPSILON
-                                )
+                            if ( (reflect_skydomes || !AiNodeIs( sg->Lp,"skydome_light" )) && l_weight > ZERO_EPSILON)
                             {
-                                switch ( rayState->media_BRDF.v[iinfo.m_higherPriority] )
-                                {
-                                    case b_stretched_phong:
-                                        acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiStretchedPhongMISSample, AiStretchedPhongMISBRDF, AiStretchedPhongMISPDF);
-                                        break;
-                                    case b_cook_torrance:
-                                        acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
-                                        break;
-                                    case b_ward_rayTangent:
-                                        acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-                                        break;
-                                    case b_ward_userTangent:
-                                        acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiWardDuerMISSample, AiWardDuerMISBRDF, AiWardDuerMISPDF);
-                                        break;
-                                }                               
+                                acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);                         
                             }
                         }
                         AiStateSetMsgBool("opaqueShadowMode", false);
