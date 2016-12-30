@@ -992,14 +992,16 @@ typedef struct InterfaceInfo {
         case b_cook_torrance_ray_tangent:
             // Ward with refraction-derivitive tangents
             tangentSourceVector = AiV3Normalize(sg->Rd);
-            blurAnisotropicPoles(&roughnessU, &roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
+            blurAnisotropicPoles(&roughnessU, &roughnessV, 
+                this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
             uTangent = AiV3Cross(sg->Nf, AiV3Normalize(sg->Rd)); 
             vTangent = AiV3Cross(sg->Nf, uTangent);
             break;
         case b_cook_torrance_user_tangent:
             // Ward with user tangents
             tangentSourceVector = AiV3Normalize( customTangent );
-            blurAnisotropicPoles(&roughnessU, &roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
+            blurAnisotropicPoles(&roughnessU, &roughnessV, 
+                this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
             uTangent = AiV3Cross(sg->Nf, tangentSourceVector); 
             vTangent = AiV3Cross(sg->Nf, uTangent);
             break;
@@ -1015,7 +1017,7 @@ typedef struct InterfaceInfo {
     void getDirectRefractionBTDFs(int dr_btdf, AtShaderGlobals *ppsg, float dr_roughnessU, float dr_roughnessV, 
         float drs_roughnessU, float drs_roughnessV, AtVector customTangentVector, void **btdfA, void **btdfB) 
     {
-        AtVector tangentSourceVector, uTangent, vTangent;
+        AtVector uTangent, vTangent;
         switch ( dr_btdf )
         {
             case b_cook_torrance:
@@ -1024,18 +1026,18 @@ typedef struct InterfaceInfo {
                 vTangent = AI_V3_ZERO;
             case b_cook_torrance_ray_tangent:
                 // Ward with refraction-derivitive tangents
-                tangentSourceVector = AiV3Normalize(ppsg->Rd);
-                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, tangentSourceVector);
-                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, tangentSourceVector);
-                uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector ); 
+                AtVector raydir = AiV3Normalize(ppsg->Rd);
+                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, raydir);
+                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, raydir);
+                uTangent = AiV3Cross(ppsg->Nf, raydir); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);
                 break;
             case b_cook_torrance_user_tangent:
                 // Ward with user tangents
-                tangentSourceVector = AiV3Normalize( customTangentVector );
-                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, tangentSourceVector);
-                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, tangentSourceVector);
-                uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector ); 
+                AtVector customTan = AiV3Normalize( customTangentVector );
+                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, customTan);
+                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, customTan);
+                uTangent = AiV3Cross(ppsg->Nf, customTan); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);                   
                 break;
         }
