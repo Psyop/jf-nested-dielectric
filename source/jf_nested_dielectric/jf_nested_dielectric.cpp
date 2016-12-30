@@ -262,9 +262,9 @@ shader_evaluate
     rayState->readBasicMatParameters(sg, node, media_id);
     InterfaceInfo iinfo = InterfaceInfo(rayState, media_id, sg);
 
-    bool do_blurryRefraction = iinfo.doBlurryRefraction();
+    const bool do_blurryRefraction = iinfo.doBlurryRefraction();
     bool do_disperse = iinfo.setupDispersion(data);
-    const bool do_multiSampleRefraction = do_disperse || do_blurryRefraction;
+    // const bool do_multiSampleRefraction = do_disperse || do_blurryRefraction;
 
     // ---------------------------------------------------//
     // - Shadow rays
@@ -305,7 +305,7 @@ shader_evaluate
     {
         TraceSwitch traceSwitch = TraceSwitch(&iinfo, AiShaderEvalParamBool(p_enable_internal_reflections));
         float overallResultScale = 1.0f;
-        const bool isPhoton = rayIsPhoton(sg);
+        const bool isPhoton = rayIsPhoton(sg); // does this do anything? 
         const bool causticPath = isPhoton || sg->Rr_diff > 0 ;
         if ( causticPath ) 
         {
@@ -404,7 +404,6 @@ shader_evaluate
                 parallelPark(ray.dir, &ppsg);
 
                 // decision point- indirect refraction
-                // if ( trace_refract_indirect )
                 if ( traceSwitch.refr_ind )
                 {
                     void * btdf_data = NULL;
@@ -423,25 +422,30 @@ shader_evaluate
                     float dispersal_seed = -1.0f;
                     int dispersed_TIR_samples = 0;
                     const bool refract_skies = AiShaderEvalParamBool(p_refract_skies);
+                    const bool skip_sampling = tir && !do_disperse;
 
                     while ( AiSamplerGetSample(refractionIt, refraction_sample) )
                     {
-                        if (tir && !do_disperse)
+                        if (skip_sampling)
                             continue;
-
+                        
                         AtColor monochromeColor = AI_RGB_WHITE;
                         bool dispersion_sample_TIR = false;
+
                         if (do_disperse)
                         {
                             AiSamplerGetSample(dispersionIt, dispersion_sample);
                             if (dispersal_seed < 0.0f)
-                            {   // The job of a dispersal seed is to fix any correlations, but still allow stratefied sampling to work in batches of samples.
+                            {   // The job of a dispersal seed is to fix any correlations, 
+                                // but still allow stratefied sampling to work in batches of samples.
                                 dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
                             }
                             float n1_disp, n2_disp;
-                            iinfo.disperse((float) (dispersal_seed + dispersion_sample[0]), &n1_disp, &n2_disp, &monochromeColor);
+                            iinfo.getDispersedIORsAndColor((float) (dispersal_seed + dispersion_sample[0]), &n1_disp, &n2_disp, &monochromeColor);
 
                             AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);                                
+                            ray.dir = dispersalRay.dir;
+
                             if (!AiRefractRay(&dispersalRay, &sg->Nf, n1_disp, n2_disp, sg))
                             {   // TIR
                                 dispersion_sample_TIR = true;
@@ -449,19 +453,17 @@ shader_evaluate
                                 dispersed_TIR_samples++;
                                 refractSamplesTaken++ ;
                             }
-                            ray.dir = dispersalRay.dir;
-                        }
 
-
-                        if ( do_blurryRefraction ) {
-                            if ( do_disperse )
+                            if ( do_blurryRefraction ) 
                             {   // redo ppsg creation
                                 ppsg.Rd = sgrd_cache;
                                 parallelPark(ray.dir, &ppsg);
                                 btdf_data = iinfo.getRefrBRDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
                             }
+                        } 
+
+                        if ( do_blurryRefraction )
                             ray.dir = AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
-                        }
 
                         if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && !dispersion_sample_TIR)
                         {
@@ -472,7 +474,7 @@ shader_evaluate
                             const AtColor energyCache = rayState->updateEnergyReturnOrig(weight);
                             const AtColor energyCache_photon = rayState->updatePhotonEnergyReturnOrig(weight);
 
-                            if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction))                                
+                            if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction)) // to do: only needs to happen for photon rays
                                 rayState->ray_energy_photon /= (float) data->refr_samples;
 
                             AiStateSetMsgRGB(JFND_MSG_PHOTON_RGB,rayState->ray_energy_photon);
@@ -488,7 +490,7 @@ shader_evaluate
                             updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, true);
                         }
 
-                        if (!do_multiSampleRefraction)
+                        if (!do_disperse && !do_blurryRefraction)
                             break;
                     }
                     

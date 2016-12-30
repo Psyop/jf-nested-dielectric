@@ -18,6 +18,7 @@ const char *JFND_MSG_RAYSTATE_PTR = "rayState_ptr";
 const char *JFND_MSG_SHADOW_VALID_BOOL = "shadowlist_is_valid";
 const char *JFND_MSG_PREV_TRANSP_INT = "prev_transp_index";
 const char *JFND_MSG_PHOTON_RGB = "photon_energy";
+const char *JFND_MSG_IS_PHOTON_BOOL = "photon_ray_type"; // used by jf photon as well 
 const char *JFND_MSG_OPQ_SHADOW_MODE_BOOL = "opaqueShadowMode";
 
 // ---------------------------------------------------//
@@ -342,7 +343,7 @@ void updateMediaInsideLists(int media_id, bool entering, MediaIntStruct * media_
 
 bool rayIsPhoton(AtShaderGlobals * sg) {
     bool result = false;
-    AiStateGetMsgBool("photon_ray_type", &result);
+    AiStateGetMsgBool(JFND_MSG_IS_PHOTON_BOOL, &result);
     return result;
 }
 
@@ -1064,7 +1065,7 @@ typedef struct InterfaceInfo {
     }
 
 
-    void disperse(float sample, float * n1_dispersed, float * n2_dispersed, AtColor *monochromatic_color) 
+    void getDispersedIORsAndColor(float sample, float * n1_dispersed, float * n2_dispersed, AtColor *monochromatic_color) 
     {
         const float LUT_value = fmod( sample, 1.0f );
         get_interpolated_LUT_value( this->rs->spectral_LUT_ptr, LUT_value, &this->rs->ray_wavelength, monochromatic_color);
