@@ -433,15 +433,6 @@ struct JFND_Shader_Data{
 
 };
 
-
-
-const int max_media_count = 32 + 1;  // media 0 is reserved for the air everything exists in, so to allow 32 media this has to be set to 33. 
-
-typedef struct MediaIntStruct { int v[max_media_count]; } MediaIntStruct;
-typedef struct MediaFloatStruct { float v[max_media_count]; } MediaFloatStruct;
-typedef struct MediaBoolStruct { bool v[max_media_count]; } MediaBoolStruct;
-typedef struct MediaAtColorStruct { AtColor v[max_media_count]; } MediaAtColorStruct;
-
 // ray_ is tracking something to do wtih the ray tree
 // caustic_ is tracking caustic behavior
 // media_ are arrays about media
@@ -505,7 +496,7 @@ typedef struct Ray_State {
     bool polarized;
     AtVector polarizationVector;
 
-    void init(JFND_Shader_Data *data, AtShaderGlobals * sg, AtNode * node) {
+    void init(JFND_Shader_Data *data, AtShaderGlobals * sg, AtNode * node, AtVector polarizationVector) {
         this->ray_monochromatic = false;
         this->ray_wavelength = 0.0f;
         this->ray_TIRDepth = 0;
@@ -550,19 +541,15 @@ typedef struct Ray_State {
 
         // Set once values - values set at initialization for all descendent rays
         this->energy_cutoff = pow(10.0f, 16);
-        this->polarized = false;
-        AiV3Create(this->polarizationVector, 0.0f, 1.0f, 0.0f);
+        this->polarized = AiShaderEvalParamBool(p_polarize);
+        this->polarizationVector = polarizationVector;
+
+        this->setEnergyCutoff( (float) AiShaderEvalParamInt(p_energy_cutoff_exponent));
     }
-    
+
     void setEnergyCutoff( float energy_cutoff_exponent)
     {
         this->energy_cutoff = pow(10.0f, energy_cutoff_exponent );
-    }
-
-    void setPolarization(bool polarize, AtVector polarizationVector)
-    {
-        this->polarized = polarize;
-        this->polarizationVector = polarizationVector;
     }
 
     void uncacheRayState(Ray_State_Cache * rayStateCache )
@@ -609,25 +596,36 @@ typedef struct Ray_State {
         this->ray_energy_photon = orig;
     }
 
-    void setMediaIOR(int i, float ior)
+    void readMaterialParameters( AtShaderGlobals *sg, AtNode *node, const int i )
     {
-        this->media_iOR.v[i] = ior;
-    }
+        this->media_iOR.v[i] = AiShaderEvalParamFlt(p_mediumIOR);
+        this->media_disperse.v[i] = AiShaderEvalParamBool(p_disperse);
+        this->media_dispersion.v[i] = AiShaderEvalParamFlt(p_dispersion);
+        this->media_blurAnisotropicPoles.v[i] = AiShaderEvalParamFlt(p_blur_anisotropic_poles);
 
-    void setMediaDispersion(int i, bool disperse, float dispersion)
-    {
-        this->media_disperse.v[i] = disperse;
-        this->media_dispersion.v[i] = dispersion;
+        const float sScale = AiShaderEvalParamFlt(p_specular_scale);
+        const float sDirect = AiShaderEvalParamFlt(p_direct_specular) * sScale;
+        const float sIndirect = AiShaderEvalParamFlt(p_indirect_specular) * sScale;
+        this->setSpecularSettings(i, sDirect, sIndirect, AiShaderEvalParamEnum(p_brdf), 
+            AiShaderEvalParamFlt(p_specular_roughness_u), AiShaderEvalParamFlt(p_specular_roughness_v));
+
+        const float rScale = AiShaderEvalParamFlt(p_refraction_scale);
+        const float rDirect = AiShaderEvalParamFlt(p_direct_refraction) * rScale;
+        const float rIndirect = AiShaderEvalParamFlt(p_indirect_refraction) * rScale;
+        const float rURough = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_u) );
+        const float rVRough = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_v) );
+        this->setRefractionSettings(i, rDirect, rIndirect, AiShaderEvalParamEnum(p_btdf), rURough, rVRough, 
+            AiShaderEvalParamRGB(p_mediumTransmittance), AiShaderEvalParamFlt(p_mediumTransmittance_scale));
     }
         
-    void setMediaSpecular(int i, float direct, float indirect, int BRDF, float roughnessU, 
+    void setSpecularSettings(int i, float direct, float indirect, int BRDF, float roughnessU, 
         float roughnessV)
     {
         this->media_BRDF.v[i] = BRDF;
         this->media_specRoughnessU.v[i] = roughnessU;
         this->media_specDirect.v[i] = direct;
         this->media_specIndirect.v[i] = indirect;
-        if (BRDF >= 2)
+        if (BRDF != b_cook_torrance)
             this->media_specRoughnessV.v[i] = roughnessV;
         else
             this->media_specRoughnessV.v[i] = 0;
@@ -640,7 +638,7 @@ typedef struct Ray_State {
         this->media_refractIndirect.v[i] = indirect;
         this->media_BTDF.v[i] = BTDF;
         this->media_refractRoughnessU.v[i] = roughnessU;
-        if (BTDF >= 2)
+        if (BTDF != b_cook_torrance)
             this->media_refractRoughnessV.v[i] = roughnessV;
         else
             this->media_refractRoughnessV.v[i] = 0.0f;
@@ -654,12 +652,6 @@ typedef struct Ray_State {
         };
         this->media_transmission.v[i] = scaledTransmission;
     }
-
-    void setAnisotropySettings(int i, float blurAnisotropicPoles) 
-    {
-        this->media_blurAnisotropicPoles.v[i] = blurAnisotropicPoles;
-    }
-
 } Ray_State;
 
 

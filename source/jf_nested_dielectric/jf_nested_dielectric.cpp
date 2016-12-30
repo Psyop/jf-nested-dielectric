@@ -156,11 +156,7 @@ shader_evaluate
     else
     {       
         rayState = static_cast<Ray_State*>( AiShaderGlobalsQuickAlloc(sg, sizeof( Ray_State ) ) );
-        rayState->init(data, sg, node);
-
-        rayState->setEnergyCutoff( (float) AiShaderEvalParamInt(p_energy_cutoff_exponent));
-        rayState->setPolarization(AiShaderEvalParamBool(p_polarize), data->polarizationVector);
-
+        rayState->init(data, sg, node, data->polarizationVector);
         AiStateSetMsgPtr("rayState_ptr", rayState);
     }
     AiStateSetMsgBool("msgs_are_valid", true); // Any child rays from this will find valid messages. 
@@ -262,26 +258,7 @@ shader_evaluate
         return;
     }
 
-    {
-        rayState->setMediaIOR(m_cMatID, AiShaderEvalParamFlt(p_mediumIOR));
-        rayState->setMediaDispersion(m_cMatID, AiShaderEvalParamBool(p_disperse), AiShaderEvalParamFlt(p_dispersion));  
-        rayState->setAnisotropySettings(m_cMatID, AiShaderEvalParamFlt(p_blur_anisotropic_poles));
-            
-        const float sScale = AiShaderEvalParamFlt(p_specular_scale);
-        const float sDirect = AiShaderEvalParamFlt(p_direct_specular) * sScale;
-        const float sIndirect = AiShaderEvalParamFlt(p_indirect_specular) * sScale;
-        rayState->setMediaSpecular(m_cMatID, sDirect, sIndirect, AiShaderEvalParamEnum(p_brdf), 
-            AiShaderEvalParamFlt(p_specular_roughness_u), AiShaderEvalParamFlt(p_specular_roughness_v));
-
-        const float rScale = AiShaderEvalParamFlt(p_refraction_scale);
-        const float rDirect = AiShaderEvalParamFlt(p_direct_refraction) * rScale;
-        const float rIndirect = AiShaderEvalParamFlt(p_indirect_refraction) * rScale;
-        const float rURough = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_u) );
-        const float rVRough = refractRoughnessConvert( AiShaderEvalParamFlt(p_refraction_roughness_v) );
-        rayState->setRefractionSettings(m_cMatID, rDirect, rIndirect, AiShaderEvalParamEnum(p_btdf), rURough, rVRough, 
-            AiShaderEvalParamRGB(p_mediumTransmittance), AiShaderEvalParamFlt(p_mediumTransmittance_scale));
-    }
-
+    rayState->readMaterialParameters(sg, node, m_cMatID);
 
     // ---------------------------------------------------//
     // - get interface info     
@@ -386,7 +363,7 @@ shader_evaluate
             {
                 traceSwitch.setTraceNone();
             }
-        }
+        }       
 
         bool energySignificant;
 
