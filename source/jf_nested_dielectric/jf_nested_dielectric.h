@@ -965,53 +965,58 @@ typedef struct InterfaceInfo {
         return refractiveRoughness( this->rs->media_refractRoughnessV.v[this->m1], this->rs->media_refractRoughnessV.v[this->m2], this->n1, this->n2 );
     }
 
-    int getBTDFType() 
+    int getRefrBRDFType() 
     {
         return this->rs->media_BTDF.v[this->m_higherPriority];
     }
 
-    bool refractionNeedsUserTangent() 
+    int getSpecBRDFType() 
     {
-        return this->getBTDFType() == b_cook_torrance_user_tangent;
+        return this->rs->media_BTDF.v[this->m_higherPriority];
     }
 
-    void* getBTDFData(AtShaderGlobals *ppsg, float refr_roughnessU, float refr_roughnessV, AtVector customTangentVector) 
+    void* getRefrBRDFData(AtShaderGlobals *sg, float roughnessU, float roughnessV, AtVector customTangent) 
+    {
+        return this->getBRDFData(this->getRefrBRDFType(), sg, roughnessU, roughnessV, customTangent);
+    }
+
+    void* getSpecBRDFData(AtShaderGlobals *sg, float roughnessU, float roughnessV, AtVector customTangent) 
+    {
+        return this->getBRDFData(this->getSpecBRDFType(), sg, roughnessU, roughnessV, customTangent);
+    }
+
+    void* getBRDFData(const int brdfType, AtShaderGlobals *sg, float roughnessU, float roughnessV, AtVector customTangent) 
     {       
         AtVector tangentSourceVector, uTangent, vTangent;
-        switch ( this->getBTDFType() )
+        switch ( brdfType )
         {
-            case b_cook_torrance:
-                // Cook Torrance
-                uTangent = AI_V3_ZERO;
-                vTangent = AI_V3_ZERO;
-                break;
-            case b_cook_torrance_ray_tangent:
-                // Ward with refraction-derivitive tangents
-                tangentSourceVector = AiV3Normalize(ppsg->Rd);
-                blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->N, tangentSourceVector);
-                uTangent = AiV3Cross(ppsg->Nf, AiV3Normalize(ppsg->Rd)); 
-                vTangent = AiV3Cross(ppsg->Nf, uTangent);
-                break;
-            case b_cook_torrance_user_tangent:
-                // Ward with user tangents
-                tangentSourceVector = AiV3Normalize( customTangentVector );
-                blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->N, tangentSourceVector);
-                uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector); 
-                vTangent = AiV3Cross(ppsg->Nf, uTangent);
-                break;
+        case b_cook_torrance:
+            // Cook Torrance
+            uTangent = AI_V3_ZERO;
+            vTangent = AI_V3_ZERO;
+            break;
+        case b_cook_torrance_ray_tangent:
+            // Ward with refraction-derivitive tangents
+            tangentSourceVector = AiV3Normalize(sg->Rd);
+            blurAnisotropicPoles(&roughnessU, &roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
+            uTangent = AiV3Cross(sg->Nf, AiV3Normalize(sg->Rd)); 
+            vTangent = AiV3Cross(sg->Nf, uTangent);
+            break;
+        case b_cook_torrance_user_tangent:
+            // Ward with user tangents
+            tangentSourceVector = AiV3Normalize( customTangent );
+            blurAnisotropicPoles(&roughnessU, &roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
+            uTangent = AiV3Cross(sg->Nf, tangentSourceVector); 
+            vTangent = AiV3Cross(sg->Nf, uTangent);
+            break;
         }
-        return AiCookTorranceMISCreateData( ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
-    }
-
-    AtVector getBTDFSample( void* btdf_data, float refraction_sample[2]) {
-        return AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
+        return AiCookTorranceMISCreateData( sg, &uTangent, &vTangent, roughnessU, roughnessV ) ; 
     }
 
     bool directRefractionNeedsUserTangent(int dr_btdf) 
     {
         return dr_btdf == b_cook_torrance_user_tangent;
     }
-
 
     void getDirectRefractionBTDFs(int dr_btdf, AtShaderGlobals *ppsg, float dr_roughnessU, float dr_roughnessV, 
         float drs_roughnessU, float drs_roughnessV, AtVector customTangentVector, void **btdfA, void **btdfB) 

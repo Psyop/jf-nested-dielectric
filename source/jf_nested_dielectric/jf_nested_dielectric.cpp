@@ -410,8 +410,9 @@ shader_evaluate
                     void * btdf_data = NULL;
                     if (!do_disperse && do_blurryRefraction)
                     {
-                        // we're not dispersing, and we are doing blurry refraction. Therefore, initialize the btdf data for all the samples. 
-                        btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
+                        // we're not dispersing, and we are doing blurry refraction. 
+                        // No per sample btdf needed, we just make one here.  
+                        btdf_data = iinfo.getRefrBRDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
                     }
                     // ---------------------------------------------------//
                     // Refraction - Indirect
@@ -457,9 +458,9 @@ shader_evaluate
                             {   // redo ppsg creation
                                 ppsg.Rd = sgrd_cache;
                                 parallelPark(ray.dir, &ppsg);
-                                btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
+                                btdf_data = iinfo.getRefrBRDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
                             }
-                            ray.dir = iinfo.getBTDFSample(btdf_data, refraction_sample);
+                            ray.dir = AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
                         }
 
                         if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && !dispersion_sample_TIR)
@@ -541,7 +542,7 @@ shader_evaluate
                     const float rDepthMultiplier = AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier );
 
                     const bool use_refr_settings = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
-                    int dr_btdf         = use_refr_settings ? iinfo.getBTDFType() : AiShaderEvalParamEnum( p_dr_btdf );
+                    int dr_btdf         = use_refr_settings ? iinfo.getRefrBRDFType() : AiShaderEvalParamEnum( p_dr_btdf );
                     float dr_roughnessU = use_refr_settings ? refr_roughnessU : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) );
                     float dr_roughnessV = use_refr_settings ? refr_roughnessV : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) );
                     dr_roughnessU *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
@@ -620,35 +621,7 @@ shader_evaluate
 
                     AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
 
-                    int spec_brdf = rayState->media_BRDF.v[iinfo.m_higherPriority];
-                    if (sharp_reflection)
-                        spec_brdf = b_cook_torrance;
-
-                    AtVector tangentSourceVector, uTangent, vTangent;
-                    switch ( spec_brdf )
-                    {
-                        case b_cook_torrance:
-                            // Cook Torrance
-                            uTangent = AI_V3_ZERO;
-                            vTangent = AI_V3_ZERO;
-                            break;
-                        case b_cook_torrance_ray_tangent:
-                            // Ward with refraction-derivitive tangents
-                             // to do: tangentSourceVector is uninitialized? Should this be the eye ray or something?
-                            tangentSourceVector = sg->Rd;
-                            blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], sg->Nf, tangentSourceVector);
-                            AiV3Cross(uTangent, sg->N, sg->Rd); 
-                            AiV3Cross(vTangent, sg->N, uTangent);
-                            break;
-                        case b_cook_torrance_user_tangent:
-                            // Ward with user tangents
-                            tangentSourceVector = AiV3Normalize( pval_custom_tangent );
-                            blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], sg->Nf, tangentSourceVector);
-                            AiV3Cross( uTangent, sg->N, tangentSourceVector ) ;
-                            AiV3Cross( vTangent, sg->N, uTangent ) ;
-                            break;
-                    }
-                    void * brdf_data = AiCookTorranceMISCreateData(sg, &AI_V3_ZERO, &AI_V3_ZERO, spec_roughnessU, spec_roughnessU);
+                    void *brdf_data = iinfo.getSpecBRDFData(sg, spec_roughnessU, spec_roughnessV, pval_custom_tangent);
 
                     // ---------------------------------------------------//
                     // Indirect Specular / Reflection
