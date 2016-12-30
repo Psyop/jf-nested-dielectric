@@ -628,7 +628,7 @@ typedef struct Ray_State {
         if (BRDF != b_cook_torrance)
             this->media_specRoughnessV.v[i] = roughnessV;
         else
-            this->media_specRoughnessV.v[i] = 0;
+            this->media_specRoughnessV.v[i] = roughnessU;
     }
 
     void setRefractionSettings(int i, float direct, float indirect, int BTDF, float roughnessU, 
@@ -641,7 +641,7 @@ typedef struct Ray_State {
         if (BTDF != b_cook_torrance)
             this->media_refractRoughnessV.v[i] = roughnessV;
         else
-            this->media_refractRoughnessV.v[i] = 0.0f;
+            this->media_refractRoughnessV.v[i] = roughnessU;
         
         const float tScale = 1.0f / transmissionScale;
         const AtColor scaledTransmission = 
@@ -988,7 +988,7 @@ typedef struct InterfaceInfo {
             tangentSourceVector = AiV3Normalize(sg->Rd);
             blurAnisotropicPoles(&roughnessU, &roughnessV, 
                 this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
-            uTangent = AiV3Cross(sg->Nf, AiV3Normalize(sg->Rd)); 
+            uTangent = AiV3Cross(sg->Nf, tangentSourceVector); 
             vTangent = AiV3Cross(sg->Nf, uTangent);
             break;
         case b_cook_torrance_user_tangent:
