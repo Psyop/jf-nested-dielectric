@@ -1044,7 +1044,7 @@ typedef struct InterfaceInfo {
         AtColor * acc_refract_direct_second) 
     {
         AiLightsPrepare(sg);
-        AiStateSetMsgBool("opaqueShadowMode", true);
+        AiStateSetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, true);
         while (AiLightsGetSample(sg))
         {
             if ( refract_skydomes || !AiNodeIs( sg->Lp,"skydome_light" ))
@@ -1054,7 +1054,7 @@ typedef struct InterfaceInfo {
                     *acc_refract_direct_second += AiEvaluateLightSample(sg, btdf_data_direct2, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);
             }
         }
-        AiStateSetMsgBool("opaqueShadowMode", false);
+        AiStateSetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, false);
     }
 
 
