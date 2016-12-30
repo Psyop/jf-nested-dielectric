@@ -450,7 +450,7 @@ typedef struct Ray_State_Cache {
 } Ray_State_Cache;
 
 
-
+// to do: most used stuff in first cache line. 
 typedef struct Ray_State {
     bool    ray_monochromatic; // branching ray tree data, should be cached
     float   ray_wavelength;
