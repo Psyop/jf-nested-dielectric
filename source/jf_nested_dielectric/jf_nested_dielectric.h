@@ -660,6 +660,20 @@ typedef struct Ray_State {
         };
         this->media_transmission.v[i] = scaledTransmission;
     }
+        
+    void readCausticMatParameters( AtShaderGlobals *sg, AtNode *node )
+    {
+        this->caustic_behaviorSet = true;
+        this->caustic_mode = AiShaderEvalParamInt(p_caustic_mode);
+        this->caustic_refractDirect = AiShaderEvalParamBool(p_caustic_refractions_direct);
+        this->caustic_refractIndirect = AiShaderEvalParamBool(p_caustic_refractions_indirect);
+        this->caustic_TIR = AiShaderEvalParamBool(p_caustic_TIR);
+        this->caustic_specInternal = AiShaderEvalParamBool(p_caustic_internal_speculars);
+        this->caustic_dispersion = AiShaderEvalParamBool(p_caustic_dispersion);
+        this->caustic_specDirect = AiShaderEvalParamBool(p_caustic_specular_direct);
+        this->caustic_specIndirect = AiShaderEvalParamBool(p_caustic_specular_indirect);
+    }
+
 } Ray_State;
 
 

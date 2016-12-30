@@ -310,15 +310,7 @@ shader_evaluate
         {
             if (iinfo.mediaEntrance || !rayState->caustic_behaviorSet)
             {
-                rayState->caustic_behaviorSet = true;
-                rayState->caustic_mode = AiShaderEvalParamInt(p_caustic_mode);
-                rayState->caustic_refractDirect = AiShaderEvalParamBool(p_caustic_refractions_direct);
-                rayState->caustic_refractIndirect = AiShaderEvalParamBool(p_caustic_refractions_indirect);
-                rayState->caustic_TIR = AiShaderEvalParamBool(p_caustic_TIR);
-                rayState->caustic_specInternal = AiShaderEvalParamBool(p_caustic_internal_speculars);
-                rayState->caustic_dispersion = AiShaderEvalParamBool(p_caustic_dispersion);
-                rayState->caustic_specDirect = AiShaderEvalParamBool(p_caustic_specular_direct);
-                rayState->caustic_specIndirect = AiShaderEvalParamBool(p_caustic_specular_indirect);
+                rayState->readCausticMatParameters(sg, node);
             }
 
             // caustic controls
