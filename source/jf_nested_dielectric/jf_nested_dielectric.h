@@ -945,24 +945,18 @@ typedef struct InterfaceInfo {
         return AI_RGB_WHITE;
     }
 
-    float getSpecRoughnessU() 
+    void getSpecRoughness(float &roughnessU, float &roughnessV)
     {
-        return (this->rs->media_specRoughnessU.v[this->m2] + this->rs->media_specRoughnessU.v[this->m1]) / 2.0f;
+        roughnessU = (this->rs->media_specRoughnessU.v[this->m2] + this->rs->media_specRoughnessU.v[this->m1]) / 2.0f;
+        roughnessV = (this->rs->media_specRoughnessV.v[this->m2] + this->rs->media_specRoughnessV.v[this->m1]) / 2.0f;
     }
 
-    float getSpecRoughnessV()
+    void getRefrRoughness(float &roughnessU, float &roughnessV) 
     {
-        return (this->rs->media_specRoughnessV.v[this->m2] + this->rs->media_specRoughnessV.v[this->m1]) / 2.0f;        
-    }
-
-    float getRefrRoughnessU()
-    {
-        return refractiveRoughness( this->rs->media_refractRoughnessU.v[this->m1], this->rs->media_refractRoughnessU.v[this->m2], this->n1, this->n2 );
-    }
-    
-    float getRefrRoughnessV() 
-    {
-        return refractiveRoughness( this->rs->media_refractRoughnessV.v[this->m1], this->rs->media_refractRoughnessV.v[this->m2], this->n1, this->n2 );
+        roughnessU = refractiveRoughness(this->rs->media_refractRoughnessU.v[this->m1], 
+                                        this->rs->media_refractRoughnessU.v[this->m2], this->n1, this->n2 );
+        roughnessV = refractiveRoughness(this->rs->media_refractRoughnessV.v[this->m1], 
+                                        this->rs->media_refractRoughnessV.v[this->m2], this->n1, this->n2 );
     }
 
     int getRefrBRDFType() 

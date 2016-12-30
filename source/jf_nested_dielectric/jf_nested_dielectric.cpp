@@ -386,8 +386,8 @@ shader_evaluate
                 // BTDF preprocessing
                 // ---------------------------------------------------//
 
-                float refr_roughnessU = iinfo.getRefrRoughnessU();
-                float refr_roughnessV = iinfo.getRefrRoughnessV();
+                float refr_roughnessU, refr_roughnessV;
+                iinfo.getRefrRoughness(refr_roughnessU, refr_roughnessV);
 
                 if (causticPath)
                 {
@@ -604,8 +604,10 @@ shader_evaluate
                 // decision point- any specular
                 if ( traceSwitch.traceAnySpecular() || do_TIR ) 
                 {
-                    float spec_roughnessU = iinfo.getSpecRoughnessU();
-                    float spec_roughnessV = iinfo.getSpecRoughnessV();
+                    // float spec_roughnessU = iinfo.getSpecRoughnessU();
+                    // float spec_roughnessV = iinfo.getSpecRoughnessV();
+                    float spec_roughnessU, spec_roughnessV;
+                    iinfo.getSpecRoughness(spec_roughnessU, spec_roughnessV);
                     bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
 
                     AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
