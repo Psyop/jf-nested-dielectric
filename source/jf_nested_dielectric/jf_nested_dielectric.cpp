@@ -143,12 +143,12 @@ shader_evaluate
     // ---------------------------------------------------//
 
     bool msgs_are_valid = false;
-    AiStateGetMsgBool("msgs_are_valid", &msgs_are_valid);
+    AiStateGetMsgBool(JFND_MSG_VALID_BOOL, &msgs_are_valid);
 
     if ( msgs_are_valid )
     {
         void * rayState_ptr;
-        AiStateGetMsgPtr("rayState_ptr", &rayState_ptr);
+        AiStateGetMsgPtr(JFND_MSG_RAYSTATE_PTR, &rayState_ptr);
         rayState = static_cast<Ray_State*>( rayState_ptr );
         rayState->cacheRayState();
     }
@@ -156,13 +156,11 @@ shader_evaluate
     {       
         rayState = static_cast<Ray_State*>( AiShaderGlobalsQuickAlloc(sg, sizeof( Ray_State ) ) );
         rayState->init(data, sg, node, data->polarizationVector);
-        AiStateSetMsgPtr("rayState_ptr", rayState);
+        AiStateSetMsgPtr(JFND_MSG_RAYSTATE_PTR, rayState);
     }
-    AiStateSetMsgBool("msgs_are_valid", true); // Any child rays from this will find valid messages. 
+    AiStateSetMsgBool(JFND_MSG_VALID_BOOL, true); // Any child rays from this will find valid messages. 
 
-
-    MediaIntStruct * media_inside_ptr;
-    
+    MediaIntStruct * media_inside_ptr;    
     if (sg->Rt == AI_RAY_SHADOW)
     {
         /*
@@ -177,12 +175,12 @@ shader_evaluate
         media_inside_ptr = &rayState->shadow_media_inside;
 
         bool shadowlist_is_valid = false;
-        AiStateGetMsgBool("shadowlist_is_valid", &shadowlist_is_valid);
+        AiStateGetMsgBool(JFND_MSG_SHADOW_VALID_BOOL, &shadowlist_is_valid);
 
 
         bool transp_index_reset = false;
         int prev_transp_index;
-        if (AiStateGetMsgInt( "prev_transp_index", &prev_transp_index))
+        if (AiStateGetMsgInt(JFND_MSG_PREV_TRANSP_INT, &prev_transp_index))
         {
             if ((int) sg->transp_index <= prev_transp_index)
             {
@@ -196,14 +194,13 @@ shader_evaluate
             memcpy(&rayState->shadow_media_inside, &rayState->media_inside, sizeof(MediaIntStruct) );
         }
 
-        AiStateSetMsgInt("prev_transp_index", sg->transp_index);
-        AiStateSetMsgBool("shadowlist_is_valid", true);
+        AiStateSetMsgInt(JFND_MSG_PREV_TRANSP_INT, sg->transp_index);
+        AiStateSetMsgBool(JFND_MSG_SHADOW_VALID_BOOL, true);
     }
     else
     {
         media_inside_ptr = &rayState->media_inside;
-
-        AiStateSetMsgBool("shadowlist_is_valid", false);
+        AiStateSetMsgBool(JFND_MSG_SHADOW_VALID_BOOL, false);
     }
 
 
@@ -230,7 +227,7 @@ shader_evaluate
          * In any case, this fixes it and the warning is helpful.
          */
 
-        char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy values in media lists, you may have some perfectly overlapping surfaces.";
+        const char *overlapping_surfaces_message = "JF Nested Dielectric: Crazy values in media lists, you may have some perfectly overlapping surfaces.";
         AiMsgWarning(overlapping_surfaces_message);
         sg->out.RGBA = AI_RGBA_BLACK;
         return; 
@@ -244,7 +241,7 @@ shader_evaluate
          * In any case, this fixes it and the warning is helpful.
          */
 
-        char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy positive values in media lists, you may have some perfectly overlapping surfaces.";
+        const char *overlapping_surfaces_message = "JF Nested Dielectric: Crazy positive values in media lists, you may have some perfectly overlapping surfaces.";
         AiMsgWarning(overlapping_surfaces_message);
         sg->out.RGBA = AI_RGBA_BLACK;
         return; 
@@ -252,18 +249,17 @@ shader_evaluate
 
     if (m_cMatID >= max_media_count || m_cMatID < 0)
     {
-        char * const priority_error_message = "JF Nested Dielectric: Medium priority must be between 0 and 32!";
+        const char *priority_error_message = "JF Nested Dielectric: Medium priority must be between 0 and 32!";
         AiMsgError(priority_error_message);
         return;
     }
-
-    rayState->readMaterialParameters(sg, node, m_cMatID);
 
     // ---------------------------------------------------//
     // - get interface info     
     // ---------------------------------------------------//
 
-    InterfaceInfo iinfo = InterfaceInfo( rayState, m_cMatID, sg);
+    rayState->readBasicMatParameters(sg, node, m_cMatID);
+    InterfaceInfo iinfo = InterfaceInfo(rayState, m_cMatID, sg);
 
     bool do_blurryRefraction = iinfo.doBlurryRefraction();
     bool do_disperse = iinfo.setupDispersion(data);
@@ -286,14 +282,12 @@ shader_evaluate
         rayState->ray_energy_photon *= cTransmission;
     }
 
-
     // ---------------------------------------------------//
     // param caching
     //     caching select parameters if it improves the code to do so
     // ---------------------------------------------------//
     const AtVector pval_custom_tangent = AiShaderEvalParamVec(p_ward_tangent);
     const int pval_specular_ray_type = AiShaderEvalParamInt(p_specular_ray_type);
-    const bool pval_enable_internal_reflections = AiShaderEvalParamBool(p_enable_internal_reflections);
 
     // ---------------------------------------------------//
     // Main Ray Tracing
@@ -308,12 +302,10 @@ shader_evaluate
 
     if ( iinfo.validInterface )
     {
-        TraceSwitch traceSwitch = TraceSwitch(&iinfo);
-        traceSwitch.setInternalReflections(&iinfo, pval_enable_internal_reflections);
-
+        TraceSwitch traceSwitch = TraceSwitch(&iinfo, AiShaderEvalParamBool(p_enable_internal_reflections));
         float overallResultScale = 1.0f;
-        const bool photon_ray_type = rayIsPhoton(sg);
-        const bool causticPath = photon_ray_type || sg->Rr_diff > 0 ;
+        const bool isPhoton = rayIsPhoton(sg);
+        const bool causticPath = isPhoton || sg->Rr_diff > 0 ;
         if ( causticPath ) 
         {
             if (iinfo.mediaEntrance || !rayState->caustic_behaviorSet)
@@ -353,7 +345,7 @@ shader_evaluate
                 do_disperse = do_disperse && rayState->caustic_dispersion;
                 traceSwitch.setPathtracedCaustic(&iinfo);
             }
-            else if ((photon_ray_type))
+            else if (isPhoton)
             {
                 do_disperse = do_disperse && rayState->caustic_dispersion;
                 traceSwitch.setPhotonCaustic(&iinfo);
@@ -796,7 +788,7 @@ shader_evaluate
         }
         else
         {
-            char * const overlapping_surfaces_message = "JF Nested Dielectric: Crazy numbers of invalid interfaces. Some geo may be overlapping.";
+            const char *overlapping_surfaces_message = "JF Nested Dielectric: Crazy numbers of invalid interfaces. Some geo may be overlapping.";
             AiMsgWarning(overlapping_surfaces_message);
             sg->out.RGBA = AI_RGBA_BLACK;
             return;
@@ -858,12 +850,12 @@ shader_evaluate
 
     if (msgs_are_valid)
     {
-        AiStateSetMsgBool("msgs_are_valid", true);
+        AiStateSetMsgBool(JFND_MSG_VALID_BOOL, true);
         rayState->uncacheRayState();
     }
     else
     {
-        AiStateSetMsgBool("msgs_are_valid", false);
+        AiStateSetMsgBool(JFND_MSG_VALID_BOOL, false);
     }
 }
 

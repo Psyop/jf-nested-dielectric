@@ -13,6 +13,10 @@ typedef struct MediaFloatStruct { float v[max_media_count]; } MediaFloatStruct;
 typedef struct MediaBoolStruct { bool v[max_media_count]; } MediaBoolStruct;
 typedef struct MediaAtColorStruct { AtColor v[max_media_count]; } MediaAtColorStruct;
 
+const char *JFND_MSG_VALID_BOOL = "msgs_are_valid";
+const char *JFND_MSG_RAYSTATE_PTR = "rayState_ptr";
+const char *JFND_MSG_SHADOW_VALID_BOOL = "shadowlist_is_valid";
+const char *JFND_MSG_PREV_TRANSP_INT = "prev_transp_index";
 
 // ---------------------------------------------------//
 // - Enumerations 
@@ -600,7 +604,7 @@ typedef struct Ray_State {
         this->ray_energy_photon = orig;
     }
 
-    void readMaterialParameters( AtShaderGlobals *sg, AtNode *node, const int i )
+    void readBasicMatParameters( AtShaderGlobals *sg, AtNode *node, const int i )
     {
         this->media_iOR.v[i] = AiShaderEvalParamFlt(p_mediumIOR);
         this->media_disperse.v[i] = AiShaderEvalParamBool(p_disperse);
@@ -621,7 +625,7 @@ typedef struct Ray_State {
         this->setRefractionSettings(i, rDirect, rIndirect, AiShaderEvalParamEnum(p_btdf), rURough, rVRough, 
             AiShaderEvalParamRGB(p_mediumTransmittance), AiShaderEvalParamFlt(p_mediumTransmittance_scale));
     }
-        
+
     void setSpecularSettings(int i, float direct, float indirect, int BRDF, float roughnessU, 
         float roughnessV)
     {
@@ -1072,7 +1076,7 @@ typedef struct TraceSwitch
     bool spec_dir;
     bool TIR;
 
-    TraceSwitch(InterfaceInfo * iinfo) 
+    TraceSwitch(InterfaceInfo * iinfo, bool internal_reflections) 
     {
         Ray_State * rs = iinfo->rs;
         this->refr_ind = rs->media_refractIndirect.v[iinfo->m1] > ZERO_EPSILON 
@@ -1082,8 +1086,11 @@ typedef struct TraceSwitch
         this->spec_ind = rs->media_specIndirect.v[iinfo->m_higherPriority] > ZERO_EPSILON;
         this->spec_dir = iinfo->mediaEntrance && rs->media_specDirect.v[iinfo->m_higherPriority] > ZERO_EPSILON;
         this->TIR = this->refr_ind || this->spec_ind;
-    }
 
+        bool internal = !iinfo->mediaEntrance;
+        if (internal && !internal_reflections)
+            this->spec_ind = false;
+    }
 
     void setTraceNone() 
     {
@@ -1092,13 +1099,6 @@ typedef struct TraceSwitch
         this->spec_ind = false;
         this->spec_dir = false;
         this->TIR = false;
-    }
-
-    void setInternalReflections(InterfaceInfo * iinfo, bool internal_reflections_enabled) 
-    {
-        bool internal = !iinfo->mediaEntrance;
-        if (internal && !internal_reflections_enabled)
-            this->spec_ind = false;
     }
 
     void setPathtracedCaustic(InterfaceInfo * iinfo) 
