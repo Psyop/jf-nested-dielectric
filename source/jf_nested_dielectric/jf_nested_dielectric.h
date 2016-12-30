@@ -5,9 +5,101 @@
  * Open sourced under the 3 clause BSD license, see license.txt
  */
 
+
+const int max_media_count = 32 + 1;  // media 0 is reserved for the air everything exists in, so to allow 32 media this has to be set to 33. 
+
+typedef struct MediaIntStruct { int v[max_media_count]; } MediaIntStruct;
+typedef struct MediaFloatStruct { float v[max_media_count]; } MediaFloatStruct;
+typedef struct MediaBoolStruct { bool v[max_media_count]; } MediaBoolStruct;
+typedef struct MediaAtColorStruct { AtColor v[max_media_count]; } MediaAtColorStruct;
+
+
 // ---------------------------------------------------//
 // - Enumerations 
 // ---------------------------------------------------//
+
+enum jf_nested_dielectricParams
+{
+    p_mediumPriority,
+    p_mediumIOR,
+    p_mediumTransmittance,
+    p_mediumTransmittance_scale,
+
+    p_polarize,
+    p_polarization_angle,
+
+    p_refraction_scale,
+    p_btdf,
+    p_refraction_roughness_u,
+    p_refraction_roughness_v,
+
+    p_indirect_refraction,
+
+    p_direct_refraction,
+    p_dr_roughnessOffset,
+    p_dr_roughnessDepthMultiplier,
+    p_dr_roughnessDepthAdder,
+    p_dr_use_refraction_btdf,
+    p_dr_btdf,
+    p_dr_roughness_u,
+    p_dr_roughness_v,
+    p_dr_second_scale,
+    p_dr_second_roughnessMultiplier,
+
+    p_disperse,
+    p_dispersion,
+    p_spectral_distribution,
+    p_spectral_gamut,
+    p_spectral_clamp_negative_colors,
+    p_spectral_saturation,
+
+    p_specular_scale,
+    p_brdf,
+    p_direct_specular,
+    p_indirect_specular,
+    p_specular_roughness_u,
+    p_specular_roughness_v,
+
+    p_specular_ray_type,
+
+    p_blur_anisotropic_poles,
+
+    p_enable_internal_reflections,
+    p_russian_roulette_probability,
+    p_energy_cutoff_exponent,
+
+    p_ward_tangent,
+
+    p_refract_skydomes,
+    p_refract_skies,
+
+    p_reflect_skydomes,
+    p_reflect_skies,
+
+    p_emission_at_interfaces,
+    p_emission_at_exits,
+    p_emission_at_entrances,
+
+    p_shadow_mode,
+    p_caustic_mode,
+
+    p_caustic_refractions_direct,
+    p_caustic_dr_roughness_offset,
+    p_caustic_refractions_indirect,
+    p_caustic_TIR,
+    p_caustic_internal_speculars,
+    p_caustic_dispersion,
+
+    p_caustic_specular_direct,
+    p_caustic_specular_indirect,
+
+    p_caustic_max_distance,
+
+    p_aov_direct_refraction,
+    p_aov_indirect_refraction,
+    p_aov_direct_specular,
+    p_aov_indirect_specular
+};
 
 // - note: there are more enumerations related to spectral stuff in spectral_distribution.h
 
@@ -55,6 +147,198 @@ enum specular_raytypes
     rt_glossy,
     rt_reflected,
 };
+
+
+// ---------------------------------------------------//
+// - utilities  
+// ---------------------------------------------------//
+
+
+float snell (float n1, float n2, float cosThetaI)
+{
+    // computes snell's law, and returns cos(thetaT), the cosine of the transmitted ray. Cosine is generally more useful than the angle itself. 
+    // returns -1.0f if the result is undefined, which means TIR. 
+    float aSinThetaT = (sinf( acosf( cosThetaI ) ) * n1) / n2;
+    if (aSinThetaT > 0.9999999f)
+    {
+        return (-1.0f);
+    }
+    else
+    {
+        float cosThetaT = cosf(asinf(aSinThetaT));
+        return (cosThetaT);
+    }
+}
+
+float fresnelEquations (float n1, float n2, float cosThetaI, float polarization = 0.5f, bool TIRisRefraction = false )
+{
+    // computes the fresnel equations, all both of em. Returns reflectance. 
+    // n1 is medium IOR, n2 is material IOR, cosThetaI is the dot of the incident ray with the normal, and polarization is a blend between S or P polarization.
+
+    // this fixes some NANs. They happen when the dot product comes out in a rare case that cosThetaI is outside the 1 to -1 range
+    cosThetaI = (cosThetaI > 1.0f) ? 1.0f : cosThetaI;
+    cosThetaI = (cosThetaI < -1.0f) ? -1.0f : cosThetaI;
+
+    float cosThetaT = snell(n1, n2, cosThetaI);
+    
+    if (cosThetaT < -0.0f)
+    {
+        // Total Internal Reflection, reflectance is 1.0
+        if (TIRisRefraction)
+            return 0.0f;
+        else
+            return 1.0f;
+    }
+    else
+    {
+        // Not TIR, fresnel equations can commence
+        const float fresnelS = (pow( (n1 * cosThetaI - n2 * cosThetaT ) / (n1 * cosThetaI + n2 * cosThetaT ), 2)) ;
+        const float fresnelP = (pow( (n1 * cosThetaT - n2 * cosThetaI ) / (n1 * cosThetaT + n2 * cosThetaI ), 2)) ;
+
+        const float returnvalue = (fresnelP * polarization) + (fresnelS * (1-polarization));
+
+        if (returnvalue > 1.0f)
+            return 1.0f;
+        else
+            return returnvalue;
+    }
+}
+// char * const mediumMessage2 = "Inside 2 media!.";
+// AiMsgWarning(mediumMessage2);
+
+void parallelPark ( AtVector refractionVector, AtShaderGlobals* shaderGlobalsCopy )
+{
+    // Paralell Parking Maneuver
+    AtVector reflectionSourceVector;
+    refractionVector = -refractionVector ;
+    AiReflect( &refractionVector, &shaderGlobalsCopy->N, &reflectionSourceVector ) ;
+    reflectionSourceVector = -AiV3Normalize( reflectionSourceVector ) ;
+    shaderGlobalsCopy->Nf = -shaderGlobalsCopy->Nf ;  // set the shading normal to be the regular normal, in order to do specs from behind things
+    shaderGlobalsCopy->Ngf = -shaderGlobalsCopy->Ngf ;
+    shaderGlobalsCopy->Rd = reflectionSourceVector ; // Set the ray direction to be the backwards refracted ray
+}
+
+float russianRoulette( AtSamplerIterator* rrSamplerIterator, float value, float probability)
+{          
+    float outvalue = 0.0f;
+
+    if (probability >= 1.0 || probability <= 0.0)
+        return value;
+
+    // Prepare a sampler to get a value to compare against.
+    float sample[2];
+    const bool foundSample = AiSamplerGetSample( rrSamplerIterator, sample );
+    float fsample = (float) sample[0];
+    
+    while ( AiSamplerGetSample( rrSamplerIterator, sample ) ) 
+    {
+        // Exhaust the sampler. Good night, sampler. 
+        // This seems necessary, having the unexhausted sampler caused some problems with the specular sampler. 
+    }
+
+    if (fsample < probability) 
+    {
+        // for example, if there's a 0.33 chance of tracing, we trace at 3x value (in the 0.33 chance that we trace at all).
+        outvalue = value / probability;
+    }
+    else 
+    {
+        outvalue = 0.0f;
+    }   
+
+    return outvalue;
+}
+
+
+
+float refractiveRoughness( float roughness1, float roughness2, float n1, float n2)
+{   
+    float averageRoughness = (roughness1 + roughness2) / 2.0f ;
+
+    float largerIOR = (n1 > n2) ? n1 : n2 ;
+    float smallerIOR = (n1 < n2) ? n1 : n2 ; 
+
+    float IORDifference = (largerIOR / smallerIOR) - 1.0f ;
+
+    return ( averageRoughness * IORDifference );
+}
+
+float refractRoughnessConvert(float roughness)
+{
+    // squaring the roughness has been experimentally shown to do a pretty good job of matching 
+    // the hijacked brdf roughnesses to the actual microfacet BTDF roughness.
+    // So if you want roughness .5, you feed the hijacked BRDF roughness 0.5 ^ 2, which does a pretty good job. 
+    
+    return roughness * roughness;
+    //return roughness;
+}
+
+
+void blurAnisotropicPoles( float *  roughnessU, float * roughnessV, float * blurAmount, AtVector * normal, AtVector * raw_tangent )
+{
+    const float averagedRoughness = ( *roughnessU + *roughnessV ) / 2.0f ;
+    const float tDotN = AiV3Dot(AiV3Normalize( *raw_tangent ), *normal) ;
+    const float blendValue = pow( std::abs( tDotN ),  ( 1.0f / *blurAmount ) - 1.0f ) ;  // power function: ^0 = 1 for fully blurry, ^ high for not blurry at all)
+
+    *roughnessU = ( *roughnessU * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
+    *roughnessV = ( *roughnessV * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
+
+    return;
+}
+
+
+
+AtColor transmissionColor( AtColor * transmission, float depth)
+{
+    if (*transmission != AI_RGB_WHITE)
+    {       
+        return AiColorCreate( 
+            pow( transmission->r, depth ), 
+            pow( transmission->g, depth ), 
+            pow( transmission->b, depth ) );
+    }
+    else
+    {
+        return AI_RGB_WHITE;
+    }
+}
+
+AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool traceHit )
+{
+    AtColor returnEnergy;
+
+    const float depth = (float) sample->z;
+    if (traceHit)
+    {
+        returnEnergy = transmissionColor( transmission, depth);
+    }
+    else
+    {
+        returnEnergy = AiColorCreate( 
+            transmission->r >= 1.0f ? 1.0f: 0.0f, 
+            transmission->g >= 1.0f ? 1.0f: 0.0f,
+            transmission->b >= 1.0f ? 1.0f: 0.0f ); 
+    }
+
+    return returnEnergy;
+}
+
+
+void updateMediaInsideLists(int m_cMatID, bool entering, MediaIntStruct * media_inside_list, bool reverse = false)
+{
+    // If we're entering an object, increment, if we're leaving, decrement. 
+    // Reverse reverses the behavior. 
+    if ( !reverse)
+        media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? 1 : -1 );
+    else
+        media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? -1 : 1 );
+}
+
+bool rayIsPhoton(AtShaderGlobals * sg) {
+    bool result = false;
+    AiStateGetMsgBool("photon_ray_type", &result);
+    return result;
+}
 
 
 // ---------------------------------------------------//
@@ -377,210 +661,6 @@ typedef struct Ray_State {
     }
 
 } Ray_State;
-
-
-
-// ---------------------------------------------------//
-// - utilities  
-// ---------------------------------------------------//
-
-
-float snell (float n1, float n2, float cosThetaI)
-{
-    // computes snell's law, and returns cos(thetaT), the cosine of the transmitted ray. Cosine is generally more useful than the angle itself. 
-    // returns -1.0f if the result is undefined, which means TIR. 
-    float aSinThetaT = (sinf( acosf( cosThetaI ) ) * n1) / n2;
-    if (aSinThetaT > 0.9999999f)
-    {
-        return (-1.0f);
-    }
-    else
-    {
-        float cosThetaT = cosf(asinf(aSinThetaT));
-        return (cosThetaT);
-    }
-}
-
-float fresnelEquations (float n1, float n2, float cosThetaI, float polarization = 0.5f, bool TIRisRefraction = false )
-{
-    // computes the fresnel equations, all both of em. Returns reflectance. 
-    // n1 is medium IOR, n2 is material IOR, cosThetaI is the dot of the incident ray with the normal, and polarization is a blend between S or P polarization.
-
-    // this fixes some NANs. They happen when the dot product comes out in a rare case that cosThetaI is outside the 1 to -1 range
-    cosThetaI = (cosThetaI > 1.0f) ? 1.0f : cosThetaI;
-    cosThetaI = (cosThetaI < -1.0f) ? -1.0f : cosThetaI;
-
-    float cosThetaT = snell(n1, n2, cosThetaI);
-    
-    if (cosThetaT < -0.0f)
-    {
-        // Total Internal Reflection, reflectance is 1.0
-        if (TIRisRefraction)
-            return 0.0f;
-        else
-            return 1.0f;
-    }
-    else
-    {
-        // Not TIR, fresnel equations can commence
-        const float fresnelS = (pow( (n1 * cosThetaI - n2 * cosThetaT ) / (n1 * cosThetaI + n2 * cosThetaT ), 2)) ;
-        const float fresnelP = (pow( (n1 * cosThetaT - n2 * cosThetaI ) / (n1 * cosThetaT + n2 * cosThetaI ), 2)) ;
-
-        const float returnvalue = (fresnelP * polarization) + (fresnelS * (1-polarization));
-
-        if (returnvalue > 1.0f)
-            return 1.0f;
-        else
-            return returnvalue;
-    }
-}
-// char * const mediumMessage2 = "Inside 2 media!.";
-// AiMsgWarning(mediumMessage2);
-
-void parallelPark ( AtVector refractionVector, AtShaderGlobals* shaderGlobalsCopy )
-{
-    // Paralell Parking Maneuver
-    AtVector reflectionSourceVector;
-    refractionVector = -refractionVector ;
-    AiReflect( &refractionVector, &shaderGlobalsCopy->N, &reflectionSourceVector ) ;
-    reflectionSourceVector = -AiV3Normalize( reflectionSourceVector ) ;
-    shaderGlobalsCopy->Nf = -shaderGlobalsCopy->Nf ;  // set the shading normal to be the regular normal, in order to do specs from behind things
-    shaderGlobalsCopy->Ngf = -shaderGlobalsCopy->Ngf ;
-    shaderGlobalsCopy->Rd = reflectionSourceVector ; // Set the ray direction to be the backwards refracted ray
-}
-
-float russianRoulette( AtSamplerIterator* rrSamplerIterator, float value, float probability)
-{          
-    float outvalue = 0.0f;
-
-    if (probability >= 1.0 || probability <= 0.0)
-        return value;
-
-    // Prepare a sampler to get a value to compare against.
-    float sample[2];
-    const bool foundSample = AiSamplerGetSample( rrSamplerIterator, sample );
-    float fsample = (float) sample[0];
-    
-    while ( AiSamplerGetSample( rrSamplerIterator, sample ) ) 
-    {
-        // Exhaust the sampler. Good night, sampler. 
-        // This seems necessary, having the unexhausted sampler caused some problems with the specular sampler. 
-    }
-
-    if (fsample < probability) 
-    {
-        // for example, if there's a 0.33 chance of tracing, we trace at 3x value (in the 0.33 chance that we trace at all).
-        outvalue = value / probability;
-    }
-    else 
-    {
-        outvalue = 0.0f;
-    }   
-
-    return outvalue;
-}
-
-
-
-float refractiveRoughness( float roughness1, float roughness2, float n1, float n2)
-{   
-    float averageRoughness = (roughness1 + roughness2) / 2.0f ;
-
-    float largerIOR = (n1 > n2) ? n1 : n2 ;
-    float smallerIOR = (n1 < n2) ? n1 : n2 ; 
-
-    float IORDifference = (largerIOR / smallerIOR) - 1.0f ;
-
-    return ( averageRoughness * IORDifference );
-}
-
-float refractRoughnessConvert(float roughness)
-{
-    // squaring the roughness has been experimentally shown to do a pretty good job of matching 
-    // the hijacked brdf roughnesses to the actual microfacet BTDF roughness.
-    // So if you want roughness .5, you feed the hijacked BRDF roughness 0.5 ^ 2, which does a pretty good job. 
-    
-    return roughness * roughness;
-    //return roughness;
-}
-
-
-void blurAnisotropicPoles( float *  roughnessU, float * roughnessV, float * blurAmount, AtVector * normal, AtVector * raw_tangent )
-{
-    const float averagedRoughness = ( *roughnessU + *roughnessV ) / 2.0f ;
-    const float tDotN = AiV3Dot(AiV3Normalize( *raw_tangent ), *normal) ;
-    const float blendValue = pow( std::abs( tDotN ),  ( 1.0f / *blurAmount ) - 1.0f ) ;  // power function: ^0 = 1 for fully blurry, ^ high for not blurry at all)
-
-    *roughnessU = ( *roughnessU * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
-    *roughnessV = ( *roughnessV * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
-
-    return;
-}
-
-
-
-AtColor transmissionColor( AtColor * transmission, float depth)
-{
-    if (*transmission != AI_RGB_WHITE)
-    {       
-        return AiColorCreate( 
-            pow( transmission->r, depth ), 
-            pow( transmission->g, depth ), 
-            pow( transmission->b, depth ) );
-    }
-    else
-    {
-        return AI_RGB_WHITE;
-    }
-}
-
-AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool traceHit )
-{
-    AtColor returnEnergy;
-
-    const float depth = (float) sample->z;
-    if (traceHit)
-    {
-        returnEnergy = transmissionColor( transmission, depth);
-    }
-    else
-    {
-        returnEnergy = AiColorCreate( 
-            transmission->r >= 1.0f ? 1.0f: 0.0f, 
-            transmission->g >= 1.0f ? 1.0f: 0.0f,
-            transmission->b >= 1.0f ? 1.0f: 0.0f ); 
-    }
-
-    return returnEnergy;
-}
-
-
-void updateMediaInsideLists(int m_cMatID, bool entering, MediaIntStruct * media_inside_list, bool reverse = false)
-{
-    // If we're entering an object, increment, if we're leaving, decrement. 
-    // Reverse reverses the behavior. 
-    if ( !reverse)
-        media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? 1 : -1 );
-    else
-        media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? -1 : 1 );
-}
-
-
-
-
-
-bool rayIsPhoton(AtShaderGlobals * sg) {
-    bool result = false;
-    AiStateGetMsgBool("photon_ray_type", &result);
-    return result;
-}
-
-
-
-
-
-
-
 
 
 typedef struct InterfaceInfo {
