@@ -5,16 +5,6 @@
  * Open sourced under the 3 clause BSD license, see license.txt
  */
 
-
-
-#if ( AI_VERSION_ARCH_NUM * 100 + AI_VERSION_MAJOR_NUM ) < 401
-    #define SAMPLETYPE double
-#else
-    #define SAMPLETYPE float
-#endif
-
-
-
 // ---------------------------------------------------//
 // - Enumerations 
 // ---------------------------------------------------//
@@ -467,7 +457,7 @@ float russianRoulette( AtSamplerIterator* rrSamplerIterator, float value, float 
         return value;
 
     // Prepare a sampler to get a value to compare against.
-    SAMPLETYPE sample[2];
+    float sample[2];
     const bool foundSample = AiSamplerGetSample( rrSamplerIterator, sample );
     float fsample = (float) sample[0];
     
@@ -921,7 +911,7 @@ typedef struct InterfaceInfo {
         return AiCookTorranceMISCreateData( ppsg, &uTangent, &vTangent, refr_roughnessU, refr_roughnessV ) ; 
     }
 
-    AtVector getBTDFSample( void* btdf_data, SAMPLETYPE refraction_sample[2]) {
+    AtVector getBTDFSample( void* btdf_data, float refraction_sample[2]) {
         return AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
     }
 

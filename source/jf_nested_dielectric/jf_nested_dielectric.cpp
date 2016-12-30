@@ -489,7 +489,7 @@ shader_evaluate
         // Main Ray Tracing
         // Valid interfaces
         // ---------------------------------------------------//
-        SAMPLETYPE dispersion_sample[2], refraction_sample[2], specular_sample[2];
+        float dispersion_sample[2], refraction_sample[2], specular_sample[2];
 
         // decision point- trace anything
         if ( energySignificant && traceSwitch.traceAnything() ) 
