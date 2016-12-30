@@ -18,7 +18,6 @@ const char *JFND_MSG_RAYSTATE_PTR = "rayState_ptr";
 const char *JFND_MSG_SHADOW_VALID_BOOL = "shadowlist_is_valid";
 const char *JFND_MSG_PREV_TRANSP_INT = "prev_transp_index";
 const char *JFND_MSG_PHOTON_RGB = "photon_energy";
-const char *JFND_MSG_IS_PHOTON_BOOL = "photon_ray_type"; // used by jf photon as well 
 const char *JFND_MSG_OPQ_SHADOW_MODE_BOOL = "opaqueShadowMode";
 
 // ---------------------------------------------------//
@@ -339,12 +338,6 @@ void updateMediaInsideLists(int media_id, bool entering, MediaIntStruct * media_
         media_inside_list->v[media_id] = media_inside_list->v[media_id] + (entering ? 1 : -1 );
     else
         media_inside_list->v[media_id] = media_inside_list->v[media_id] + (entering ? -1 : 1 );
-}
-
-bool rayIsPhoton(AtShaderGlobals * sg) {
-    bool result = false;
-    AiStateGetMsgBool(JFND_MSG_IS_PHOTON_BOOL, &result);
-    return result;
 }
 
 

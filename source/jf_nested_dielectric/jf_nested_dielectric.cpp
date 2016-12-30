@@ -305,10 +305,12 @@ shader_evaluate
     {
         TraceSwitch traceSwitch = TraceSwitch(&iinfo, AiShaderEvalParamBool(p_enable_internal_reflections));
         float overallResultScale = 1.0f;
-        const bool isPhoton = rayIsPhoton(sg); // does this do anything? 
-        const bool causticPath = isPhoton || sg->Rr_diff > 0 ;
+        const bool causticPath = sg->Rr_diff > 0 ;
         if ( causticPath ) 
         {
+            // to do: does not currently apply to photon caustics, only applies to path traced
+            // means no cuastics settings in JFND apply. 
+            // need to know we're making photons to make this work properly. 
             if (iinfo.mediaEntrance || !rayState->caustic_behaviorSet)
                 rayState->readCausticMatParameters(sg, node);
 
@@ -335,11 +337,6 @@ shader_evaluate
             {
                 do_disperse = do_disperse && rayState->caustic_dispersion;
                 traceSwitch.setPathtracedCaustic(&iinfo);
-            }
-            else if (isPhoton)
-            {
-                do_disperse = do_disperse && rayState->caustic_dispersion;
-                traceSwitch.setPhotonCaustic(&iinfo);
             }
             else
             {
