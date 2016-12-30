@@ -397,7 +397,7 @@ shader_evaluate
                 }
 
                 AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);                 
-                const bool refracted = AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
+                const bool tir = !AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
 
                 AtVector sgrd_cache = sg->Rd;
                 AtShaderGlobals ppsg = *sg;
@@ -426,7 +426,7 @@ shader_evaluate
 
                     while ( AiSamplerGetSample(refractionIt, refraction_sample) )
                     {
-                        if (!refracted && !do_disperse)
+                        if (tir && !do_disperse)
                             continue;
 
                         AtColor monochromeColor = AI_RGB_WHITE;
@@ -510,8 +510,7 @@ shader_evaluate
                     }
                     else
                     {                       
-                        // if ( trace_TIR && !refracted && !do_disperse )
-                        if ( traceSwitch.TIR && !refracted && !do_disperse )
+                        if (traceSwitch.TIR && tir)
                         {
                             TIR_color = AI_RGB_WHITE;
                             do_TIR = true;
@@ -534,7 +533,7 @@ shader_evaluate
 
                 // decision point- direct refraction
                 // if (trace_refract_direct && refracted )
-                if (traceSwitch.refr_dir && refracted )
+                if (traceSwitch.refr_dir && !tir)
                 {
                     // offsets and depth modification
                     const float rOffset = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessOffset ) );
