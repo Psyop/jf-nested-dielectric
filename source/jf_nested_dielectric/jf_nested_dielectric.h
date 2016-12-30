@@ -496,6 +496,8 @@ typedef struct Ray_State {
     bool polarized;
     AtVector polarizationVector;
 
+    Ray_State_Cache cache;
+
     void init(JFND_Shader_Data *data, AtShaderGlobals * sg, AtNode * node, AtVector polarizationVector) {
         this->ray_monochromatic = false;
         this->ray_wavelength = 0.0f;
@@ -552,24 +554,26 @@ typedef struct Ray_State {
         this->energy_cutoff = pow(10.0f, energy_cutoff_exponent );
     }
 
-    void uncacheRayState(Ray_State_Cache * rayStateCache )
+    void cacheRayState( )
     {
-        memcpy(&this->media_inside, &rayStateCache->media_inside, sizeof(MediaIntStruct) );
-        this->ray_monochromatic     = rayStateCache->ray_monochromatic;
-        this->caustic_behaviorSet   = rayStateCache->caustic_behaviorSet;
-        this->ray_TIRDepth          = rayStateCache->ray_TIRDepth;
-        this->ray_invalidDepth      = rayStateCache->ray_invalidDepth;
-        this->ray_energy            = rayStateCache->ray_energy;
+        // Copies the ray state, so it can be restored later
+        memcpy(&this->cache.media_inside, &this->media_inside, sizeof(MediaIntStruct) );
+        this->cache.ray_monochromatic    = this->ray_monochromatic;
+        this->cache.caustic_behaviorSet  = this->caustic_behaviorSet;
+        this->cache.ray_TIRDepth         = this->ray_TIRDepth;
+        this->cache.ray_invalidDepth     = this->ray_invalidDepth;
+        this->cache.ray_energy           = this->ray_energy;
     }
 
-    void cacheRayState( Ray_State_Cache * rayStateCache )
+    void uncacheRayState()
     {
-        memcpy(&rayStateCache->media_inside, &this->media_inside, sizeof(MediaIntStruct) );
-        rayStateCache->ray_monochromatic    = this->ray_monochromatic;
-        rayStateCache->caustic_behaviorSet  = this->caustic_behaviorSet;
-        rayStateCache->ray_TIRDepth         = this->ray_TIRDepth;
-        rayStateCache->ray_invalidDepth     = this->ray_invalidDepth;
-        rayStateCache->ray_energy           = this->ray_energy;
+        // restores the previously cached state. 
+        memcpy(&this->media_inside, &this->cache.media_inside, sizeof(MediaIntStruct) );
+        this->ray_monochromatic     = this->cache.ray_monochromatic;
+        this->caustic_behaviorSet   = this->cache.caustic_behaviorSet;
+        this->ray_TIRDepth          = this->cache.ray_TIRDepth;
+        this->ray_invalidDepth      = this->cache.ray_invalidDepth;
+        this->ray_energy            = this->cache.ray_energy;
     }
 
     AtColor updateEnergyReturnOrig(AtColor weight) 
@@ -703,7 +707,6 @@ typedef struct InterfaceInfo {
         this->setInterfaceProperties();
         this->setPolarizationTerm(sg);
     }
-
 
     private: 
 

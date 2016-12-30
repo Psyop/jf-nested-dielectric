@@ -137,7 +137,6 @@ shader_evaluate
 {
     JFND_Shader_Data *data = (JFND_Shader_Data*)AiNodeGetLocalData(node);
     Ray_State *rayState;
-    Ray_State_Cache rayStateCache;
 
     // ---------------------------------------------------//
     // - Array and messaging preprocess 
@@ -151,7 +150,7 @@ shader_evaluate
         void * rayState_ptr;
         AiStateGetMsgPtr("rayState_ptr", &rayState_ptr);
         rayState = static_cast<Ray_State*>( rayState_ptr );
-        rayState->cacheRayState( &rayStateCache);
+        rayState->cacheRayState();
     }
     else
     {       
@@ -860,7 +859,7 @@ shader_evaluate
     if (msgs_are_valid)
     {
         AiStateSetMsgBool("msgs_are_valid", true);
-        rayState->uncacheRayState(&rayStateCache);
+        rayState->uncacheRayState();
     }
     else
     {
