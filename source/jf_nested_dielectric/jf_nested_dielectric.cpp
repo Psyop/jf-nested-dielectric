@@ -309,9 +309,7 @@ shader_evaluate
         if ( causticPath ) 
         {
             if (iinfo.mediaEntrance || !rayState->caustic_behaviorSet)
-            {
                 rayState->readCausticMatParameters(sg, node);
-            }
 
             // caustic controls
             if (sg->Rt == AI_RAY_DIFFUSE)
@@ -374,7 +372,8 @@ shader_evaluate
             AtRay ray;
             AtScrSample sample;
             
-            float fresnelTerm = fresnelEquations (iinfo.n1, iinfo.n2,  AiV3Dot(sg->Nf, -sg->Rd), iinfo.polarizationTerm, true);
+            float fresnelTerm = fresnelEquations(iinfo.n1, iinfo.n2,  AiV3Dot(sg->Nf, -sg->Rd), 
+                iinfo.polarizationTerm, true);
 
             bool do_TIR = false;
             AtColor TIR_color = AI_RGB_BLACK;
@@ -388,8 +387,8 @@ shader_evaluate
                 // Samplers
                 // ---------------------------------------------------//
 
-                AtSamplerIterator* dispersionIterator = AiSamplerIterator( data->dispersion_sampler, sg) ;
-                AtSamplerIterator* refractionIterator = AiSamplerIterator( data->refraction_sampler, sg);
+                AtSamplerIterator* dispersionIt = AiSamplerIterator(data->dispersion_sampler, sg) ;
+                AtSamplerIterator* refractionIt = AiSamplerIterator(data->refraction_sampler, sg);
 
                 // ---------------------------------------------------//
                 // Refraction
@@ -420,6 +419,7 @@ shader_evaluate
                     void * btdf_data = NULL;
                     if (!do_disperse && do_blurryRefraction)
                     {
+                        // we're not dispersing, and we are doing blurry refraction. Therefore, initialize the btdf data for all the samples. 
                         btdf_data = iinfo.getBTDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
                     }
                     // ---------------------------------------------------//
@@ -432,7 +432,7 @@ shader_evaluate
                     int dispersed_TIR_samples = 0;
                     const bool refract_skies = AiShaderEvalParamBool(p_refract_skies);
 
-                    while ( AiSamplerGetSample(refractionIterator, refraction_sample) )
+                    while ( AiSamplerGetSample(refractionIt, refraction_sample) )
                     {
                         if (!refracted && !do_disperse)
                             continue;
@@ -441,7 +441,7 @@ shader_evaluate
                         bool dispersion_sample_TIR = false;
                         if (do_disperse)
                         {
-                            AiSamplerGetSample(dispersionIterator, dispersion_sample);
+                            AiSamplerGetSample(dispersionIt, dispersion_sample);
                             if (dispersal_seed < 0.0f)
                             {   // The job of a dispersal seed is to fix any correlations, but still allow stratefied sampling to work in batches of samples.
                                 dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
@@ -483,7 +483,7 @@ shader_evaluate
                             if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction))                                
                                 rayState->ray_energy_photon /= (float) data->refr_samples;
 
-                            AiStateSetMsgRGB("photon_energy",rayState->ray_energy_photon);
+                            AiStateSetMsgRGB(JFND_MSG_PHOTON_RGB,rayState->ray_energy_photon);
 
                             refractSamplesTaken++ ;
                             const bool tracehit = AiTrace(&ray, &sample);
@@ -512,7 +512,7 @@ shader_evaluate
                     {
                         if (dispersed_TIR_samples > 0)
                         {
-                            TIR_color *= (float) AiSamplerGetSampleInvCount(refractionIterator);
+                            TIR_color *= (float) AiSamplerGetSampleInvCount(refractionIt);
                             do_TIR = true;
                         }
                     }
@@ -533,7 +533,7 @@ shader_evaluate
                 }
 
                 // Exhaust the sampler. Good night, sampler. This seems necessary, having the unexhausted sampler caused some problems with the RR sampler. 
-                while ( AiSamplerGetSample( dispersionIterator, dispersion_sample ) ){}
+                while ( AiSamplerGetSample( dispersionIt, dispersion_sample ) ){}
 
                 // ---------------------------------------------------//
                 // Refraction - Direct
@@ -688,7 +688,7 @@ shader_evaluate
                         if (sg->Rt == AI_RAY_CAMERA)
                             rayState->ray_energy_photon /= (float) data->gloss_samples;
 
-                        AiStateSetMsgRGB("photon_energy",rayState->ray_energy_photon);
+                        AiStateSetMsgRGB(JFND_MSG_PHOTON_RGB,rayState->ray_energy_photon);
 
                         while ( AiSamplerGetSample(specularIterator, specular_sample) )
                         {
@@ -838,7 +838,7 @@ shader_evaluate
     // Reset all messages to the previous state. If there was no previous state, Mark them invalid. 
     // ---------------------------------------------------//
 
-    AiStateSetMsgRGB("photon_energy",AI_RGB_BLACK); // this doesn't seem right, heberlein caustics related only
+    AiStateSetMsgRGB(JFND_MSG_PHOTON_RGB,AI_RGB_BLACK); // this doesn't seem right, heberlein caustics related only
 
     if (msgs_are_valid)
     {

@@ -17,6 +17,7 @@ const char *JFND_MSG_VALID_BOOL = "msgs_are_valid";
 const char *JFND_MSG_RAYSTATE_PTR = "rayState_ptr";
 const char *JFND_MSG_SHADOW_VALID_BOOL = "shadowlist_is_valid";
 const char *JFND_MSG_PREV_TRANSP_INT = "prev_transp_index";
+const char *JFND_MSG_PHOTON_RGB = "photon_energy";
 
 // ---------------------------------------------------//
 // - Enumerations 
