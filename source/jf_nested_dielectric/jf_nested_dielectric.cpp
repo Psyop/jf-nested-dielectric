@@ -210,16 +210,16 @@ shader_evaluate
      * - shader parameters setup 
      * --------------------------------------------------- *
      *
-     * m_cMatID is the medium ID of the material we're currently evaluating, regardless of
+     * media_id is the medium ID of the material we're currently evaluating, regardless of
      * whether or not the interface is valid or what media we're inside.
      *
      * The medium IDs all get 1 added to them. This means 0 is reserved for "no medium". This simplifies other code, but it means
      * that if the user gives a medium an ID of 0, internally in the shader it has an ID of 1. 
      */
 
-    const int m_cMatID = AiShaderEvalParamInt(p_mediumPriority) + 1;
+    const int media_id = AiShaderEvalParamInt(p_mediumPriority) + 1;
 
-    if (media_inside_ptr->v[m_cMatID] < -10 )
+    if (media_inside_ptr->v[media_id] < -10 )
     {
         /* 
          * Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
@@ -233,7 +233,7 @@ shader_evaluate
         sg->out.RGBA = AI_RGBA_BLACK;
         return; 
     }
-    if ( media_inside_ptr->v[m_cMatID] > 30)
+    if ( media_inside_ptr->v[media_id] > 30)
     {
         /* 
          * Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
@@ -248,7 +248,7 @@ shader_evaluate
         return; 
     }
 
-    if (m_cMatID >= max_media_count || m_cMatID < 0)
+    if (media_id >= max_media_count || media_id < 0)
     {
         const char *priority_error_message = "JF Nested Dielectric: Medium priority must be between 0 and 32!";
         AiMsgError(priority_error_message);
@@ -259,8 +259,8 @@ shader_evaluate
     // - get interface info     
     // ---------------------------------------------------//
 
-    rayState->readBasicMatParameters(sg, node, m_cMatID);
-    InterfaceInfo iinfo = InterfaceInfo(rayState, m_cMatID, sg);
+    rayState->readBasicMatParameters(sg, node, media_id);
+    InterfaceInfo iinfo = InterfaceInfo(rayState, media_id, sg);
 
     bool do_blurryRefraction = iinfo.doBlurryRefraction();
     bool do_disperse = iinfo.setupDispersion(data);
@@ -275,7 +275,7 @@ shader_evaluate
         AtColor transparency = iinfo.getShadowTransparency(sg, AiShaderEvalParamEnum(p_shadow_mode));
         AiShaderGlobalsApplyOpacity(sg, AI_RGB_WHITE - transparency);
         if (sg->out_opacity != AI_RGB_WHITE)
-            updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
+            updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
         return;
     } else {
         AtColor cTransmission = iinfo.getTransmissionColor(sg);
@@ -345,28 +345,18 @@ shader_evaluate
             {
                 traceSwitch.setTraceNone();
             }
-        }       
-
-        bool energySignificant;
-
-        if (   std::abs( rayState->ray_energy.r ) < rayState->energy_cutoff
-            && std::abs( rayState->ray_energy.g ) < rayState->energy_cutoff
-            && std::abs( rayState->ray_energy.b ) < rayState->energy_cutoff
-            )
-        {
-            energySignificant = false;
-        }
-        else
-        {
-            energySignificant = true;
         }
 
         // ---------------------------------------------------//
         // Main Ray Tracing
         // Valid interfaces
         // ---------------------------------------------------//
-        float dispersion_sample[2], refraction_sample[2], specular_sample[2];
 
+        bool energySignificant = std::abs( rayState->ray_energy.r ) > rayState->energy_cutoff 
+                              || std::abs( rayState->ray_energy.g ) > rayState->energy_cutoff 
+                              || std::abs( rayState->ray_energy.b ) > rayState->energy_cutoff;
+
+        float dispersion_sample[2], refraction_sample[2], specular_sample[2];
         // decision point- trace anything
         if ( energySignificant && traceSwitch.traceAnything() ) 
         {
@@ -401,7 +391,7 @@ shader_evaluate
 
                 if (causticPath)
                 {
-                    const float causticDRRoughnessOffset = refractRoughnessConvert( AiShaderEvalParamFlt(p_caustic_dr_roughness_offset) );
+                    const float causticDRRoughnessOffset = refractRoughnessConvert(AiShaderEvalParamFlt(p_caustic_dr_roughness_offset));
                     refr_roughnessU += causticDRRoughnessOffset;
                     refr_roughnessV += causticDRRoughnessOffset;
                 }
@@ -472,9 +462,9 @@ shader_evaluate
                             ray.dir = iinfo.getBTDFSample(btdf_data, refraction_sample);
                         }
 
-                        if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && (ray.dir != AI_V3_ZERO) && !dispersion_sample_TIR)
+                        if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && !dispersion_sample_TIR)
                         {
-                            updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
+                            updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
                             const AtColor weight = (1.0f - fresnelTerm) * monochromeColor 
                                 * overallResultScale * iinfo.getIndirectRefractionWeight();
 
@@ -494,7 +484,7 @@ shader_evaluate
                             rayState->resetEnergyCache(energyCache);
                             rayState->resetPhotonEnergyCache(energyCache_photon);
 
-                            updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, true);
+                            updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, true);
                         }
 
                         if (!do_multiSampleRefraction)
@@ -557,7 +547,7 @@ shader_evaluate
                     dr_roughnessU *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
                     dr_roughnessV *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
 
-                    float dr_first_scale = rayState->media_refractDirect.v[m_cMatID];
+                    float dr_first_scale = rayState->media_refractDirect.v[media_id];
                     float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale ) * dr_first_scale;
                     dr_first_scale -= dr_second_scale;
 
@@ -569,11 +559,12 @@ shader_evaluate
                     void * btdf_data_direct = NULL;
                     void * btdf_data_direct2 = NULL;
                     iinfo.getDirectRefractionBTDFs(dr_btdf, &ppsg, dr_roughnessU, dr_roughnessV, 
-                        drs_roughnessU, drs_roughnessV, pval_custom_tangent, &btdf_data_direct, &btdf_data_direct2);
+                        drs_roughnessU, drs_roughnessV, pval_custom_tangent, &btdf_data_direct, 
+                        &btdf_data_direct2);
 
                     const bool refract_skydomes = AiShaderEvalParamBool(p_refract_skydomes);
                     AiLightsPrepare(&ppsg);
-                    AiStateSetMsgBool("opaqueShadowMode", true);
+                    AiStateSetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, true);
 
                     iinfo.directRefractionSampleLights(&ppsg, dr_btdf, refract_skydomes, two_lobes, 
                         btdf_data_direct, btdf_data_direct2, &acc_refract_direct, &acc_refract_direct_second);
@@ -644,14 +635,15 @@ shader_evaluate
                         case b_cook_torrance_ray_tangent:
                             // Ward with refraction-derivitive tangents
                              // to do: tangentSourceVector is uninitialized? Should this be the eye ray or something?
-                            blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
+                            tangentSourceVector = sg->Rd;
+                            blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], sg->Nf, tangentSourceVector);
                             AiV3Cross(uTangent, sg->N, sg->Rd); 
                             AiV3Cross(vTangent, sg->N, uTangent);
                             break;
                         case b_cook_torrance_user_tangent:
                             // Ward with user tangents
                             tangentSourceVector = AiV3Normalize( pval_custom_tangent );
-                            blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, &rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], &sg->Nf, &tangentSourceVector);
+                            blurAnisotropicPoles(&spec_roughnessU, &spec_roughnessV, rayState->media_blurAnisotropicPoles.v[iinfo.m_higherPriority], sg->Nf, tangentSourceVector);
                             AiV3Cross( uTangent, sg->N, tangentSourceVector ) ;
                             AiV3Cross( vTangent, sg->N, uTangent ) ;
                             break;
@@ -727,14 +719,13 @@ shader_evaluate
                     // ---------------------------------------------------//
 
                     // decision point- direct specular
-                    // if ( trace_spec_direct )
                     if ( traceSwitch.spec_dir )
                     {
                         AtColor weight = AI_RGB_WHITE * fresnelTerm * rayState->media_specDirect.v[iinfo.m_higherPriority] * overallResultScale;
                         if (do_TIR)
                             weight *= TIR_color;
                         
-                        AiStateSetMsgBool("opaqueShadowMode", true);                        
+                        AiStateSetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, true);                        
                         AiLightsPrepare(sg); 
                         const bool reflect_skydomes = AiShaderEvalParamBool(p_reflect_skydomes);
                         while ( AiLightsGetSample(sg) ) // loop over the lights to compute direct effects
@@ -745,7 +736,7 @@ shader_evaluate
                                 acc_spec_direct += l_weight * AiEvaluateLightSample(sg, brdf_data, AiCookTorranceMISSample, AiCookTorranceMISBRDF, AiCookTorranceMISPDF);                         
                             }
                         }
-                        AiStateSetMsgBool("opaqueShadowMode", false);
+                        AiStateSetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, false);
                         acc_spec_direct *= weight;
                     }
                 }
@@ -768,7 +759,7 @@ shader_evaluate
             AtScrSample sample;
 
             rayState->ray_invalidDepth ++;
-            updateMediaInsideLists(m_cMatID, iinfo.entering, media_inside_ptr, false);
+            updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
 
             AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, NULL, AI_BIG, sg);
             ray.dir = sg->Rd;
@@ -795,7 +786,7 @@ shader_evaluate
     AtColor emission = AI_RGB_BLACK;
     if (iinfo.validInterface)
     {
-        AiStateSetMsgBool("opaqueShadowMode", true);
+        AiStateSetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, true);
         emission += AiShaderEvalParamRGB(p_emission_at_interfaces);
         if (iinfo.mediaExit)
         {
@@ -805,7 +796,7 @@ shader_evaluate
         {
             emission += AiShaderEvalParamRGB(p_emission_at_entrances);
         }
-        AiStateSetMsgBool("opaqueShadowMode", false);
+        AiStateSetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, false);
     }
 
     // ---------------------------------------------------//

@@ -18,6 +18,7 @@ const char *JFND_MSG_RAYSTATE_PTR = "rayState_ptr";
 const char *JFND_MSG_SHADOW_VALID_BOOL = "shadowlist_is_valid";
 const char *JFND_MSG_PREV_TRANSP_INT = "prev_transp_index";
 const char *JFND_MSG_PHOTON_RGB = "photon_energy";
+const char *JFND_MSG_OPQ_SHADOW_MODE_BOOL = "opaqueShadowMode";
 
 // ---------------------------------------------------//
 // - Enumerations 
@@ -279,11 +280,11 @@ float refractRoughnessConvert(float roughness)
 }
 
 
-void blurAnisotropicPoles( float *  roughnessU, float * roughnessV, float * blurAmount, AtVector * normal, AtVector * raw_tangent )
+void blurAnisotropicPoles(float *roughnessU, float *roughnessV, float blurAmount, const AtVector &normal, const AtVector &raw_tangent )
 {
     const float averagedRoughness = ( *roughnessU + *roughnessV ) / 2.0f ;
-    const float tDotN = AiV3Dot(AiV3Normalize( *raw_tangent ), *normal) ;
-    const float blendValue = pow( std::abs( tDotN ),  ( 1.0f / *blurAmount ) - 1.0f ) ;  // power function: ^0 = 1 for fully blurry, ^ high for not blurry at all)
+    const float tDotN = AiV3Dot(AiV3Normalize( raw_tangent ), normal) ;
+    const float blendValue = pow( std::abs( tDotN ),  ( 1.0f / blurAmount ) - 1.0f ) ;  // power function: ^0 = 1 for fully blurry, ^ high for not blurry at all)
 
     *roughnessU = ( *roughnessU * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
     *roughnessV = ( *roughnessV * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
@@ -329,14 +330,14 @@ AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool
 }
 
 
-void updateMediaInsideLists(int m_cMatID, bool entering, MediaIntStruct * media_inside_list, bool reverse = false)
+void updateMediaInsideLists(int media_id, bool entering, MediaIntStruct * media_inside_list, bool reverse = false)
 {
     // If we're entering an object, increment, if we're leaving, decrement. 
     // Reverse reverses the behavior. 
     if ( !reverse)
-        media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? 1 : -1 );
+        media_inside_list->v[media_id] = media_inside_list->v[media_id] + (entering ? 1 : -1 );
     else
-        media_inside_list->v[m_cMatID] = media_inside_list->v[m_cMatID] + (entering ? -1 : 1 );
+        media_inside_list->v[media_id] = media_inside_list->v[media_id] + (entering ? -1 : 1 );
 }
 
 bool rayIsPhoton(AtShaderGlobals * sg) {
@@ -987,14 +988,14 @@ typedef struct InterfaceInfo {
             case b_cook_torrance_ray_tangent:
                 // Ward with refraction-derivitive tangents
                 tangentSourceVector = AiV3Normalize(ppsg->Rd);
-                blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->N, &tangentSourceVector);
+                blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->N, tangentSourceVector);
                 uTangent = AiV3Cross(ppsg->Nf, AiV3Normalize(ppsg->Rd)); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);
                 break;
             case b_cook_torrance_user_tangent:
                 // Ward with user tangents
                 tangentSourceVector = AiV3Normalize( customTangentVector );
-                blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->N, &tangentSourceVector);
+                blurAnisotropicPoles(&refr_roughnessU, &refr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->N, tangentSourceVector);
                 uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);
                 break;
@@ -1025,16 +1026,16 @@ typedef struct InterfaceInfo {
             case b_cook_torrance_ray_tangent:
                 // Ward with refraction-derivitive tangents
                 tangentSourceVector = AiV3Normalize(ppsg->Rd);
-                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
-                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
+                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, tangentSourceVector);
+                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, tangentSourceVector);
                 uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector ); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);
                 break;
             case b_cook_torrance_user_tangent:
                 // Ward with user tangents
                 tangentSourceVector = AiV3Normalize( customTangentVector );
-                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
-                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, &this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], &ppsg->Nf, &tangentSourceVector);
+                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, tangentSourceVector);
+                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, tangentSourceVector);
                 uTangent = AiV3Cross(ppsg->Nf, tangentSourceVector ); 
                 vTangent = AiV3Cross(ppsg->Nf, uTangent);                   
                 break;
