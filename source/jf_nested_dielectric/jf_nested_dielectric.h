@@ -966,7 +966,7 @@ typedef struct InterfaceInfo {
 
     int getSpecBRDFType() 
     {
-        return this->rs->media_BTDF.v[this->m_higherPriority];
+        return this->rs->media_BRDF.v[this->m_higherPriority];
     }
 
     void* getRefrBRDFData(AtShaderGlobals *sg, float roughnessU, float roughnessV, AtVector customTangent) 
