@@ -917,6 +917,11 @@ typedef struct InterfaceInfo {
     AtColor getShadowTransparency(AtShaderGlobals * sg, int shadowMode) 
     {
         float fresnelTerm = 0.0f;
+        bool opaqueOverride = false;
+        AiStateGetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, &opaqueOverride);
+        if (opaqueOverride)
+            return AI_RGB_BLACK;
+
         switch ( shadowMode )
         {
             case sh_black:
