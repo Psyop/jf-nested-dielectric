@@ -442,7 +442,7 @@ shader_evaluate
                                 dispersal_seed =  ( std::abs( sg->sx + sg->sy ) * 113 + (float) dispersion_sample[1] ) * 3.456f  ;
                             }
                             float n1_disp, n2_disp;
-                            iinfo.getDispersedIORsAndColor((float) (dispersal_seed + dispersion_sample[0]), &n1_disp, &n2_disp, &monochromeColor);
+                            iinfo.disperse(dispersal_seed + dispersion_sample[0], &n1_disp, &n2_disp, &monochromeColor);
 
                             AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);
                             dispersion_sample_TIR = !AiRefractRay(&dispersalRay, &sg->Nf, n1_disp, n2_disp, sg);
@@ -491,7 +491,7 @@ shader_evaluate
                         }
 
                         if (!do_disperse && !do_blurryRefraction)
-                            break;
+                            break; // one sample only
                     }
                     
                     /*
@@ -526,7 +526,7 @@ shader_evaluate
                 }
 
                 // Exhaust the sampler. Good night, sampler. This seems necessary, having the unexhausted sampler caused some problems with the RR sampler. 
-                while ( AiSamplerGetSample( dispersionIt, dispersion_sample ) ){}
+                while ( AiSamplerGetSample( dispersionIt, dispersion_sample ) ){} // to do: not necessary when not dispersed?
 
                 // ---------------------------------------------------//
                 // Refraction - Direct
@@ -612,8 +612,6 @@ shader_evaluate
                 // decision point- any specular
                 if ( traceSwitch.traceAnySpecular() || do_TIR ) 
                 {
-                    // float spec_roughnessU = iinfo.getSpecRoughnessU();
-                    // float spec_roughnessV = iinfo.getSpecRoughnessV();
                     float spec_roughnessU, spec_roughnessV;
                     iinfo.getSpecRoughness(spec_roughnessU, spec_roughnessV);
                     bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
@@ -638,7 +636,6 @@ shader_evaluate
                     // ---------------------------------------------------//
 
                     // decision point- indirect specular
-                    // if ( trace_spec_indirect || do_TIR )
                     if ( traceSwitch.spec_ind || do_TIR )
                     {
                         const float weight = fresnelTerm * rayState->media_specIndirect.v[iinfo.m1] * overallResultScale;

@@ -872,15 +872,10 @@ typedef struct InterfaceInfo {
     public:
     bool doBlurryRefraction() 
     {
-        bool do_blurryRefraction = false;
-        if ( this->rs->media_refractRoughnessU.v[this->m1] > ZERO_EPSILON ||
-             this->rs->media_refractRoughnessV.v[this->m1] > ZERO_EPSILON ||
-             this->rs->media_refractRoughnessU.v[this->m2] > ZERO_EPSILON ||
-             this->rs->media_refractRoughnessV.v[this->m2] > ZERO_EPSILON )
-        {
-            do_blurryRefraction = true;
-        }
-        return do_blurryRefraction;
+        return (this->rs->media_refractRoughnessU.v[this->m1] > ZERO_EPSILON 
+            || this->rs->media_refractRoughnessV.v[this->m1] > ZERO_EPSILON 
+            || this->rs->media_refractRoughnessU.v[this->m2] > ZERO_EPSILON 
+            || this->rs->media_refractRoughnessV.v[this->m2] > ZERO_EPSILON);
     }
 
     bool setupDispersion(JFND_Shader_Data * data ) 
@@ -1063,7 +1058,7 @@ typedef struct InterfaceInfo {
     }
 
 
-    void getDispersedIORsAndColor(float sample, float * n1_dispersed, float * n2_dispersed, AtColor *monochromatic_color) 
+    void disperse(float sample, float * n1_dispersed, float * n2_dispersed, AtColor *monochromatic_color) 
     {
         const float LUT_value = fmod( sample, 1.0f );
         get_interpolated_LUT_value( this->rs->spectral_LUT_ptr, LUT_value, &this->rs->ray_wavelength, monochromatic_color);
