@@ -403,9 +403,14 @@ shader_evaluate
                 AtShaderGlobals ppsg = *sg;
                 parallelPark(ray.dir, &ppsg);
 
+                    if (do_disperse) 
+                        iinfo.reportInfo("Disperse   ");
+                    else 
+                        iinfo.reportInfo("No disperse");
                 // decision point- indirect refraction
                 if ( traceSwitch.refr_ind )
                 {
+
                     void * btdf_data = NULL;
                     if (!do_disperse && do_blurryRefraction)
                     {

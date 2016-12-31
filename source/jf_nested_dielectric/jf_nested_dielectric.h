@@ -666,7 +666,6 @@ typedef struct Ray_State {
         this->caustic_specDirect = AiShaderEvalParamBool(p_caustic_specular_direct);
         this->caustic_specIndirect = AiShaderEvalParamBool(p_caustic_specular_indirect);
     }
-
 } Ray_State;
 
 
@@ -769,7 +768,7 @@ typedef struct InterfaceInfo {
          * such diagrams: http://en.wikipedia.org/wiki/File:Snells_law.svg
          */
 
-        this->entering = ( AiV3Dot(sg->Ng, sg->Rd) < 0.0f ) ;
+        this->entering = AiV3Dot(sg->Ng, sg->Rd) < 0;
         
         if (this->entering) // (entering a possible medium)
         {
@@ -1076,6 +1075,16 @@ typedef struct InterfaceInfo {
     float getIndirectRefractionWeight() 
     {
         return this->rs->media_refractIndirect.v[this->m1] * this->rs->media_refractIndirect.v[this->m2];
+    }
+
+    void reportInfo(const char* header) 
+    {
+        AiMsgWarning("%s: (m1:%d, m2:%d, h:%d, start:%d, start2:%d, enter:%d, mono:%d, valid:%d)", 
+            header, this->m1, this->m2, this->m_higherPriority, this->startingMedium, 
+            this->startingMediumSecondary, this->entering, this->rs->ray_monochromatic, this->validInterface);
+        // AiMsgWarning("t1: %g %g %g t2: %g %g %g", 
+        //     this->t1.r, this->t1.g, this->t1.b, this->t2.r, this->t2.g, this->t2.b );
+        // AiMsgWarning("Depth: %g", (float) sg->Rl);
     }
 
 } InterfaceInfo;
