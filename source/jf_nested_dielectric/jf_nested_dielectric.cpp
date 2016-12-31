@@ -401,12 +401,8 @@ shader_evaluate
 
                 AtVector sgrd_cache = sg->Rd;
                 AtShaderGlobals ppsg = *sg;
-                parallelPark(ray.dir, &ppsg);
-
-                    if (do_disperse) 
-                        iinfo.reportInfo("Disperse   ");
-                    else 
-                        iinfo.reportInfo("No disperse");
+                parallelPark(ray.dir, &ppsg);  
+                
                 // decision point- indirect refraction
                 if ( traceSwitch.refr_ind )
                 {
@@ -448,12 +444,11 @@ shader_evaluate
                             float n1_disp, n2_disp;
                             iinfo.getDispersedIORsAndColor((float) (dispersal_seed + dispersion_sample[0]), &n1_disp, &n2_disp, &monochromeColor);
 
-                            AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);                                
-                            ray.dir = dispersalRay.dir;
-
-                            if (!AiRefractRay(&dispersalRay, &sg->Nf, n1_disp, n2_disp, sg))
+                            AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);
+                            dispersion_sample_TIR = !AiRefractRay(&dispersalRay, &sg->Nf, n1_disp, n2_disp, sg);
+                            ray.dir = dispersalRay.dir; // note: must happen after AiRefractRay
+                            if (dispersion_sample_TIR)
                             {   // TIR
-                                dispersion_sample_TIR = true;
                                 TIR_color += monochromeColor;
                                 dispersed_TIR_samples++;
                                 refractSamplesTaken++ ;
