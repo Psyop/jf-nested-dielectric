@@ -693,7 +693,7 @@ typedef struct InterfaceInfo {
     {
         this->currentID = currentID;
         this->startingMedium = 0;
-        this->startingMediumSecondary = 0;
+        this->startingMediumSecondary = 0; // to do: we don't really need tehse distinctions, m1 and m2 will be fine thank you
         this->m1 = 0;
         this->m2 = 0;
         this->m_higherPriority = 0;
@@ -778,7 +778,7 @@ typedef struct InterfaceInfo {
                 // entering the first medium, so no media information is available
                 this->validInterface = true;
                 this->mediaEntrance = true;
-                this->m1 = 0;
+                this->m1 = this->startingMedium;
                 this->m2 = this->currentID;
             }
             else if ( this->currentID < this->startingMedium )
@@ -792,7 +792,8 @@ typedef struct InterfaceInfo {
             {
                 // entering a medium that is not higher priority, interface is invalid
                 // or entering the same medium we're already in, interface is also invalid
-                this->m1 = this->m2 = this->startingMedium;
+                this->m1 = this->startingMedium;
+                this->m2 = this->startingMedium;
             }
         }
         else // (leaving a possible medium)
