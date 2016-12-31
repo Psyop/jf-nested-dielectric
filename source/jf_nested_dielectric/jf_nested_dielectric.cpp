@@ -456,6 +456,7 @@ shader_evaluate
 
                             if ( do_blurryRefraction ) 
                             {   // redo ppsg creation
+                                ppsg = *sg;
                                 ppsg.Rd = sgrd_cache;
                                 parallelPark(ray.dir, &ppsg);
                                 btdf_data = iinfo.getRefrBRDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
