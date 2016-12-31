@@ -402,7 +402,7 @@ shader_evaluate
                 AtVector sgrd_cache = sg->Rd;
                 AtShaderGlobals ppsg = *sg;
                 parallelPark(ray.dir, &ppsg);  
-                
+
                 // decision point- indirect refraction
                 if ( traceSwitch.refr_ind )
                 {
@@ -538,16 +538,23 @@ shader_evaluate
                 if (traceSwitch.refr_dir && !tir)
                 {
                     // offsets and depth modification
-                    const float rOffset = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessOffset ) );
+                    const float rFlatOffset = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessOffset ) );
                     const float rDepthAdder = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
                     const float rDepthMultiplier = AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier );
+                    const float rFactor = pow(rDepthMultiplier, (float) sg->Rr);
+                    const float rOffset = (rDepthAdder * (float) sg->Rr) + rFlatOffset;
 
                     const bool use_refr_settings = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
                     int dr_btdf         = use_refr_settings ? iinfo.getRefrBRDFType() : AiShaderEvalParamEnum( p_dr_btdf );
-                    float dr_roughnessU = use_refr_settings ? refr_roughnessU : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) );
-                    float dr_roughnessV = use_refr_settings ? refr_roughnessV : refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) );
-                    dr_roughnessU *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
-                    dr_roughnessV *= pow(rDepthMultiplier, (float) sg->Rr) + (rDepthAdder * (float) sg->Rr) + rOffset;
+                    float dr_roughnessU = use_refr_settings ? 
+                        refr_roughnessU * rFactor + rOffset : 
+                        refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) ) * rFactor + rOffset;
+
+                    float dr_roughnessV = dr_roughnessU;
+                    if (dr_btdf != b_cook_torrance) 
+                        dr_roughnessV == use_refr_settings ? 
+                        refr_roughnessV  * rFactor + rOffset : 
+                        refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) ) * rFactor + rOffset;
 
                     float dr_first_scale = rayState->media_refractDirect.v[media_id];
                     float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale ) * dr_first_scale;
