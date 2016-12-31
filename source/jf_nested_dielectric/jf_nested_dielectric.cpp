@@ -639,8 +639,11 @@ shader_evaluate
                         if ( do_TIR )
                         {
                             rayState->ray_TIRDepth++;
-                            if (rayState->ray_TIRDepth < 50 && specularRay.refr_bounces > 1)
-                                specularRay.refr_bounces-- ;
+                            if (rayState->ray_TIRDepth < 50 && specularRay.refr_bounces > 1) // to do: the constant should be a constant or macro somewhere
+                            {
+                                specularRay.level--;
+                                specularRay.refr_bounces--;
+                            }
                             energyCache = rayState->updateEnergyReturnOrig(TIR_color);
                             energyCache_photon = rayState->updatePhotonEnergyReturnOrig(TIR_color);
                         } 
