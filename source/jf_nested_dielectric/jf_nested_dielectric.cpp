@@ -399,10 +399,14 @@ shader_evaluate
                 AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);                 
                 const bool tir = !AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
 
+                const AtVector cache_N = sg->N;
+                const AtVector cache_Nf = sg->Nf;
+                const AtVector cache_Ngf = sg->Ngf;
+                const AtVector cache_Rd = sg->Rd;
                 AtShaderGlobals ppsg = *sg;
-                ppsg.Nf *= -1;
-                ppsg.Ngf *= -1;
-                ppsg.Rd = parallelPark(ray.dir, sg->N); 
+                sg->Nf *= -1; // flip the forward facing normals
+                sg->Ngf *= -1; // flip the forward facing normals
+                sg->Rd = parallelPark(ray.dir, cache_N); 
 
                 // decision point- indirect refraction
                 if ( traceSwitch.refr_ind )
@@ -413,7 +417,7 @@ shader_evaluate
                     {
                         // we're not dispersing, and we are doing blurry refraction. 
                         // No per sample btdf needed, we just make one here.  
-                        btdf_data = iinfo.getRefrBRDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
+                        btdf_data = iinfo.getRefrBRDFData(sg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
                     }
                     // ---------------------------------------------------//
                     // Refraction - Indirect
@@ -445,8 +449,8 @@ shader_evaluate
                             float n1_disp, n2_disp;
                             iinfo.disperse(dispersal_seed + dispersion_sample[0], &n1_disp, &n2_disp, &monochromeColor);
 
-                            AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);
-                            dispersion_sample_TIR = !AiRefractRay(&dispersalRay, &sg->Nf, n1_disp, n2_disp, sg);
+                            AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &cache_Rd, AI_BIG, sg);
+                            dispersion_sample_TIR = !AiRefractRay(&dispersalRay, &cache_N, n1_disp, n2_disp, sg);
                             ray.dir = dispersalRay.dir; // note: must happen after AiRefractRay
                             if (dispersion_sample_TIR)
                             {   // TIR
@@ -457,15 +461,15 @@ shader_evaluate
 
                             if ( do_blurryRefraction ) 
                             {
-                                ppsg.Rd = parallelPark(ray.dir, sg->N); 
-                                btdf_data = iinfo.getRefrBRDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
+                                sg->Rd = parallelPark(ray.dir, cache_N); 
+                                btdf_data = iinfo.getRefrBRDFData(sg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
                             }
                         } 
 
                         if ( do_blurryRefraction )
                             ray.dir = AiCookTorranceMISSample(btdf_data, (float) refraction_sample[0], (float) refraction_sample[1]);
 
-                        if ((AiV3Dot(ray.dir,sg->Nf) < 0.0f) && !dispersion_sample_TIR)
+                        if (AiV3Dot(ray.dir, cache_Nf) < 0 && !dispersion_sample_TIR)
                         {
                             updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
                             const AtColor weight = (1.0f - fresnelTerm) * monochromeColor 
@@ -567,20 +571,25 @@ shader_evaluate
 
                     void * btdf_data_direct = NULL;
                     void * btdf_data_direct2 = NULL;
-                    iinfo.getDirectRefractionBTDFs(dr_btdf, &ppsg, dr_roughnessU, dr_roughnessV, 
+                    iinfo.getDirectRefractionBTDFs(dr_btdf, sg, dr_roughnessU, dr_roughnessV, 
                         drs_roughnessU, drs_roughnessV, pval_custom_tangent, &btdf_data_direct, 
                         &btdf_data_direct2);
 
                     const bool refract_skydomes = AiShaderEvalParamBool(p_refract_skydomes);
-                    AiLightsPrepare(&ppsg);
+                    AiLightsPrepare(sg);
                     AiStateSetMsgBool(JFND_MSG_OPQ_SHADOW_MODE_BOOL, true);
 
-                    iinfo.directRefractionSampleLights(&ppsg, dr_btdf, refract_skydomes, two_lobes, 
+                    iinfo.directRefractionSampleLights(sg, dr_btdf, refract_skydomes, two_lobes, 
                         btdf_data_direct, btdf_data_direct2, &acc_refract_direct, &acc_refract_direct_second);
 
                     acc_refract_direct *= dr_first_scale * (1.0f - fresnelTerm) * overallResultScale;
                     acc_refract_direct_second *= dr_second_scale * (1.0f - fresnelTerm) * overallResultScale;
-                }               
+                }
+
+                sg->N = cache_N;   
+                sg->Nf = cache_Nf;   
+                sg->Ngf = cache_Ngf;   
+                sg->Rd = cache_Rd;
             }
 
 
