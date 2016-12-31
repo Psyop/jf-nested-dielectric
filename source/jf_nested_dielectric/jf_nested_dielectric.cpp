@@ -191,6 +191,7 @@ shader_evaluate
 
         if ( !shadowlist_is_valid || transp_index_reset )  // if there has been another kind of ray, or the transp_index did not increase
         {
+            rayState->lastShadowDepth = 0.0f;
             // intialize the shadow media inside list
             memcpy(&rayState->shadow_media_inside, &rayState->media_inside, sizeof(MediaIntStruct) );
         }
@@ -272,13 +273,15 @@ shader_evaluate
     
     if (sg->Rt == AI_RAY_SHADOW)
     {
-        AtColor transparency = iinfo.getShadowTransparency(sg, AiShaderEvalParamEnum(p_shadow_mode));
-        AiShaderGlobalsApplyOpacity(sg, AI_RGB_WHITE - transparency);
+        float depth_portion = (float) sg->Rl - rayState->lastShadowDepth;
+        rayState->lastShadowDepth = (float) sg->Rl;
+        AtColor transparency = iinfo.getShadowTransparency(sg, depth_portion, AiShaderEvalParamEnum(p_shadow_mode));
+        sg->out_opacity = AI_RGB_WHITE - transparency;
         if (sg->out_opacity != AI_RGB_WHITE)
             updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
         return;
     } else {
-        AtColor cTransmission = iinfo.getTransmissionColor(sg);
+        AtColor cTransmission = iinfo.getTransmissionColor(sg, (float) sg->Rl);
         rayState->ray_energy *= cTransmission;
         rayState->ray_energy_photon *= cTransmission;
     }

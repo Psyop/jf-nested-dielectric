@@ -495,6 +495,7 @@ typedef struct Ray_State {
     float energy_cutoff;
     bool polarized;
     AtVector polarizationVector;
+    float lastShadowDepth;
 
     void init(JFND_Shader_Data *data, AtShaderGlobals * sg, AtNode * node, AtVector polarizationVector) {
         this->ray_monochromatic = false;
@@ -898,15 +899,14 @@ typedef struct InterfaceInfo {
         return do_disperse;
     }
 
-    AtColor getTransmissionColor(AtShaderGlobals * sg)
+    AtColor getTransmissionColor(AtShaderGlobals * sg, float rayLength)
     {
-        float depth = (float) sg->Rl;
         if (this->t1 != AI_RGB_WHITE)
         {       
             return AiColorCreate( 
-                pow(this->t1.r, depth), 
-                pow(this->t1.g, depth), 
-                pow(this->t1.b, depth));
+                pow(this->t1.r, rayLength), 
+                pow(this->t1.g, rayLength), 
+                pow(this->t1.b, rayLength));
         }
         else
         {
@@ -914,7 +914,7 @@ typedef struct InterfaceInfo {
         }
     }
 
-    AtColor getShadowTransparency(AtShaderGlobals * sg, int shadowMode) 
+    AtColor getShadowTransparency(AtShaderGlobals * sg, float rayLength, int shadowMode) 
     {
         float fresnelTerm = 0.0f;
         bool opaqueOverride = false;
@@ -927,19 +927,19 @@ typedef struct InterfaceInfo {
             case sh_black:
                 return AI_RGB_BLACK;
             case sh_transmit_only:      
-                return this->getTransmissionColor(sg);
+                return this->getTransmissionColor(sg, rayLength);
             case sh_transmit_and_outer_fresnels:
                 if (this->validInterface && this->entering)
                 {                   
                     fresnelTerm = fresnelEquations (this->n1, this->n2, AiV3Dot(sg->Nf, -sg->Rd), this->polarizationTerm, false);
                 }
-                return this->getTransmissionColor(sg) * (AI_RGB_WHITE - fresnelTerm);
+                return this->getTransmissionColor(sg, rayLength) * (AI_RGB_WHITE - fresnelTerm);
             case sh_transmit_and_all_fresnels:
                 if (this->validInterface)
                 {
                     fresnelTerm = fresnelEquations (this->n1, this->n2, AiV3Dot(sg->Nf, -sg->Rd), this->polarizationTerm, false);
                 }
-                return this->getTransmissionColor(sg) * (AI_RGB_WHITE - fresnelTerm);
+                return this->getTransmissionColor(sg, rayLength) * (AI_RGB_WHITE - fresnelTerm);
         }
         return AI_RGB_WHITE;
     }
