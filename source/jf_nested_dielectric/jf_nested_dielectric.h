@@ -209,19 +209,14 @@ float fresnelEquations (float n1, float n2, float cosThetaI, float polarization 
             return returnvalue;
     }
 }
-// char * const mediumMessage2 = "Inside 2 media!.";
-// AiMsgWarning(mediumMessage2);
 
-void parallelPark ( AtVector refractionVector, AtShaderGlobals* shaderGlobalsCopy )
+AtVector parallelPark ( AtVector refractionVector, AtVector normal )
 {
     // Paralell Parking Maneuver
     AtVector reflectionSourceVector;
-    refractionVector = -refractionVector ;
-    AiReflect( &refractionVector, &shaderGlobalsCopy->N, &reflectionSourceVector ) ;
-    reflectionSourceVector = -AiV3Normalize( reflectionSourceVector ) ;
-    shaderGlobalsCopy->Nf = -shaderGlobalsCopy->Nf ;  // set the shading normal to be the regular normal, in order to do specs from behind things
-    shaderGlobalsCopy->Ngf = -shaderGlobalsCopy->Ngf ;
-    shaderGlobalsCopy->Rd = reflectionSourceVector ; // Set the ray direction to be the backwards refracted ray
+    refractionVector = -refractionVector;
+    AiReflect( &refractionVector, &normal, &reflectionSourceVector ) ;
+    return -AiV3Normalize( reflectionSourceVector ) ;
 }
 
 float russianRoulette( AtSamplerIterator* rrSamplerIterator, float value, float probability)

@@ -399,9 +399,10 @@ shader_evaluate
                 AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);                 
                 const bool tir = !AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
 
-                AtVector sgrd_cache = sg->Rd;
                 AtShaderGlobals ppsg = *sg;
-                parallelPark(ray.dir, &ppsg);  
+                ppsg.Nf *= -1;
+                ppsg.Ngf *= -1;
+                ppsg.Rd = parallelPark(ray.dir, sg->N); 
 
                 // decision point- indirect refraction
                 if ( traceSwitch.refr_ind )
@@ -455,10 +456,8 @@ shader_evaluate
                             }
 
                             if ( do_blurryRefraction ) 
-                            {   // redo ppsg creation
-                                ppsg = *sg;
-                                ppsg.Rd = sgrd_cache;
-                                parallelPark(ray.dir, &ppsg);
+                            {
+                                ppsg.Rd = parallelPark(ray.dir, sg->N); 
                                 btdf_data = iinfo.getRefrBRDFData(&ppsg, refr_roughnessU, refr_roughnessV, pval_custom_tangent);
                             }
                         } 
