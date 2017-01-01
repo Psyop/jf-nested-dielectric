@@ -652,7 +652,7 @@ shader_evaluate
                         if ( do_TIR )
                         {
                             rayState->ray_TIRDepth++;
-                            if (rayState->ray_TIRDepth < JFND_MAX_TIR_DEPTH && specularRay.refr_bounces != 1)
+                            if (rayState->ray_TIRDepth < JFND_MAX_TIR_DEPTH && specularRay.refr_bounces > 1)
                             {
                                 specularRay.level--;
                                 specularRay.refr_bounces--;
