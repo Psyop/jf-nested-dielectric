@@ -625,15 +625,15 @@ shader_evaluate
                     AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
                     AtRay specularRay;
 
-                    AtUInt32 rayType;
+                    AtUInt32 rt = AI_RAY_REFLECTED;
                     if (do_TIR) 
-                        rayType = AI_RAY_REFRACTED;
+                        rt = AI_RAY_REFRACTED;
                     else if (pval_specular_ray_type == 0)  
-                        rayType = AI_RAY_GLOSSY;
+                        rt = AI_RAY_GLOSSY;
                     else if (pval_specular_ray_type == 1)  
-                        rayType = AI_RAY_REFLECTED;
+                        rt = AI_RAY_REFLECTED;
 
-                    AiMakeRay(&specularRay, rayType, &sg->P, NULL, AI_BIG, sg);
+                    AiMakeRay(&specularRay, rt, &sg->P, NULL, AI_BIG, sg);
 
                     void *brdf_data = iinfo.getSpecBRDFData(sg, spec_roughnessU, spec_roughnessV, pval_custom_tangent);
 
