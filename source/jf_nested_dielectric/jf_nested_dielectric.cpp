@@ -538,7 +538,6 @@ shader_evaluate
                 // ---------------------------------------------------//
 
                 // decision point- direct refraction
-                // if (trace_refract_direct && refracted )
                 if (traceSwitch.refr_dir && !tir)
                 {
                     // offsets and depth modification
@@ -594,7 +593,7 @@ shader_evaluate
 
 
             // ---------------------------------------------------//
-            // (Weak) Specular / Reflection
+            // Specular / Reflection / TIR
             // ---------------------------------------------------//
 
             const float rrProbability = AiShaderEvalParamFlt(p_russian_roulette_probability);

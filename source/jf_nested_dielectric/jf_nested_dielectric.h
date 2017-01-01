@@ -198,8 +198,8 @@ float fresnelEquations (float n1, float n2, float cosThetaI, float polarization 
     else
     {
         // Not TIR, fresnel equations can commence
-        const float fresnelS = (pow( (n1 * cosThetaI - n2 * cosThetaT ) / (n1 * cosThetaI + n2 * cosThetaT ), 2)) ;
-        const float fresnelP = (pow( (n1 * cosThetaT - n2 * cosThetaI ) / (n1 * cosThetaT + n2 * cosThetaI ), 2)) ;
+        const float fresnelS = (pow((n1 * cosThetaI - n2 * cosThetaT) / (n1 * cosThetaI + n2 * cosThetaT), 2)) ;
+        const float fresnelP = (pow((n1 * cosThetaT - n2 * cosThetaI) / (n1 * cosThetaT + n2 * cosThetaI), 2)) ;
 
         const float returnvalue = (fresnelP * polarization) + (fresnelS * (1-polarization));
 
@@ -210,68 +210,57 @@ float fresnelEquations (float n1, float n2, float cosThetaI, float polarization 
     }
 }
 
-AtVector parallelPark ( AtVector refractionVector, AtVector normal )
+AtVector parallelPark(AtVector refractionVector, AtVector normal)
 {
     // Paralell Parking Maneuver
+    // Takes a refracted vector, and creates an incoming ray that would produce the same
+    // reflection. Allows reusing specular BRDFs
     AtVector reflectionSourceVector;
     refractionVector = -refractionVector;
     AiReflect( &refractionVector, &normal, &reflectionSourceVector ) ;
     return -AiV3Normalize( reflectionSourceVector ) ;
 }
 
-float russianRoulette( AtSamplerIterator* rrSamplerIterator, float value, float probability)
-{          
-    float outvalue = 0.0f;
 
+float russianRoulette(AtSamplerIterator* rrSamplerIterator, float value, float probability)
+{          
     if (probability >= 1.0 || probability <= 0.0)
         return value;
 
     // Prepare a sampler to get a value to compare against.
     float sample[2];
-    const bool foundSample = AiSamplerGetSample( rrSamplerIterator, sample );
-    float fsample = (float) sample[0];
+    const bool foundSample = AiSamplerGetSample(rrSamplerIterator, sample); // to do: return value not used? 
     
-    while ( AiSamplerGetSample( rrSamplerIterator, sample ) ) 
-    {
-        // Exhaust the sampler. Good night, sampler. 
-        // This seems necessary, having the unexhausted sampler caused some problems with the specular sampler. 
-    }
+    // Exhaust the sampler. Good night, sampler. 
+    // This seems necessary, having the unexhausted sampler caused some problems with the specular sampler. 
+    while ( AiSamplerGetSample( rrSamplerIterator, sample ) ) {}
 
-    if (fsample < probability) 
+    if ((float) sample[0] < probability) 
     {
         // for example, if there's a 0.33 chance of tracing, we trace at 3x value (in the 0.33 chance that we trace at all).
-        outvalue = value / probability;
+        return value / probability;
     }
     else 
-    {
-        outvalue = 0.0f;
-    }   
-
-    return outvalue;
+        return 0;
 }
 
 
-
-float refractiveRoughness( float roughness1, float roughness2, float n1, float n2)
+float refractiveRoughness(float roughness1, float roughness2, float n1, float n2)
 {   
-    float averageRoughness = (roughness1 + roughness2) / 2.0f ;
-
-    float largerIOR = (n1 > n2) ? n1 : n2 ;
-    float smallerIOR = (n1 < n2) ? n1 : n2 ; 
-
-    float IORDifference = (largerIOR / smallerIOR) - 1.0f ;
-
+    const float averageRoughness = (roughness1 + roughness2) / 2.0f ;
+    const float largerIOR        = (n1 > n2) ? n1 : n2;
+    const float smallerIOR       = (n1 > n2) ? n2 : n1;
+    const float IORDifference    = (largerIOR / smallerIOR) - 1.0f ;
     return ( averageRoughness * IORDifference );
 }
+
 
 float refractRoughnessConvert(float roughness)
 {
     // squaring the roughness has been experimentally shown to do a pretty good job of matching 
     // the hijacked brdf roughnesses to the actual microfacet BTDF roughness.
     // So if you want roughness .5, you feed the hijacked BRDF roughness 0.5 ^ 2, which does a pretty good job. 
-    
     return roughness * roughness;
-    //return roughness;
 }
 
 
@@ -283,45 +272,28 @@ void blurAnisotropicPoles(float *roughnessU, float *roughnessV, float blurAmount
 
     *roughnessU = ( *roughnessU * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
     *roughnessV = ( *roughnessV * ( 1.0f - blendValue) ) + ( averagedRoughness * ( blendValue) );
-
-    return;
 }
-
 
 
 AtColor transmissionColor( AtColor * transmission, float depth)
 {
     if (*transmission != AI_RGB_WHITE)
-    {       
-        return AiColorCreate( 
-            pow( transmission->r, depth ), 
-            pow( transmission->g, depth ), 
-            pow( transmission->b, depth ) );
-    }
+        return AiColorCreate(pow(transmission->r, depth), 
+                             pow(transmission->g, depth), 
+                             pow(transmission->b, depth));
     else
-    {
         return AI_RGB_WHITE;
-    }
 }
 
 AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool traceHit )
 {
-    AtColor returnEnergy;
-
-    const float depth = (float) sample->z;
+    // return a color for the amount of transmission after passing through the medium. If no hit, assume infinite depth. 
     if (traceHit)
-    {
-        returnEnergy = transmissionColor( transmission, depth);
-    }
+        return transmissionColor(transmission, (float) sample->z);
     else
-    {
-        returnEnergy = AiColorCreate( 
-            transmission->r >= 1.0f ? 1.0f: 0.0f, 
-            transmission->g >= 1.0f ? 1.0f: 0.0f,
-            transmission->b >= 1.0f ? 1.0f: 0.0f ); 
-    }
-
-    return returnEnergy;
+        return AiColorCreate(transmission->r >= 1 ? 1: 0, 
+                             transmission->g >= 1 ? 1: 0,
+                             transmission->b >= 1 ? 1: 0 ); 
 }
 
 
@@ -570,16 +542,16 @@ typedef struct Ray_State {
 
     AtColor updateEnergyReturnOrig(AtColor weight) 
     {
-        const AtColor energyCache = this->ray_energy;
+        const AtColor orig = this->ray_energy;
         this->ray_energy *= weight;
-        return energyCache;
+        return orig;
     }
 
     AtColor updatePhotonEnergyReturnOrig(AtColor weight) 
     {
-        const AtColor energyCache = this->ray_energy_photon;
+        const AtColor orig = this->ray_energy_photon;
         this->ray_energy_photon *= weight;
-        return energyCache;
+        return orig;
     }
 
     void resetEnergyCache(AtColor orig) 
@@ -614,8 +586,7 @@ typedef struct Ray_State {
             AiShaderEvalParamRGB(p_mediumTransmittance), AiShaderEvalParamFlt(p_mediumTransmittance_scale));
     }
 
-    void setSpecularSettings(int i, float direct, float indirect, int BRDF, float roughnessU, 
-        float roughnessV)
+    void setSpecularSettings(int i, float direct, float indirect, int BRDF, float roughnessU, float roughnessV)
     {
         this->media_BRDF.v[i] = BRDF;
         this->media_specRoughnessU.v[i] = roughnessU;
@@ -958,12 +929,12 @@ typedef struct InterfaceInfo {
         return this->rs->media_BRDF.v[this->m_higherPriority];
     }
 
-    void* getRefrBRDFData(AtShaderGlobals *sg, float roughnessU, float roughnessV, AtVector customTangent) 
+    void* getRefrBRDFData(AtShaderGlobals *sg, const float roughnessU, const float roughnessV, const AtVector customTangent) 
     {
         return this->getBRDFData(this->getRefrBRDFType(), sg, roughnessU, roughnessV, customTangent);
     }
 
-    void* getSpecBRDFData(AtShaderGlobals *sg, float roughnessU, float roughnessV, AtVector customTangent) 
+    void* getSpecBRDFData(AtShaderGlobals *sg, const float roughnessU, const float roughnessV, const AtVector customTangent) 
     {
         return this->getBRDFData(this->getSpecBRDFType(), sg, roughnessU, roughnessV, customTangent);
     }
@@ -1009,26 +980,26 @@ typedef struct InterfaceInfo {
         AtVector uTangent, vTangent;
         switch ( dr_btdf )
         {
-            case b_cook_torrance:
-                // Cook Torrance
-                uTangent = AI_V3_ZERO;
-                vTangent = AI_V3_ZERO;
-            case b_cook_torrance_ray_tangent:
-                // Ward with refraction-derivitive tangents
-                AtVector raydir = AiV3Normalize(ppsg->Rd);
-                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, raydir);
-                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, raydir);
-                uTangent = AiV3Cross(ppsg->Nf, raydir); 
-                vTangent = AiV3Cross(ppsg->Nf, uTangent);
-                break;
-            case b_cook_torrance_user_tangent:
-                // Ward with user tangents
-                AtVector customTan = AiV3Normalize( customTangentVector );
-                blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, customTan);
-                blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, customTan);
-                uTangent = AiV3Cross(ppsg->Nf, customTan); 
-                vTangent = AiV3Cross(ppsg->Nf, uTangent);                   
-                break;
+        case b_cook_torrance:
+            // Cook Torrance
+            uTangent = AI_V3_ZERO;
+            vTangent = AI_V3_ZERO;
+        case b_cook_torrance_ray_tangent:
+            // Ward with refraction-derivitive tangents
+            AtVector raydir = AiV3Normalize(ppsg->Rd);
+            blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, raydir);
+            blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, raydir);
+            uTangent = AiV3Cross(ppsg->Nf, raydir); 
+            vTangent = AiV3Cross(ppsg->Nf, uTangent);
+            break;
+        case b_cook_torrance_user_tangent:
+            // Ward with user tangents
+            AtVector customTan = AiV3Normalize( customTangentVector );
+            blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, customTan);
+            blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, customTan);
+            uTangent = AiV3Cross(ppsg->Nf, customTan); 
+            vTangent = AiV3Cross(ppsg->Nf, uTangent);                   
+            break;
         }
         *btdfA = AiCookTorranceMISCreateData(ppsg, &uTangent, &vTangent, dr_roughnessU, dr_roughnessU);
         *btdfB = AiCookTorranceMISCreateData(ppsg, &uTangent, &vTangent, drs_roughnessU, drs_roughnessU);
