@@ -641,12 +641,10 @@ typedef struct Ray_State {
 
 
 typedef struct InterfaceInfo {
-    int currentID; // the ID of the material currently being evaluated
-    int startingMedium;
-    int startingMediumSecondary;
-    int m1;
-    int m2;
-    int m_higherPriority;
+    int8_t currentID; // the ID of the material currently being evaluated
+    int8_t m1;
+    int8_t m2;
+    int8_t m_higherPriority;
     float n1;
     float n2;
     float polarizationTerm;
@@ -657,13 +655,14 @@ typedef struct InterfaceInfo {
     bool mediaExit;
     bool mediaEntrance;
 
+    int8_t startingMedium;
+    int8_t startingMediumSecondary;
+
     Ray_State * rs;
 
     InterfaceInfo(Ray_State * rayState, int currentID, AtShaderGlobals * sg) 
     {
         this->currentID = currentID;
-        this->startingMedium = 0;
-        this->startingMediumSecondary = 0; // to do: we don't really need tehse distinctions, m1 and m2 will be fine thank you
         this->m1 = 0;
         this->m2 = 0;
         this->m_higherPriority = 0;
@@ -682,17 +681,16 @@ typedef struct InterfaceInfo {
 
         this->rs = rayState;
 
-        bool shadowRay = (sg->Rt == AI_RAY_SHADOW);
-        this->setCurrentMediaInfo(shadowRay);
-        this->setIntersectionIDs(sg);
-        this->setInterfaceProperties();
-        this->setPolarizationTerm(sg);
+        this->startingMedium = 0;
+        this->startingMediumSecondary = 0;
+
+        this->computeCurrentMediaInfo(sg);
     }
 
 
     private: 
 
-    void setCurrentMediaInfo(bool shadowRay) 
+    void computeCurrentMediaInfo(AtShaderGlobals *sg) 
     {
         // ---------------------------------------------------//
         // - media logic     
@@ -706,7 +704,7 @@ typedef struct InterfaceInfo {
          * example: we're inside glass and water, glass is the priority. startingMedium is glass, startingMediumSecondary is water.
          * This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
          */
-
+        bool shadowRay = (sg->Rt == AI_RAY_SHADOW);
         MediaIntStruct * media_inside_ptr = shadowRay ? &this->rs->shadow_media_inside : &this->rs->media_inside;
 
         for( int i = 0; i < max_media_count; i++ )
@@ -729,10 +727,7 @@ typedef struct InterfaceInfo {
                 }
             }
         }
-    }
 
-    void setIntersectionIDs(AtShaderGlobals* sg) 
-    {
         /*
          * m = medium ID, n = IOR, T = transmission
          * 1 is the previous medium, 2 is the next, as seen in n1 and n2 of refraction diagrams
@@ -796,10 +791,7 @@ typedef struct InterfaceInfo {
             this->m_higherPriority = this->m1;
         else if (this->m1 > this->m2) 
             this->m_higherPriority = this->m2;
-    }
 
-    void setInterfaceProperties() 
-    {
         // - Interface Logic
         //      (Disperse and multisample)
 
