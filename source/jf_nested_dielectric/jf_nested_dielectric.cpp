@@ -620,21 +620,7 @@ shader_evaluate
                 {
                     float spec_roughnessU, spec_roughnessV;
                     iinfo.getSpecRoughness(spec_roughnessU, spec_roughnessV);
-                    bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
-
-                    AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
-                    AtRay specularRay;
-
-                    AtUInt32 rt = AI_RAY_REFLECTED;
-                    if (do_TIR) 
-                        rt = AI_RAY_REFRACTED;
-                    else if (pval_specular_ray_type == 0)  
-                        rt = AI_RAY_GLOSSY;
-                    else if (pval_specular_ray_type == 1)  
-                        rt = AI_RAY_REFLECTED;
-
-                    AiMakeRay(&specularRay, rt, &sg->P, NULL, AI_BIG, sg);
-
+                    const bool sharp_reflection = (spec_roughnessU < ZERO_EPSILON && spec_roughnessV < ZERO_EPSILON);
                     void *brdf_data = iinfo.getSpecBRDFData(sg, spec_roughnessU, spec_roughnessV, pval_custom_tangent);
 
                     // ---------------------------------------------------//
@@ -646,26 +632,23 @@ shader_evaluate
                     {
                         const float weight = fresnelTerm * rayState->media_specIndirect.v[iinfo.m1] * overallResultScale;
                         const bool reflect_skies = AiShaderEvalParamBool(p_reflect_skies);
-                        AtColor energyCache;
-                        AtColor energyCache_photon; 
+                        AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
 
-                        if ( do_TIR )
+                        AtUInt32 rt = pval_specular_ray_type == 0 ? AI_RAY_GLOSSY : AI_RAY_REFLECTED;
+                        if (do_TIR) 
+                            rt = AI_RAY_REFRACTED;
+
+                        AtRay specularRay;
+                        AiMakeRay(&specularRay, rt, &sg->P, NULL, AI_BIG, sg);
+
+                        AtColor energyCache = rayState->updateEnergyReturnOrig(do_TIR ? TIR_color : weight * AI_RGB_WHITE); 
+                        AtColor energyCache_photon = rayState->updatePhotonEnergyReturnOrig(do_TIR ? TIR_color : weight * AI_RGB_WHITE); 
+                        if ( do_TIR && rayState->ray_TIRDepth < JFND_MAX_TIR_DEPTH && specularRay.refr_bounces > 1)
                         {
                             rayState->ray_TIRDepth++;
-                            if (rayState->ray_TIRDepth < JFND_MAX_TIR_DEPTH && specularRay.refr_bounces > 1)
-                            {
-                                specularRay.level--;
-                                specularRay.refr_bounces--;
-                            }
-                            energyCache = rayState->updateEnergyReturnOrig(TIR_color);
-                            energyCache_photon = rayState->updatePhotonEnergyReturnOrig(TIR_color);
-                        } 
-                        else
-                        {
-                            energyCache = rayState->updateEnergyReturnOrig(weight * AI_RGB_WHITE);
-                            energyCache_photon = rayState->updatePhotonEnergyReturnOrig(weight * AI_RGB_WHITE); 
+                            specularRay.level--;
+                            specularRay.refr_bounces--;
                         }
-
 
                         if (sg->Rt == AI_RAY_CAMERA)
                             rayState->ray_energy_photon /= (float) data->gloss_samples;
@@ -682,7 +665,7 @@ shader_evaluate
 
                             specularRay.dir = AiCookTorranceMISSample(brdf_data, (float) specular_sample[0], (float) specular_sample[1]);
                                 
-                            if (AiV3Dot(specularRay.dir,sg->Nf) > ZERO_EPSILON )
+                            if (AiV3Dot(specularRay.dir, sg->Nf) > ZERO_EPSILON )
                             {                                   
                                 const bool tracehit = AiTrace(&specularRay, &sample);
                                 if (tracehit || reflect_skies) 
@@ -745,9 +728,9 @@ shader_evaluate
             AtRay ray;
             AtScrSample sample;
 
-            rayState->ray_invalidDepth++;
             updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
             AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);
+            rayState->ray_invalidDepth++;
             ray.refr_bounces--;
             ray.level--;
             const bool tracehit = AiTrace(&ray, &sample);
