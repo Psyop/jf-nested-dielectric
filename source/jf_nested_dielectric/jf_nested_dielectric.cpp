@@ -737,9 +737,7 @@ shader_evaluate
     // ---------------------------------------------------//
     // - Invalid Interface Tracing
     // ---------------------------------------------------//
-
     AtRGBA validInterfaceResult = AI_RGBA_BLACK;
-
     if ( !iinfo.validInterface )
     {
         if ( rayState->ray_invalidDepth < JFND_MAX_INVALID_DEPTH)
@@ -747,13 +745,11 @@ shader_evaluate
             AtRay ray;
             AtScrSample sample;
 
-            rayState->ray_invalidDepth ++;
+            rayState->ray_invalidDepth++;
             updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
-
-            AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, NULL, AI_BIG, sg);
-            ray.dir = sg->Rd;
-            ray.level --;
-            ray.refr_bounces --;
+            AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);
+            ray.refr_bounces--;
+            ray.level--;
             const bool tracehit = AiTrace(&ray, &sample);
 
             AiRGBtoRGBA( sample.color * transmissionOnSample(&iinfo.t2, &sample, tracehit ), validInterfaceResult );
