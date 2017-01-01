@@ -371,8 +371,6 @@ shader_evaluate
 
             if ( traceSwitch.traceAnyRefraction() )
             {
-                int refractSamplesTaken = 0;
-
                 // ---------------------------------------------------//
                 // Refraction
                 // Samplers
@@ -426,6 +424,7 @@ shader_evaluate
                     AtRay dispersalRay;
                     float dispersal_seed = -1.0f;
                     int dispersed_TIR_samples = 0;
+                    int refractSamplesTaken = 0;
                     const bool refract_skies = AiShaderEvalParamBool(p_refract_skies);
                     const bool skip_sampling = tir && !do_disperse;
 
@@ -525,8 +524,6 @@ shader_evaluate
 
                     if (refractSamplesTaken > 0) 
                         acc_refract_indirect /= (float) refractSamplesTaken;
-                    else 
-                        acc_refract_indirect = AI_RGB_BLACK;  //to do: necessary line?
                 }
 
                 // Exhaust the sampler. Good night, sampler. This seems necessary, having the unexhausted sampler caused some problems with the RR sampler. 
