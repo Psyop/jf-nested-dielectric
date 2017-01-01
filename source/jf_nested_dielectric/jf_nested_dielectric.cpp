@@ -399,15 +399,14 @@ shader_evaluate
                 AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);                 
                 const bool tir = !AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
 
-                const AtVector cache_N = sg->N;
-                const AtVector cache_Nf = sg->Nf;
+                const AtVector cache_N   = sg->N;
+                const AtVector cache_Nf  = sg->Nf;
                 const AtVector cache_Ngf = sg->Ngf;
-                const AtVector cache_Rd = sg->Rd;
-                AtShaderGlobals ppsg = *sg;
+                const AtVector cache_Rd  = sg->Rd;
                 sg->Nf *= -1; // flip the forward facing normals
                 sg->Ngf *= -1; // flip the forward facing normals
                 sg->Rd = parallelPark(ray.dir, cache_N); 
-
+                
                 // decision point- indirect refraction
                 if ( traceSwitch.refr_ind )
                 {
@@ -449,6 +448,7 @@ shader_evaluate
                             float n1_disp, n2_disp;
                             iinfo.disperse(dispersal_seed + dispersion_sample[0], &n1_disp, &n2_disp, &monochromeColor);
 
+                            sg->Rd = cache_Rd;
                             AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &cache_Rd, AI_BIG, sg);
                             dispersion_sample_TIR = !AiRefractRay(&dispersalRay, &cache_N, n1_disp, n2_disp, sg);
                             ray.dir = dispersalRay.dir; // note: must happen after AiRefractRay
