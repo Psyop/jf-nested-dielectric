@@ -13,12 +13,15 @@ typedef struct MediaFloatStruct { float v[max_media_count]; } MediaFloatStruct;
 typedef struct MediaBoolStruct { bool v[max_media_count]; } MediaBoolStruct;
 typedef struct MediaAtColorStruct { AtColor v[max_media_count]; } MediaAtColorStruct;
 
-const char *JFND_MSG_VALID_BOOL = "msgs_are_valid";
-const char *JFND_MSG_RAYSTATE_PTR = "rayState_ptr";
-const char *JFND_MSG_SHADOW_VALID_BOOL = "shadowlist_is_valid";
-const char *JFND_MSG_PREV_TRANSP_INT = "prev_transp_index";
-const char *JFND_MSG_PHOTON_RGB = "photon_energy";
-const char *JFND_MSG_OPQ_SHADOW_MODE_BOOL = "opaqueShadowMode";
+#define JFND_MSG_VALID_BOOL "msgs_are_valid"
+#define JFND_MSG_RAYSTATE_PTR "rayState_ptr"
+#define JFND_MSG_SHADOW_VALID_BOOL "shadowlist_is_valid"
+#define JFND_MSG_PREV_TRANSP_INT "prev_transp_index"
+#define JFND_MSG_PHOTON_RGB "photon_energy"
+#define JFND_MSG_OPQ_SHADOW_MODE_BOOL "opaqueShadowMode"
+
+#define JFND_MAX_TIR_DEPTH 50
+#define JFND_MAX_INVALID_DEPTH 70
 
 // ---------------------------------------------------//
 // - Enumerations 

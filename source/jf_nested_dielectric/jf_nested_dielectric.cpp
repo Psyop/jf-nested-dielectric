@@ -404,7 +404,7 @@ shader_evaluate
                 sg->Nf *= -1; // flip the forward facing normals
                 sg->Ngf *= -1; // flip the forward facing normals
                 sg->Rd = parallelPark(ray.dir, cache_N); 
-                
+
                 // decision point- indirect refraction
                 if ( traceSwitch.refr_ind )
                 {
@@ -421,6 +421,7 @@ shader_evaluate
                     // Indirect REfraction Sampling
                     // ---------------------------------------------------//
                     
+
                     AtRay dispersalRay;
                     float dispersal_seed = -1.0f;
                     int dispersed_TIR_samples = 0;
@@ -527,7 +528,7 @@ shader_evaluate
                 }
 
                 // Exhaust the sampler. Good night, sampler. This seems necessary, having the unexhausted sampler caused some problems with the RR sampler. 
-                while ( AiSamplerGetSample( dispersionIt, dispersion_sample ) ){} // to do: not necessary when not dispersed?
+                while ( AiSamplerGetSample(dispersionIt, dispersion_sample) ){} // to do: not necessary when not dispersed?
 
                 // ---------------------------------------------------//
                 // Refraction - Direct
@@ -651,7 +652,7 @@ shader_evaluate
                         if ( do_TIR )
                         {
                             rayState->ray_TIRDepth++;
-                            if (rayState->ray_TIRDepth < 50 && specularRay.refr_bounces > 1) // to do: the constant should be a constant or macro somewhere
+                            if (rayState->ray_TIRDepth < JFND_MAX_TIR_DEPTH && specularRay.refr_bounces != 1)
                             {
                                 specularRay.level--;
                                 specularRay.refr_bounces--;
@@ -741,7 +742,7 @@ shader_evaluate
 
     if ( !iinfo.validInterface )
     {
-        if ( rayState->ray_invalidDepth < 70 )
+        if ( rayState->ray_invalidDepth < JFND_MAX_INVALID_DEPTH)
         {
             AtRay ray;
             AtScrSample sample;
