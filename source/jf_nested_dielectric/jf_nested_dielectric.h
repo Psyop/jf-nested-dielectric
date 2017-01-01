@@ -13,11 +13,11 @@ typedef struct MediaFloatStruct { float v[max_media_count]; } MediaFloatStruct;
 typedef struct MediaBoolStruct { bool v[max_media_count]; } MediaBoolStruct;
 typedef struct MediaAtColorStruct { AtColor v[max_media_count]; } MediaAtColorStruct;
 
-#define JFND_MSG_VALID_BOOL "JFND_MAV"
-#define JFND_MSG_RAYSTATE_PTR "JFND_RSP"
-#define JFND_MSG_SHADOW_VALID_BOOL "JFND_SHV"
-#define JFND_MSG_PREV_TRANSP_INT "JFND_PTI"
-#define JFND_MSG_OPQ_SHADOW_MODE_BOOL "JFND_OSM"
+#define JFND_MSG_VALID_BOOL "MAV_JFND"
+#define JFND_MSG_RAYSTATE_PTR "RSP_JFND"
+#define JFND_MSG_SHADOW_VALID_BOOL "SHV_JFND"
+#define JFND_MSG_PREV_TRANSP_INT "PTI_JFND"
+#define JFND_MSG_OPQ_SHADOW_MODE_BOOL "OSM_JFND"
 
 // also used in jf_photon
 #define JFND_MSG_PHOTON_RGB "photon_energy" 
