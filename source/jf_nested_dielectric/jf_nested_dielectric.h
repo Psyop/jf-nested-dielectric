@@ -1037,9 +1037,10 @@ typedef struct InterfaceInfo {
 
     void reportInfo(const char* header) 
     {
-        AiMsgWarning("%s: (m1:%d, m2:%d, h:%d, start:%d, start2:%d, enter:%d, mono:%d, valid:%d)", 
+        AiMsgWarning("%s: (m1:%d, m2:%d, h:%d, start:%d, start2:%d, enter:%d, mono:%d, valid:%d) inv:%d, tir:%d", 
             header, this->m1, this->m2, this->m_higherPriority, this->startingMedium, 
-            this->startingMediumSecondary, this->entering, this->rs->ray_monochromatic, this->validInterface);
+            this->startingMediumSecondary, this->entering, this->rs->ray_monochromatic, this->validInterface,
+            this->rs->ray_invalidDepth, this->rs->ray_TIRDepth);
         // AiMsgWarning("t1: %g %g %g t2: %g %g %g", 
         //     this->t1.r, this->t1.g, this->t1.b, this->t2.r, this->t2.g, this->t2.b );
         // AiMsgWarning("Depth: %g", (float) sg->Rl);
