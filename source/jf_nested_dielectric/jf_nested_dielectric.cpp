@@ -378,16 +378,14 @@ shader_evaluate
 
                 const float effectiveProbability = (AiColorToGrey(rayState->ray_energy) + 0.01f) * rrProbability * 10.0f;
                 const float rrResult = russianRoulette( russian_roullete_iterator, 1.0, effectiveProbability);
+                while ( AiSamplerGetSample( rrSamplerIterator, sample ) ) {} // exhaust the sampler. 
+                
                 if (rrResult == 0.0)
                     optoAllowBranch = false;
                 else if (refrStronger) 
-                {
-                    rrSpecStrength *= rrResult;
-                }
-                else if (!refrStronger) 
-                { 
-                    rrRefrStrength *= rrResult; 
-                }
+                    rrSpecStrength *= rrResult; // refr is stronger, spec was on the chopping block. 
+                else
+                    rrRefrStrength *= rrResult; // spec is stronger, refr was on the chopping block. 
             }
 
             const bool optoAllowRefr = optoAllowBranch || refrStronger;
@@ -622,8 +620,11 @@ shader_evaluate
             // Specular / Reflection / TIR
             // ---------------------------------------------------//
 
+            // If we're doing TIR, either refraction was stronger (and so will == 1.0), or no 
+            // russian roullete was done (and strength will also be 1.0. No RR strength needed on 
+            // TIR. )
             if (do_TIR)
-                fresnelTerm = 1.0f * rrRefrStrength;
+                fresnelTerm = 1.0f; 
 
             if (fresnelTerm > ZERO_EPSILON && optoAllowRefl)
             {

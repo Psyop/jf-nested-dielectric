@@ -237,8 +237,6 @@ float russianRoulette(AtSamplerIterator* rrSamplerIterator, float value, float p
 
     // Exhaust the sampler. Good night, sampler. 
     // This seems necessary, having the unexhausted sampler caused some problems with the specular sampler. 
-    while ( AiSamplerGetSample( rrSamplerIterator, sample ) ) {}
-
     if ((float) sample[0] < probability) 
     {
         // for example, if there's a 0.33 chance of tracing, we trace at 3x value (in the 0.33 chance that we trace at all).
