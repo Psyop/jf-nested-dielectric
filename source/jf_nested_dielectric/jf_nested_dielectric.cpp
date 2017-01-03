@@ -374,12 +374,15 @@ shader_evaluate
             float rrSpecStrength = 1.0;
             if ( optoAllowBranch && rrProbability > ZERO_EPSILON && sg->Rr_refr > 0 )
             {
-                AtSamplerIterator* russian_roullete_iterator = AiSamplerIterator( data->russian_roullete_single_sampler, sg );
+                // const float effectiveProbability = (AiColorToGrey(rayState->ray_energy) + 0.01f) * rrProbability * 10.0f;
+                const float energyProb = (AiColorToGrey(rayState->ray_energy) + 0.01f) * 4.0;
+                const float averageProb = (energyProb + rrProbability) / 2.0f;
 
-                const float effectiveProbability = (AiColorToGrey(rayState->ray_energy) + 0.01f) * rrProbability * 10.0f;
-                const float rrResult = russianRoulette( russian_roullete_iterator, 1.0, effectiveProbability);
-                while ( AiSamplerGetSample( rrSamplerIterator, sample ) ) {} // exhaust the sampler. 
-                
+                AtSamplerIterator* rr_iterator = AiSamplerIterator( data->russian_roullete_single_sampler, sg );
+                const float rrResult = russianRoulette( rr_iterator, 1.0, averageProb);
+                float dummy[2];
+                while ( AiSamplerGetSample(rr_iterator, dummy) ) {} // exhaust the sampler. 
+
                 if (rrResult == 0.0)
                     optoAllowBranch = false;
                 else if (refrStronger) 
