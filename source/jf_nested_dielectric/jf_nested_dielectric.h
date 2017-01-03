@@ -232,10 +232,9 @@ float russianRoulette(AtSamplerIterator* rrSamplerIterator, float value, float p
     if (probability >= 1.0 || probability <= 0.0)
         return value;
 
-    // Prepare a sampler to get a value to compare against.
     float sample[2];
-    const bool foundSample = AiSamplerGetSample(rrSamplerIterator, sample); // to do: return value not used? 
-    
+    AiSamplerGetSample(rrSamplerIterator, sample); 
+
     // Exhaust the sampler. Good night, sampler. 
     // This seems necessary, having the unexhausted sampler caused some problems with the specular sampler. 
     while ( AiSamplerGetSample( rrSamplerIterator, sample ) ) {}
@@ -245,7 +244,7 @@ float russianRoulette(AtSamplerIterator* rrSamplerIterator, float value, float p
         // for example, if there's a 0.33 chance of tracing, we trace at 3x value (in the 0.33 chance that we trace at all).
         return value / probability;
     }
-    else 
+    else
         return 0;
 }
 

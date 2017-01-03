@@ -352,13 +352,10 @@ shader_evaluate
         // Valid interfaces
         // ---------------------------------------------------//
 
-        bool energySignificant = std::abs( rayState->ray_energy.r ) > rayState->energy_cutoff 
-                              || std::abs( rayState->ray_energy.g ) > rayState->energy_cutoff 
-                              || std::abs( rayState->ray_energy.b ) > rayState->energy_cutoff;
 
         float dispersion_sample[2], refraction_sample[2], specular_sample[2];
         // decision point- trace anything
-        if ( energySignificant && traceSwitch.traceAnything() ) 
+        if (traceSwitch.traceAnything()) 
         {
             AtRay ray;
             AtScrSample sample;
@@ -366,10 +363,29 @@ shader_evaluate
             float fresnelTerm = fresnelEquations(iinfo.n1, iinfo.n2,  AiV3Dot(sg->Nf, -sg->Rd), 
                 iinfo.polarizationTerm, true);
 
+            const bool refrStronger = fresnelTerm < 0.5;
+            const bool optoEnergySignificant = std::abs( rayState->ray_energy.r ) > rayState->energy_cutoff 
+                                        || std::abs( rayState->ray_energy.g ) > rayState->energy_cutoff 
+                                        || std::abs( rayState->ray_energy.b ) > rayState->energy_cutoff;
+            const bool optoAllowBranch = optoEnergySignificant;
+            // if (optoAllowBranch)
+            //      rrResult =  russian roulette(value = 1.0)
+            //      if (rrResult == 0)
+            //          optoAllowBranch = false
+            //      else if (refrStronger)
+            //          spec power *= rrResult
+            //      else if (!refrStronger)
+            //          refr strength *= rrResult
+            //
+            //      if we win, we increase the power of what would have been lose
+
+            const bool optoAllowRefr = optoAllowBranch || fresnelTerm < 0.5;
+            bool optoAllowRefl = optoAllowBranch || fresnelTerm > 0.5;
+
             bool do_TIR = false;
             AtColor TIR_color = AI_RGB_BLACK;
 
-            if ( traceSwitch.traceAnyRefraction() )
+            if ( traceSwitch.traceAnyRefraction() && optoAllowRefr )
             {
                 // ---------------------------------------------------//
                 // Refraction
@@ -396,6 +412,8 @@ shader_evaluate
 
                 AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);                 
                 const bool tir = !AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
+                if (tir)
+                    optoAllowRefl = true;
 
                 const AtVector cache_N   = sg->N;
                 const AtVector cache_Nf  = sg->Nf;
@@ -553,9 +571,9 @@ shader_evaluate
 
                     float dr_roughnessV = dr_roughnessU;
                     if (dr_btdf != b_cook_torrance) 
-                        dr_roughnessV == use_refr_settings ? 
-                        refr_roughnessV  * rFactor + rOffset : 
-                        refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) ) * rFactor + rOffset;
+                        dr_roughnessV = use_refr_settings ? 
+                            refr_roughnessV  * rFactor + rOffset : 
+                            refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) ) * rFactor + rOffset;
 
                     float dr_first_scale = rayState->media_refractDirect.v[media_id];
                     float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale ) * dr_first_scale;
@@ -589,24 +607,34 @@ shader_evaluate
                 sg->Rd = cache_Rd;
             }
 
-
             // ---------------------------------------------------//
             // Specular / Reflection / TIR
             // ---------------------------------------------------//
 
             const float rrProbability = AiShaderEvalParamFlt(p_russian_roulette_probability);
-            const bool rrActive = rrProbability > ZERO_EPSILON && (sg->Rr_refr > 0) && !do_TIR ;
-
-            if ( rrActive )
-            {
-                AtSamplerIterator* russian_roullete_iterator = AiSamplerIterator( data->russian_roullete_single_sampler, sg );
-                fresnelTerm = russianRoulette( russian_roullete_iterator, fresnelTerm, rrProbability);
-            }
 
             if (do_TIR)
                 fresnelTerm = 1.0f;
+            else if ( rrProbability > ZERO_EPSILON && sg->Rr_refr > 0 )
+            {
+                AtSamplerIterator* russian_roullete_iterator = AiSamplerIterator( data->russian_roullete_single_sampler, sg );
+                // Let us concoct some kind of unholy merger of russian roulette and energy tracking. 
+                // lower energy should be less likely. 
+                // Let's say the given probability is 0.5
+                // The energy is 1%. 
+                // Padding is 1% (0.01)
+                // prob = (energy + padding) * probability * 20. 
+                // e = 0.01; prob = 0.20
+                // e = 0.02; prob = 0.30
+                // e = 0.03; prob = 0.40
+                // e = 0.04; prob = 0.50
+                // e = 0.09; prob = 0.80
+                // e = 0.09; prob = 0.80
+                const float effectiveProbability = (AiColorToGrey(rayState->ray_energy) + 0.01f) * rrProbability * 20.0f;
+                fresnelTerm = russianRoulette( russian_roullete_iterator, fresnelTerm, effectiveProbability);
+            }
 
-            if (fresnelTerm > ZERO_EPSILON)
+            if (fresnelTerm > ZERO_EPSILON && optoAllowRefl)
             {
                 // reset data to do reflection
                 if (do_disperse)
@@ -647,13 +675,13 @@ shader_evaluate
                         {
                             rayState->ray_TIRDepth++;
                             specularRay.level--;
-                            specularRay.refr_bounces--;
+                            specularRay.refr_bounces--; 
                         }
 
                         if (sg->Rt == AI_RAY_CAMERA)
                             rayState->ray_energy_photon /= (float) data->gloss_samples;
 
-                        AiStateSetMsgRGB(JFND_MSG_PHOTON_RGB,rayState->ray_energy_photon);
+                        AiStateSetMsgRGB(JFND_MSG_PHOTON_RGB, rayState->ray_energy_photon);
 
                         while ( AiSamplerGetSample(specularIterator, specular_sample) )
                         {
