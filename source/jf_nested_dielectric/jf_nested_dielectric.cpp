@@ -367,20 +367,31 @@ shader_evaluate
             const bool optoEnergySignificant = std::abs( rayState->ray_energy.r ) > rayState->energy_cutoff 
                                         || std::abs( rayState->ray_energy.g ) > rayState->energy_cutoff 
                                         || std::abs( rayState->ray_energy.b ) > rayState->energy_cutoff;
-            const bool optoAllowBranch = optoEnergySignificant;
-            // if (optoAllowBranch)
-            //      rrResult =  russian roulette(value = 1.0)
-            //      if (rrResult == 0)
-            //          optoAllowBranch = false
-            //      else if (refrStronger)
-            //          spec power *= rrResult
-            //      else if (!refrStronger)
-            //          refr strength *= rrResult
-            //
-            //      if we win, we increase the power of what would have been lose
+            bool optoAllowBranch = optoEnergySignificant;
 
-            const bool optoAllowRefr = optoAllowBranch || fresnelTerm < 0.5;
-            bool optoAllowRefl = optoAllowBranch || fresnelTerm > 0.5;
+            const float rrProbability = AiShaderEvalParamFlt(p_russian_roulette_probability);
+            float rrRefrStrength = 1.0;
+            float rrSpecStrength = 1.0;
+            if ( optoAllowBranch && rrProbability > ZERO_EPSILON && sg->Rr_refr > 0 )
+            {
+                AtSamplerIterator* russian_roullete_iterator = AiSamplerIterator( data->russian_roullete_single_sampler, sg );
+
+                const float effectiveProbability = (AiColorToGrey(rayState->ray_energy) + 0.01f) * rrProbability * 10.0f;
+                const float rrResult = russianRoulette( russian_roullete_iterator, 1.0, effectiveProbability);
+                if (rrResult == 0.0)
+                    optoAllowBranch = false;
+                else if (refrStronger) 
+                {
+                    rrSpecStrength *= rrResult;
+                }
+                else if (!refrStronger) 
+                { 
+                    rrRefrStrength *= rrResult; 
+                }
+            }
+
+            const bool optoAllowRefr = optoAllowBranch || refrStronger;
+            bool optoAllowRefl = optoAllowBranch || !refrStronger;
 
             bool do_TIR = false;
             AtColor TIR_color = AI_RGB_BLACK;
@@ -491,7 +502,7 @@ shader_evaluate
                         {
                             updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
                             const AtColor weight = (1.0f - fresnelTerm) * monochromeColor 
-                                * overallResultScale * iinfo.getIndirectRefractionWeight();
+                                * overallResultScale * iinfo.getIndirectRefractionWeight() * rrRefrStrength;
 
                             const AtColor energyCache = rayState->updateEnergyReturnOrig(weight);
                             const AtColor energyCache_photon = rayState->updatePhotonEnergyReturnOrig(weight);
@@ -597,8 +608,8 @@ shader_evaluate
                     iinfo.directRefractionSampleLights(sg, dr_btdf, refract_skydomes, two_lobes, 
                         btdf_data_direct, btdf_data_direct2, &acc_refract_direct, &acc_refract_direct_second);
 
-                    acc_refract_direct *= dr_first_scale * (1.0f - fresnelTerm) * overallResultScale;
-                    acc_refract_direct_second *= dr_second_scale * (1.0f - fresnelTerm) * overallResultScale;
+                    acc_refract_direct *= dr_first_scale * (1.0f - fresnelTerm) * overallResultScale * rrRefrStrength;
+                    acc_refract_direct_second *= dr_second_scale * (1.0f - fresnelTerm) * overallResultScale * rrRefrStrength;
                 }
 
                 sg->N = cache_N;   
@@ -611,28 +622,8 @@ shader_evaluate
             // Specular / Reflection / TIR
             // ---------------------------------------------------//
 
-            const float rrProbability = AiShaderEvalParamFlt(p_russian_roulette_probability);
-
             if (do_TIR)
-                fresnelTerm = 1.0f;
-            else if ( rrProbability > ZERO_EPSILON && sg->Rr_refr > 0 )
-            {
-                AtSamplerIterator* russian_roullete_iterator = AiSamplerIterator( data->russian_roullete_single_sampler, sg );
-                // Let us concoct some kind of unholy merger of russian roulette and energy tracking. 
-                // lower energy should be less likely. 
-                // Let's say the given probability is 0.5
-                // The energy is 1%. 
-                // Padding is 1% (0.01)
-                // prob = (energy + padding) * probability * 20. 
-                // e = 0.01; prob = 0.20
-                // e = 0.02; prob = 0.30
-                // e = 0.03; prob = 0.40
-                // e = 0.04; prob = 0.50
-                // e = 0.09; prob = 0.80
-                // e = 0.09; prob = 0.80
-                const float effectiveProbability = (AiColorToGrey(rayState->ray_energy) + 0.01f) * rrProbability * 20.0f;
-                fresnelTerm = russianRoulette( russian_roullete_iterator, fresnelTerm, effectiveProbability);
-            }
+                fresnelTerm = 1.0f * rrRefrStrength;
 
             if (fresnelTerm > ZERO_EPSILON && optoAllowRefl)
             {
@@ -658,7 +649,7 @@ shader_evaluate
                     // decision point- indirect specular
                     if ( traceSwitch.spec_ind || do_TIR )
                     {
-                        const float weight = fresnelTerm * rayState->media_specIndirect.v[iinfo.m1] * overallResultScale;
+                        const float weight = fresnelTerm * rayState->media_specIndirect.v[iinfo.m1] * overallResultScale * rrSpecStrength;
                         const bool reflect_skies = AiShaderEvalParamBool(p_reflect_skies);
                         AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
 
