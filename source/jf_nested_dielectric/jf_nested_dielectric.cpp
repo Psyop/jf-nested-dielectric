@@ -35,8 +35,8 @@ node_parameters
 
     AiParameterFLT("direct_refraction", 1.0f);
     AiParameterFLT("dr_roughnessOffset", 0.05f);
-    AiParameterFLT("dr_roughnessDepthMultiplier", 1.0f);
-    AiParameterFLT("dr_roughnessDepthAdder", 0.0f);
+    AiParameterFLT("dr_roughnessDepthMultiplier", 0.0f); // to do: rename to addOnReflect
+    AiParameterFLT("dr_roughnessDepthAdder", 0.0f); // to do: rename to addOnRefract
     AiParameterBOOL("dr_use_refraction_btdf", true);
     AiParameterENUM("dr_btdf", b_cook_torrance, enum_brdfs);
     AiParameterFLT("dr_roughness_u", 0.00f);
@@ -452,6 +452,7 @@ shader_evaluate
                     // ---------------------------------------------------//
                     
 
+
                     AtRay dispersalRay;
                     float dispersal_seed = -1.0f;
                     int dispersed_TIR_samples = 0;
@@ -505,8 +506,10 @@ shader_evaluate
                             const AtColor weight = (1.0f - fresnelTerm) * monochromeColor 
                                 * overallResultScale * iinfo.getIndirectRefractionWeight() * rrRefrStrength;
 
-                            const AtColor energyCache = rayState->updateEnergyReturnOrig(weight);
-                            const AtColor energyCache_photon = rayState->updatePhotonEnergyReturnOrig(weight);
+                            const AtColor cache_energy = rayState->updateEnergyReturnOrig(weight);
+                            const AtColor cache_photonEnergy = rayState->updatePhotonEnergyReturnOrig(weight);
+                            const float drDepthAdderRefr = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
+                            const float drAccumRoughness = rayState->updateDRAccumRoughnessReturnOrig(drDepthAdderRefr);
 
                             if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction)) // to do: only needs to happen for photon rays
                                 rayState->ray_energy_photon /= (float) data->refr_samples;
@@ -518,8 +521,9 @@ shader_evaluate
                             if (tracehit || refract_skies) 
                                 acc_refract_indirect += sample.color * weight * transmissionOnSample(&iinfo.t2, &sample, tracehit );
 
-                            rayState->resetEnergyCache(energyCache);
-                            rayState->resetPhotonEnergyCache(energyCache_photon);
+                            rayState->resetEnergyCache(cache_energy);
+                            rayState->resetPhotonEnergyCache(cache_photonEnergy);
+                            rayState->resetDRAccumRoughness(drAccumRoughness);
 
                             updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, true);
                         }
@@ -570,22 +574,19 @@ shader_evaluate
                 {
                     // offsets and depth modification
                     const float rFlatOffset = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessOffset ) );
-                    const float rDepthAdder = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
-                    const float rDepthMultiplier = AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier );
-                    const float rFactor = pow(rDepthMultiplier, (float) sg->Rr);
-                    const float rOffset = (rDepthAdder * (float) sg->Rr) + rFlatOffset;
+                    const float rOffset = rFlatOffset + rayState->dr_accumRoughness; // to do: + the ray state depth value
 
                     const bool use_refr_settings = AiShaderEvalParamBool( p_dr_use_refraction_btdf );
                     int dr_btdf         = use_refr_settings ? iinfo.getRefrBRDFType() : AiShaderEvalParamEnum( p_dr_btdf );
                     float dr_roughnessU = use_refr_settings ? 
-                        refr_roughnessU * rFactor + rOffset : 
-                        refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) ) * rFactor + rOffset;
+                        refr_roughnessU + rOffset : 
+                        refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_u ) ) + rOffset;
 
                     float dr_roughnessV = dr_roughnessU;
                     if (dr_btdf != b_cook_torrance) 
                         dr_roughnessV = use_refr_settings ? 
-                            refr_roughnessV  * rFactor + rOffset : 
-                            refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) ) * rFactor + rOffset;
+                            refr_roughnessV  + rOffset : 
+                            refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) ) + rOffset;
 
                     float dr_first_scale = rayState->media_refractDirect.v[media_id];
                     float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale ) * dr_first_scale;
@@ -664,8 +665,11 @@ shader_evaluate
                         AtRay specularRay;
                         AiMakeRay(&specularRay, rt, &sg->P, NULL, AI_BIG, sg);
 
-                        AtColor energyCache = rayState->updateEnergyReturnOrig(do_TIR ? TIR_color : weight * AI_RGB_WHITE); 
-                        AtColor energyCache_photon = rayState->updatePhotonEnergyReturnOrig(do_TIR ? TIR_color : weight * AI_RGB_WHITE); 
+                        AtColor cache_energy = rayState->updateEnergyReturnOrig(do_TIR ? TIR_color : weight * AI_RGB_WHITE); 
+                        AtColor cache_photonEnergy = rayState->updatePhotonEnergyReturnOrig(do_TIR ? TIR_color : weight * AI_RGB_WHITE); 
+                        const float drDepthAdderSpec = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier ) );
+                        const float drAccumRoughness = rayState->updateDRAccumRoughnessReturnOrig(drDepthAdderSpec);
+
                         if ( do_TIR && rayState->ray_TIRDepth < JFND_MAX_TIR_DEPTH && specularRay.refr_bounces > 1)
                         {
                             rayState->ray_TIRDepth++;
@@ -705,8 +709,9 @@ shader_evaluate
                         if (!sharp_reflection)
                             acc_spec_indirect *= (float) AiSamplerGetSampleInvCount(specularIterator);
 
-                        rayState->resetEnergyCache(energyCache);
-                        rayState->resetPhotonEnergyCache(energyCache_photon);               
+                        rayState->resetEnergyCache(cache_energy);
+                        rayState->resetPhotonEnergyCache(cache_photonEnergy);               
+                        rayState->resetDRAccumRoughness(drAccumRoughness);
                     }
 
                     // ---------------------------------------------------//

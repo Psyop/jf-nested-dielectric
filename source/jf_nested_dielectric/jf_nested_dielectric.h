@@ -410,12 +410,13 @@ struct JFND_Shader_Data{
 
 
 typedef struct Ray_State_Cache {
-    bool    ray_monochromatic;
-    int     ray_TIRDepth;
-    int     ray_invalidDepth;
+    bool ray_monochromatic;
+    int ray_TIRDepth;
+    int ray_invalidDepth;
     AtColor ray_energy;
     bool caustic_behaviorSet; 
-    MediaIntStruct   media_inside;
+    MediaIntStruct media_inside;
+    float   dr_accumRoughness;
 } Ray_State_Cache;
 
 
@@ -437,6 +438,8 @@ typedef struct Ray_State {
     bool caustic_specDirect;
     bool caustic_specIndirect;
     bool caustic_specInternal;
+
+    float dr_accumRoughness;
 
     MediaIntStruct   media_inside; // branching ray tree data, should be cached
     MediaIntStruct   shadow_media_inside;
@@ -509,6 +512,8 @@ typedef struct Ray_State {
         this->caustic_specDirect = false;
         this->caustic_specIndirect = false;
 
+        this->dr_accumRoughness = 0.0;
+
         // Set once values - values set at initialization for all descendent rays
         this->energy_cutoff = pow(10.0f, 16);
         this->polarized = AiShaderEvalParamBool(p_polarize);
@@ -530,6 +535,7 @@ typedef struct Ray_State {
         this->ray_TIRDepth          = rayStateCache->ray_TIRDepth;
         this->ray_invalidDepth      = rayStateCache->ray_invalidDepth;
         this->ray_energy            = rayStateCache->ray_energy;
+        this->dr_accumRoughness     = rayStateCache->dr_accumRoughness;
     }
 
     void cacheRayState( Ray_State_Cache * rayStateCache )
@@ -540,6 +546,7 @@ typedef struct Ray_State {
         rayStateCache->ray_TIRDepth         = this->ray_TIRDepth;
         rayStateCache->ray_invalidDepth     = this->ray_invalidDepth;
         rayStateCache->ray_energy           = this->ray_energy;
+        rayStateCache->dr_accumRoughness    = this->dr_accumRoughness;
     }
 
     AtColor updateEnergyReturnOrig(AtColor weight) 
@@ -556,6 +563,13 @@ typedef struct Ray_State {
         return orig;
     }
 
+    float updateDRAccumRoughnessReturnOrig(float additional) 
+    {
+        const float orig = this->dr_accumRoughness;
+        this->dr_accumRoughness += additional;
+        return orig;
+    }
+
     void resetEnergyCache(AtColor orig) 
     {
         this->ray_energy = orig;
@@ -564,6 +578,11 @@ typedef struct Ray_State {
     void resetPhotonEnergyCache(AtColor orig) 
     {
         this->ray_energy_photon = orig;
+    }
+
+    void resetDRAccumRoughness(float orig) 
+    {
+        this->dr_accumRoughness = orig;
     }
 
     void readBasicMatParameters( AtShaderGlobals *sg, AtNode *node, const int i )
