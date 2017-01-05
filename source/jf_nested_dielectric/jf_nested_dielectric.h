@@ -434,7 +434,7 @@ typedef struct MediaCache {
         this->refractRoughnessV = 0.0f;
         this->specRoughnessU = 0.0f;
         this->specRoughnessV = 0.0f;
-        this->transmission = AI_RGB_BLACK;
+        this->transmission = AI_RGB_WHITE;
         this->blurAnisotropicPoles = 0.0f;
         this->shader = NULL;
     }
