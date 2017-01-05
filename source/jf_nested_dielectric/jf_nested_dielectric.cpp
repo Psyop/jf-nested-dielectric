@@ -136,8 +136,8 @@ node_update
 shader_evaluate
 {
     JFND_Shader_Data *data = (JFND_Shader_Data*)AiNodeGetLocalData(node);
-    Ray_State *rayState;
-    Ray_State_Cache rayStateCache;
+    RayState *rayState;
+    RayStateCache rayStateCache;
 
     // ---------------------------------------------------//
     // - Array and messaging preprocess 
@@ -150,12 +150,12 @@ shader_evaluate
     {
         void * rayState_ptr;
         AiStateGetMsgPtr(JFND_MSG_RAYSTATE_PTR, &rayState_ptr);
-        rayState = static_cast<Ray_State*>( rayState_ptr );
+        rayState = static_cast<RayState*>( rayState_ptr );
         rayState->cacheRayState( &rayStateCache);
     }
     else
     {       
-        rayState = static_cast<Ray_State*>( AiShaderGlobalsQuickAlloc(sg, sizeof( Ray_State ) ) );
+        rayState = static_cast<RayState*>( AiShaderGlobalsQuickAlloc(sg, sizeof( RayState ) ) );
         rayState->init(data, sg, node, data->polarizationVector);
         AiStateSetMsgPtr(JFND_MSG_RAYSTATE_PTR, rayState);
     }

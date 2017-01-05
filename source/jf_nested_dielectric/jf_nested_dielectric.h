@@ -403,7 +403,7 @@ struct JFND_Shader_Data{
 // caustic_ is tracking caustic behavior
 // media* are arrays about media
 
-typedef struct Media_Cache {
+typedef struct MediaCache {
     float IOR;
     bool  disperse;
     float dispersion;
@@ -420,7 +420,7 @@ typedef struct Media_Cache {
     AtColor transmission;
     float blurAnisotropicPoles;
     AtNode *shader;
-    Media_Cache() {
+    MediaCache() {
         this->IOR = 1.0f;
         this->disperse = false;
         this->dispersion = 0.0f;
@@ -438,9 +438,9 @@ typedef struct Media_Cache {
         this->blurAnisotropicPoles = 0.0f;
         this->shader = NULL;
     }
-} Media_Cache;
+} MediaCache;
 
-typedef struct Ray_State_Cache {
+typedef struct RayStateCache {
     bool ray_monochromatic;
     int ray_TIRDepth;
     int ray_invalidDepth;
@@ -448,11 +448,11 @@ typedef struct Ray_State_Cache {
     bool caustic_behaviorSet; 
     MediaIntStruct media_inside;
     float   dr_accumRoughness;
-} Ray_State_Cache;
+} RayStateCache;
 
 
 // to do: most used stuff in first cache line. 
-typedef struct Ray_State {
+typedef struct RayState {
     bool    ray_monochromatic; // branching ray tree data, should be cached
     float   ray_wavelength;
     int     ray_TIRDepth; // branching ray tree data, should be cached
@@ -472,7 +472,7 @@ typedef struct Ray_State {
 
     float dr_accumRoughness;
 
-    Media_Cache media[max_media_count];
+    MediaCache media[max_media_count];
 
     MediaIntStruct   media_inside; // branching ray tree data, should be cached
     MediaIntStruct   shadow_media_inside;
@@ -497,7 +497,7 @@ typedef struct Ray_State {
             this->media_inside.v[i] = 0;
             this->shadow_media_inside.v[i] = 0;
 
-            this->media[i] = Media_Cache();
+            this->media[i] = MediaCache();
         }
 
         // caustics behavior values get set once a ray enters a medium from a diffuse ray
@@ -526,7 +526,7 @@ typedef struct Ray_State {
         this->energy_cutoff = pow(10.0f, energy_cutoff_exponent );
     }
 
-    void uncacheRayState(Ray_State_Cache * rayStateCache )
+    void uncacheRayState(RayStateCache * rayStateCache )
     {
         memcpy(&this->media_inside, &rayStateCache->media_inside, sizeof(MediaIntStruct) );
         this->ray_monochromatic     = rayStateCache->ray_monochromatic;
@@ -537,7 +537,7 @@ typedef struct Ray_State {
         this->dr_accumRoughness     = rayStateCache->dr_accumRoughness;
     }
 
-    void cacheRayState( Ray_State_Cache * rayStateCache )
+    void cacheRayState( RayStateCache * rayStateCache )
     {
         memcpy(&rayStateCache->media_inside, &this->media_inside, sizeof(MediaIntStruct) );
         rayStateCache->ray_monochromatic    = this->ray_monochromatic;
@@ -647,7 +647,7 @@ typedef struct Ray_State {
         this->caustic_specDirect = AiShaderEvalParamBool(p_caustic_specular_direct);
         this->caustic_specIndirect = AiShaderEvalParamBool(p_caustic_specular_indirect);
     }
-} Ray_State;
+} RayState;
 
 
 typedef struct InterfaceInfo {
@@ -668,9 +668,9 @@ typedef struct InterfaceInfo {
     int8_t startingMedium;
     int8_t startingMediumSecondary;
 
-    Ray_State * rs;
+    RayState * rs;
 
-    InterfaceInfo(Ray_State * rayState, int currentID, AtShaderGlobals * sg) 
+    InterfaceInfo(RayState * rayState, int currentID, AtShaderGlobals * sg) 
     {
         this->currentID = currentID;
         this->m1 = 0;
@@ -1070,7 +1070,7 @@ typedef struct TraceSwitch
 
     TraceSwitch(InterfaceInfo * iinfo, bool internal_reflections) 
     {
-        Ray_State * rs = iinfo->rs;
+        RayState * rs = iinfo->rs;
         this->refr_ind = rs->media[iinfo->m1].refractIndirect > ZERO_EPSILON 
             && rs->media[iinfo->m2].refractIndirect> ZERO_EPSILON;
         this->refr_dir = rs->media[iinfo->currentID].refractDirect > ZERO_EPSILON 
@@ -1095,7 +1095,7 @@ typedef struct TraceSwitch
 
     void setPathtracedCaustic(InterfaceInfo * iinfo) 
     {
-        Ray_State * rs = iinfo->rs;
+        RayState * rs = iinfo->rs;
         this->refr_dir = this->refr_dir && rs->caustic_refractDirect;
         this->refr_ind = this->refr_ind && true;
         this->spec_ind = this->spec_ind && rs->caustic_specIndirect;;
@@ -1128,7 +1128,7 @@ typedef struct TraceSwitch
 
     void setPhotonCaustic(InterfaceInfo * iinfo) 
     {
-        Ray_State * rs = iinfo->rs;
+        RayState * rs = iinfo->rs;
         this->refr_dir = false;
         // in photon land, direct refractions means the light refracts straight through.
         // indirect refractions means.. very little. 
@@ -1161,4 +1161,4 @@ typedef struct TraceSwitch
     {
         return this->traceAnyRefraction() || this->traceAnySpecular();
     }
-};
+} TraceSwitch;
