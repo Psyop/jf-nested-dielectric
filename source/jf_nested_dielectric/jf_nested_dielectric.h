@@ -405,7 +405,7 @@ struct JFND_Shader_Data{
 // 
 
 typedef struct Media_Cache {
-    float iOR;
+    float IOR;
     bool  disperse;
     float dispersion;
     int   BTDF;
@@ -422,7 +422,7 @@ typedef struct Media_Cache {
     float blurAnisotropicPoles;
 
     Media_Cache() {
-        this->iOR = 1.0f;
+        this->IOR = 1.0f;
         this->disperse = false;
         this->dispersion = 0.0f;
         this->BTDF = b_cook_torrance;
@@ -586,7 +586,7 @@ typedef struct Ray_State {
 
     void readBasicMatParameters( AtShaderGlobals *sg, AtNode *node, const int i )
     {
-        this->media[i].iOR = AiShaderEvalParamFlt(p_mediumIOR);
+        this->media[i].IOR = AiShaderEvalParamFlt(p_mediumIOR);
         this->media[i].disperse = AiShaderEvalParamBool(p_disperse);
         this->media[i].dispersion = AiShaderEvalParamFlt(p_dispersion);
         this->media[i].blurAnisotropicPoles = AiShaderEvalParamFlt(p_blur_anisotropic_poles);
@@ -816,13 +816,13 @@ typedef struct InterfaceInfo {
         {   
             if (this->rs->ray_monochromatic)
             {
-                this->n1 = dispersedIOR( this->rs->media[this->m1].iOR, this->rs->media[this->m1].dispersion, this->rs->ray_wavelength );
-                this->n2 = dispersedIOR( this->rs->media[this->m2].iOR, this->rs->media[this->m2].dispersion, this->rs->ray_wavelength );
+                this->n1 = dispersedIOR( this->rs->media[this->m1].IOR, this->rs->media[this->m1].dispersion, this->rs->ray_wavelength );
+                this->n2 = dispersedIOR( this->rs->media[this->m2].IOR, this->rs->media[this->m2].dispersion, this->rs->ray_wavelength );
             }
             else
             {
-                this->n1 = this->rs->media[this->m1].iOR;
-                this->n2 = this->rs->media[this->m2].iOR;
+                this->n1 = this->rs->media[this->m1].IOR;
+                this->n2 = this->rs->media[this->m2].IOR;
             }
 
 
