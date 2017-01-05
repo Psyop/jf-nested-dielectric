@@ -401,8 +401,7 @@ struct JFND_Shader_Data{
 
 // ray_ is tracking something to do wtih the ray tree
 // caustic_ is tracking caustic behavior
-// media_ are arrays about media
-// 
+// media* are arrays about media
 
 typedef struct Media_Cache {
     float IOR;
@@ -420,7 +419,7 @@ typedef struct Media_Cache {
     float specRoughnessV;
     AtColor transmission;
     float blurAnisotropicPoles;
-
+    AtNode *shader;
     Media_Cache() {
         this->IOR = 1.0f;
         this->disperse = false;
@@ -437,6 +436,7 @@ typedef struct Media_Cache {
         this->specRoughnessV = 0.0f;
         this->transmission = AI_RGB_BLACK;
         this->blurAnisotropicPoles = 0.0f;
+        this->shader = NULL;
     }
 } Media_Cache;
 
@@ -586,6 +586,7 @@ typedef struct Ray_State {
 
     void readBasicMatParameters( AtShaderGlobals *sg, AtNode *node, const int i )
     {
+        this->media[i].shader = node;
         this->media[i].IOR = AiShaderEvalParamFlt(p_mediumIOR);
         this->media[i].disperse = AiShaderEvalParamBool(p_disperse);
         this->media[i].dispersion = AiShaderEvalParamFlt(p_dispersion);
@@ -608,15 +609,11 @@ typedef struct Ray_State {
 
     void setSpecularSettings(int i, float direct, float indirect, int BRDF, float roughnessU, float roughnessV)
     {
-        this->media[i].BRDF = BRDF;
-        this->media[i].specRoughnessU = roughnessU;
         this->media[i].specDirect = direct;
         this->media[i].specIndirect = indirect;
-
-        if (BRDF != b_cook_torrance)
-            this->media[i].specRoughnessV = roughnessV;
-        else
-            this->media[i].specRoughnessV = roughnessU;
+        this->media[i].BRDF = BRDF;
+        this->media[i].specRoughnessU = roughnessU;
+        this->media[i].specRoughnessV = BRDF == b_cook_torrance ? roughnessU : roughnessV;
     }
 
     void setRefractionSettings(int i, float direct, float indirect, int BTDF, float roughnessU, 
@@ -626,11 +623,7 @@ typedef struct Ray_State {
         this->media[i].refractIndirect = indirect;
         this->media[i].BTDF = BTDF;
         this->media[i].refractRoughnessU = roughnessU;
-
-        if (BTDF != b_cook_torrance)
-            this->media[i].refractRoughnessV = roughnessV;
-        else
-            this->media[i].refractRoughnessV = roughnessU;
+        this->media[i].refractRoughnessV = BTDF == b_cook_torrance ? roughnessU : roughnessV;
         
         const float tScale = 1.0f / transmissionScale;
         const AtColor scaledTransmission = 
