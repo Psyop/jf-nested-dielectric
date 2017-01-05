@@ -588,7 +588,8 @@ shader_evaluate
                             refr_roughnessV  + rOffset : 
                             refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughness_v ) ) + rOffset;
 
-                    float dr_first_scale = rayState->media_refractDirect.v[media_id];
+                    // float dr_first_scale = rayState->media_refractDirect.v[media_id];
+                    float dr_first_scale = rayState->media[media_id].refractDirect;
                     float dr_second_scale = AiShaderEvalParamFlt( p_dr_second_scale ) * dr_first_scale;
                     dr_first_scale -= dr_second_scale;
 
@@ -654,7 +655,8 @@ shader_evaluate
                     // decision point- indirect specular
                     if ( traceSwitch.spec_ind || do_TIR )
                     {
-                        const float weight = fresnelTerm * rayState->media_specIndirect.v[iinfo.m1] * overallResultScale * rrSpecStrength;
+                        // const float weight = fresnelTerm * rayState->media_specIndirect.v[iinfo.m1] * overallResultScale * rrSpecStrength;
+                        const float weight = fresnelTerm * rayState->media[iinfo.m1].specIndirect * overallResultScale * rrSpecStrength;
                         const bool reflect_skies = AiShaderEvalParamBool(p_reflect_skies);
                         AtSamplerIterator* specularIterator = AiSamplerIterator( data->specular_sampler, sg);
 
@@ -721,7 +723,8 @@ shader_evaluate
                     // decision point- direct specular
                     if ( traceSwitch.spec_dir )
                     {
-                        AtColor weight = AI_RGB_WHITE * fresnelTerm * rayState->media_specDirect.v[iinfo.m_higherPriority] * overallResultScale;
+                        // AtColor weight = AI_RGB_WHITE * fresnelTerm * rayState->media_specDirect.v[iinfo.m_higherPriority] * overallResultScale;
+                        AtColor weight = AI_RGB_WHITE * fresnelTerm * rayState->media[iinfo.m_higherPriority].specDirect * overallResultScale;
                         if (do_TIR)
                             weight *= TIR_color;
                         

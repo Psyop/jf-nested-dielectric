@@ -9,9 +9,9 @@
 const int max_media_count = 32 + 1;  // media 0 is reserved for the air everything exists in, so to allow 32 media this has to be set to 33. 
 
 typedef struct MediaIntStruct { int v[max_media_count]; } MediaIntStruct;
-typedef struct MediaFloatStruct { float v[max_media_count]; } MediaFloatStruct;
-typedef struct MediaBoolStruct { bool v[max_media_count]; } MediaBoolStruct;
-typedef struct MediaAtColorStruct { AtColor v[max_media_count]; } MediaAtColorStruct;
+// typedef struct MediaFloatStruct { float v[max_media_count]; } MediaFloatStruct;
+// typedef struct MediaBoolStruct { bool v[max_media_count]; } MediaBoolStruct;
+// typedef struct MediaAtColorStruct { AtColor v[max_media_count]; } MediaAtColorStruct;
 
 #define JFND_MSG_VALID_BOOL "MAV_JFND"
 #define JFND_MSG_RAYSTATE_PTR "RSP_JFND"
@@ -407,7 +407,41 @@ struct JFND_Shader_Data{
 // media_ are arrays about media
 // 
 
+typedef struct Media_Cache {
+    float iOR;
+    bool  disperse;
+    float dispersion;
+    int   BTDF;
+    int   BRDF;    
+    float refractDirect;
+    float refractIndirect;
+    float specDirect;
+    float specIndirect;
+    float refractRoughnessU;
+    float refractRoughnessV;
+    float specRoughnessU;
+    float specRoughnessV;
+    AtColor transmission;
+    float blurAnisotropicPoles;
 
+    Media_Cache() {
+        this->iOR = 1.0f;
+        this->disperse = false;
+        this->dispersion = 0.0f;
+        this->BTDF = b_cook_torrance;
+        this->BRDF = b_cook_torrance;
+        this->refractDirect = 1.0f;
+        this->refractIndirect = 1.0f;
+        this->specDirect = 1.0f;
+        this->specIndirect = 1.0f;
+        this->refractRoughnessU = 0.0f;
+        this->refractRoughnessV = 0.0f;
+        this->specRoughnessU = 0.0f;
+        this->specRoughnessV = 0.0f;
+        this->transmission = AI_RGB_BLACK;
+        this->blurAnisotropicPoles = 0.0f;
+    }
+} Media_Cache;
 
 typedef struct Ray_State_Cache {
     bool ray_monochromatic;
@@ -441,27 +475,29 @@ typedef struct Ray_State {
 
     float dr_accumRoughness;
 
+    Media_Cache media[max_media_count];
+
     MediaIntStruct   media_inside; // branching ray tree data, should be cached
     MediaIntStruct   shadow_media_inside;
-    MediaFloatStruct media_iOR;
-    MediaBoolStruct  media_disperse;
-    MediaFloatStruct media_dispersion;
-    MediaIntStruct   media_BTDF;
-    MediaIntStruct   media_BRDF;
+    // MediaFloatStruct media_iOR;
+    // MediaBoolStruct  media_disperse;
+    // MediaFloatStruct media_dispersion;
+    // MediaIntStruct   media_BTDF;
+    // MediaIntStruct   media_BRDF;
     
-    MediaFloatStruct media_refractDirect;
-    MediaFloatStruct media_refractIndirect;
-    MediaFloatStruct media_specDirect;
-    MediaFloatStruct media_specIndirect;
+    // MediaFloatStruct media_refractDirect;
+    // MediaFloatStruct media_refractIndirect;
+    // MediaFloatStruct media_specDirect;
+    // MediaFloatStruct media_specIndirect;
 
-    MediaFloatStruct media_refractRoughnessU;
-    MediaFloatStruct media_refractRoughnessV;
-    MediaFloatStruct media_specRoughnessU;
-    MediaFloatStruct media_specRoughnessV;
+    // MediaFloatStruct media_refractRoughnessU;
+    // MediaFloatStruct media_refractRoughnessV;
+    // MediaFloatStruct media_specRoughnessU;
+    // MediaFloatStruct media_specRoughnessV;
 
-    MediaAtColorStruct media_transmission;
+    // MediaAtColorStruct media_transmission;
 
-    MediaFloatStruct media_blurAnisotropicPoles;
+    // MediaFloatStruct media_blurAnisotropicPoles;
 
     spectral_LUT * spectral_LUT_ptr;
     float energy_cutoff;
@@ -481,24 +517,28 @@ typedef struct Ray_State {
         for( int i = 0; i < max_media_count; i++ )
         {
             this->media_inside.v[i] = 0;
-            this->media_iOR.v[i] = 1.0f;
-            this->media_disperse.v[i] = false;
-            this->media_dispersion.v[i] = 0.0f;
-            this->media_BTDF.v[i] = 0;
-            this->media_BRDF.v[i] = 0;
+            this->shadow_media_inside.v[i] = 0;
 
-            this->media_refractDirect.v[i] = 1.0f;
-            this->media_refractIndirect.v[i] = 1.0f;
-            this->media_specDirect.v[i] = 1.0f;
-            this->media_specIndirect.v[i] = 1.0f;
+            this->media[i] = Media_Cache();
 
-            this->media_refractRoughnessU.v[i] = 0.0f;
-            this->media_refractRoughnessV.v[i] = 0.0f;
-            this->media_specRoughnessU.v[i] = 0.0f;
-            this->media_specRoughnessV.v[i] = 0.0f;
-            this->media_transmission.v[i] = AI_RGB_WHITE;
+            // this->media_iOR.v[i] = 1.0f;
+            // this->media_disperse.v[i] = false;
+            // this->media_dispersion.v[i] = 0.0f;
+            // this->media_BTDF.v[i] = 0;
+            // this->media_BRDF.v[i] = 0;
 
-            this->media_blurAnisotropicPoles.v[i] = 0.0f;
+            // this->media_refractDirect.v[i] = 1.0f;
+            // this->media_refractIndirect.v[i] = 1.0f;
+            // this->media_specDirect.v[i] = 1.0f;
+            // this->media_specIndirect.v[i] = 1.0f;
+
+            // this->media_refractRoughnessU.v[i] = 0.0f;
+            // this->media_refractRoughnessV.v[i] = 0.0f;
+            // this->media_specRoughnessU.v[i] = 0.0f;
+            // this->media_specRoughnessV.v[i] = 0.0f;
+            // this->media_transmission.v[i] = AI_RGB_WHITE;
+
+            // this->media_blurAnisotropicPoles.v[i] = 0.0f;
         }
 
         // caustics behavior values get set once a ray enters a medium from a diffuse ray
@@ -587,10 +627,15 @@ typedef struct Ray_State {
 
     void readBasicMatParameters( AtShaderGlobals *sg, AtNode *node, const int i )
     {
-        this->media_iOR.v[i] = AiShaderEvalParamFlt(p_mediumIOR);
-        this->media_disperse.v[i] = AiShaderEvalParamBool(p_disperse);
-        this->media_dispersion.v[i] = AiShaderEvalParamFlt(p_dispersion);
-        this->media_blurAnisotropicPoles.v[i] = AiShaderEvalParamFlt(p_blur_anisotropic_poles);
+        // this->media_iOR.v[i] = AiShaderEvalParamFlt(p_mediumIOR);
+        // this->media_disperse.v[i] = AiShaderEvalParamBool(p_disperse);
+        // this->media_dispersion.v[i] = AiShaderEvalParamFlt(p_dispersion);
+        // this->media_blurAnisotropicPoles.v[i] = AiShaderEvalParamFlt(p_blur_anisotropic_poles);
+
+        this->media[i].iOR = AiShaderEvalParamFlt(p_mediumIOR);
+        this->media[i].disperse = AiShaderEvalParamBool(p_disperse);
+        this->media[i].dispersion = AiShaderEvalParamFlt(p_dispersion);
+        this->media[i].blurAnisotropicPoles = AiShaderEvalParamFlt(p_blur_anisotropic_poles);
 
         const float sScale = AiShaderEvalParamFlt(p_specular_scale);
         const float sDirect = AiShaderEvalParamFlt(p_direct_specular) * sScale;
@@ -609,27 +654,43 @@ typedef struct Ray_State {
 
     void setSpecularSettings(int i, float direct, float indirect, int BRDF, float roughnessU, float roughnessV)
     {
-        this->media_BRDF.v[i] = BRDF;
-        this->media_specRoughnessU.v[i] = roughnessU;
-        this->media_specDirect.v[i] = direct;
-        this->media_specIndirect.v[i] = indirect;
+        // this->media_BRDF.v[i] = BRDF;
+        // this->media_specRoughnessU.v[i] = roughnessU;
+        // this->media_specDirect.v[i] = direct;
+        // this->media_specIndirect.v[i] = indirect;
+
+        this->media[i].BRDF = BRDF;
+        this->media[i].specRoughnessU = roughnessU;
+        this->media[i].specDirect = direct;
+        this->media[i].specIndirect = indirect;
+
         if (BRDF != b_cook_torrance)
-            this->media_specRoughnessV.v[i] = roughnessV;
+            // this->media_specRoughnessV.v[i] = roughnessV;
+            this->media[i].specRoughnessV = roughnessV;
         else
-            this->media_specRoughnessV.v[i] = roughnessU;
+            // this->media_specRoughnessV.v[i] = roughnessU;
+            this->media[i].specRoughnessV = roughnessU;
     }
 
     void setRefractionSettings(int i, float direct, float indirect, int BTDF, float roughnessU, 
         float roughnessV, AtColor transmission, float transmissionScale)
     {
-        this->media_refractDirect.v[i] = direct;
-        this->media_refractIndirect.v[i] = indirect;
-        this->media_BTDF.v[i] = BTDF;
-        this->media_refractRoughnessU.v[i] = roughnessU;
+        // this->media_refractDirect.v[i] = direct;
+        // this->media_refractIndirect.v[i] = indirect;
+        // this->media_BTDF.v[i] = BTDF;
+        // this->media_refractRoughnessU.v[i] = roughnessU;
+
+        this->media[i].refractDirect = direct;
+        this->media[i].refractIndirect = indirect;
+        this->media[i].BTDF = BTDF;
+        this->media[i].refractRoughnessU = roughnessU;
+
         if (BTDF != b_cook_torrance)
-            this->media_refractRoughnessV.v[i] = roughnessV;
+            // this->media_refractRoughnessV.v[i] = roughnessV;
+            this->media[i].refractRoughnessV = roughnessV;
         else
-            this->media_refractRoughnessV.v[i] = roughnessU;
+            // this->media_refractRoughnessV.v[i] = roughnessU;
+            this->media[i].refractRoughnessV = roughnessU;
         
         const float tScale = 1.0f / transmissionScale;
         const AtColor scaledTransmission = 
@@ -638,7 +699,8 @@ typedef struct Ray_State {
             pow(transmission.g, tScale),
             pow(transmission.b, tScale)
         };
-        this->media_transmission.v[i] = scaledTransmission;
+        // this->media_transmission.v[i] = scaledTransmission;
+        this->media[i].transmission = scaledTransmission;
     }
         
     void readCausticMatParameters( AtShaderGlobals *sg, AtNode *node )
@@ -815,13 +877,17 @@ typedef struct InterfaceInfo {
         {   
             if (this->rs->ray_monochromatic)
             {
-                this->n1 = dispersedIOR( this->rs->media_iOR.v[this->m1], this->rs->media_dispersion.v[this->m1], this->rs->ray_wavelength );
-                this->n2 = dispersedIOR( this->rs->media_iOR.v[this->m2], this->rs->media_dispersion.v[this->m2], this->rs->ray_wavelength );
+                // this->n1 = dispersedIOR( this->rs->media_iOR.v[this->m1], this->rs->media_dispersion.v[this->m1], this->rs->ray_wavelength );
+                // this->n2 = dispersedIOR( this->rs->media_iOR.v[this->m2], this->rs->media_dispersion.v[this->m2], this->rs->ray_wavelength );
+                this->n1 = dispersedIOR( this->rs->media[this->m1].iOR, this->rs->media[this->m1].dispersion, this->rs->ray_wavelength );
+                this->n2 = dispersedIOR( this->rs->media[this->m2].iOR, this->rs->media[this->m2].dispersion, this->rs->ray_wavelength );
             }
             else
             {
-                this->n1 = this->rs->media_iOR.v[this->m1];
-                this->n2 = this->rs->media_iOR.v[this->m2];
+                // this->n1 = this->rs->media_iOR.v[this->m1];
+                // this->n2 = this->rs->media_iOR.v[this->m2];
+                this->n1 = this->rs->media[this->m1].iOR;
+                this->n2 = this->rs->media[this->m2].iOR;
             }
 
 
@@ -831,8 +897,10 @@ typedef struct InterfaceInfo {
             }
         }
 
-        this->t1 = this->rs->media_transmission.v[this->m1];
-        this->t2 = this->rs->media_transmission.v[this->m2];
+        // this->t1 = this->rs->media_transmission.v[this->m1];
+        // this->t2 = this->rs->media_transmission.v[this->m2];
+        this->t1 = this->rs->media[this->m1].transmission;
+        this->t2 = this->rs->media[this->m2].transmission;
     }
 
 
@@ -851,10 +919,14 @@ typedef struct InterfaceInfo {
     public:
     bool doBlurryRefraction() 
     {
-        return (this->rs->media_refractRoughnessU.v[this->m1] > ZERO_EPSILON 
-            || this->rs->media_refractRoughnessV.v[this->m1] > ZERO_EPSILON 
-            || this->rs->media_refractRoughnessU.v[this->m2] > ZERO_EPSILON 
-            || this->rs->media_refractRoughnessV.v[this->m2] > ZERO_EPSILON);
+        // return (this->rs->media_refractRoughnessU.v[this->m1] > ZERO_EPSILON 
+        //     || this->rs->media_refractRoughnessV.v[this->m1] > ZERO_EPSILON 
+        //     || this->rs->media_refractRoughnessU.v[this->m2] > ZERO_EPSILON 
+        //     || this->rs->media_refractRoughnessV.v[this->m2] > ZERO_EPSILON);
+        return (this->rs->media[this->m1].refractRoughnessU > ZERO_EPSILON 
+            || this->rs->media[this->m1].refractRoughnessV > ZERO_EPSILON 
+            || this->rs->media[this->m2].refractRoughnessU > ZERO_EPSILON 
+            || this->rs->media[this->m2].refractRoughnessV > ZERO_EPSILON);
     }
 
     bool setupDispersion(JFND_Shader_Data * data ) 
@@ -864,10 +936,12 @@ typedef struct InterfaceInfo {
         if (!this->rs->ray_monochromatic)
         {
             // already monochromatic means don't disperse, just keep the existing wavelength and trace that way
-            if ( this->rs->media_disperse.v[this->currentID] )
+            // if ( this->rs->media_disperse.v[this->currentID] )
+            if ( this->rs->media[this->currentID].disperse )
                 this->rs->spectral_LUT_ptr = &data->spectral_LUT_ptr;
 
-            do_disperse = this->rs->media_disperse.v[this->m2]; // only disperse if the medium we're entering is dispersey, and the ray is not already monochromatic
+            // do_disperse = this->rs->media_disperse.v[this->m2]; // only disperse if the medium we're entering is dispersey, and the ray is not already monochromatic
+            do_disperse = this->rs->media[this->m2].disperse; // only disperse if the medium we're entering is dispersey, and the ray is not already monochromatic
         }
 
         return do_disperse;
@@ -920,26 +994,34 @@ typedef struct InterfaceInfo {
 
     void getSpecRoughness(float &roughnessU, float &roughnessV)
     {
-        roughnessU = (this->rs->media_specRoughnessU.v[this->m2] + this->rs->media_specRoughnessU.v[this->m1]) / 2.0f;
-        roughnessV = (this->rs->media_specRoughnessV.v[this->m2] + this->rs->media_specRoughnessV.v[this->m1]) / 2.0f;
+        // roughnessU = (this->rs->media_specRoughnessU.v[this->m2] + this->rs->media_specRoughnessU.v[this->m1]) / 2.0f;
+        // roughnessV = (this->rs->media_specRoughnessV.v[this->m2] + this->rs->media_specRoughnessV.v[this->m1]) / 2.0f;
+        roughnessU = (this->rs->media[this->m2].specRoughnessU + this->rs->media[this->m1].specRoughnessU) / 2.0f;
+        roughnessV = (this->rs->media[this->m2].specRoughnessV + this->rs->media[this->m1].specRoughnessV) / 2.0f;
     }
 
     void getRefrRoughness(float &roughnessU, float &roughnessV) 
     {
-        roughnessU = refractiveRoughness(this->rs->media_refractRoughnessU.v[this->m1], 
-                                        this->rs->media_refractRoughnessU.v[this->m2], this->n1, this->n2 );
-        roughnessV = refractiveRoughness(this->rs->media_refractRoughnessV.v[this->m1], 
-                                        this->rs->media_refractRoughnessV.v[this->m2], this->n1, this->n2 );
+        // roughnessU = refractiveRoughness(this->rs->media_refractRoughnessU.v[this->m1], 
+        //                                 this->rs->media_refractRoughnessU.v[this->m2], this->n1, this->n2 );
+        // roughnessV = refractiveRoughness(this->rs->media_refractRoughnessV.v[this->m1], 
+        //                                 this->rs->media_refractRoughnessV.v[this->m2], this->n1, this->n2 );
+        roughnessU = refractiveRoughness(this->rs->media[this->m1].refractRoughnessU, 
+                                        this->rs->media[this->m2].refractRoughnessU, this->n1, this->n2 );
+        roughnessV = refractiveRoughness(this->rs->media[this->m1].refractRoughnessV, 
+                                        this->rs->media[this->m2].refractRoughnessV, this->n1, this->n2 );
     }
 
     int getRefrBRDFType() 
     {
-        return this->rs->media_BTDF.v[this->m_higherPriority];
+        // return this->rs->media_BTDF.v[this->m_higherPriority];
+        return this->rs->media[this->m_higherPriority].BTDF;
     }
 
     int getSpecBRDFType() 
     {
-        return this->rs->media_BRDF.v[this->m_higherPriority];
+        // return this->rs->media_BRDF.v[this->m_higherPriority];
+        return this->rs->media[this->m_higherPriority].BRDF;
     }
 
     void* getRefrBRDFData(AtShaderGlobals *sg, const float roughnessU, const float roughnessV, const AtVector customTangent) 
@@ -966,7 +1048,7 @@ typedef struct InterfaceInfo {
             // Ward with refraction-derivitive tangents
             tangentSourceVector = AiV3Normalize(sg->Rd);
             blurAnisotropicPoles(&roughnessU, &roughnessV, 
-                this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
+                this->rs->media[this->m_higherPriority].blurAnisotropicPoles, sg->N, tangentSourceVector);
             uTangent = AiV3Cross(sg->Nf, tangentSourceVector); 
             vTangent = AiV3Cross(sg->Nf, uTangent);
             break;
@@ -974,7 +1056,7 @@ typedef struct InterfaceInfo {
             // Ward with user tangents
             tangentSourceVector = AiV3Normalize( customTangent );
             blurAnisotropicPoles(&roughnessU, &roughnessV, 
-                this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], sg->N, tangentSourceVector);
+                this->rs->media[this->m_higherPriority].blurAnisotropicPoles, sg->N, tangentSourceVector);
             uTangent = AiV3Cross(sg->Nf, tangentSourceVector); 
             vTangent = AiV3Cross(sg->Nf, uTangent);
             break;
@@ -1000,16 +1082,16 @@ typedef struct InterfaceInfo {
         case b_cook_torrance_ray_tangent:
             // Ward with refraction-derivitive tangents
             AtVector raydir = AiV3Normalize(ppsg->Rd);
-            blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, raydir);
-            blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, raydir);
+            blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media[this->m_higherPriority].blurAnisotropicPoles, ppsg->Nf, raydir);
+            blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media[this->m_higherPriority].blurAnisotropicPoles, ppsg->Nf, raydir);
             uTangent = AiV3Cross(ppsg->Nf, raydir); 
             vTangent = AiV3Cross(ppsg->Nf, uTangent);
             break;
         case b_cook_torrance_user_tangent:
             // Ward with user tangents
             AtVector customTan = AiV3Normalize( customTangentVector );
-            blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, customTan);
-            blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media_blurAnisotropicPoles.v[this->m_higherPriority], ppsg->Nf, customTan);
+            blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media[this->m_higherPriority].blurAnisotropicPoles, ppsg->Nf, customTan);
+            blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media[this->m_higherPriority].blurAnisotropicPoles, ppsg->Nf, customTan);
             uTangent = AiV3Cross(ppsg->Nf, customTan); 
             vTangent = AiV3Cross(ppsg->Nf, uTangent);                   
             break;
@@ -1042,13 +1124,16 @@ typedef struct InterfaceInfo {
         const float LUT_value = fmod( sample, 1.0f );
         get_interpolated_LUT_value( this->rs->spectral_LUT_ptr, LUT_value, &this->rs->ray_wavelength, monochromatic_color);
         this->rs->ray_monochromatic = true;
-        *n1_dispersed = dispersedIOR(this->n1, this->rs->media_dispersion.v[this->m1], this->rs->ray_wavelength);
-        *n2_dispersed = dispersedIOR(this->n2, this->rs->media_dispersion.v[this->m2], this->rs->ray_wavelength);
+        // *n1_dispersed = dispersedIOR(this->n1, this->rs->media_dispersion.v[this->m1], this->rs->ray_wavelength);
+        // *n2_dispersed = dispersedIOR(this->n2, this->rs->media_dispersion.v[this->m2], this->rs->ray_wavelength);
+        *n1_dispersed = dispersedIOR(this->n1, this->rs->media[this->m1].dispersion, this->rs->ray_wavelength);
+        *n2_dispersed = dispersedIOR(this->n2, this->rs->media[this->m2].dispersion, this->rs->ray_wavelength);
     }
 
     float getIndirectRefractionWeight() 
     {
-        return this->rs->media_refractIndirect.v[this->m1] * this->rs->media_refractIndirect.v[this->m2];
+        // return this->rs->media_refractIndirect.v[this->m1] * this->rs->media_refractIndirect.v[this->m2];
+        return this->rs->media[this->m1].refractIndirect * this->rs->media[this->m2].refractIndirect;
     }
 
     void reportInfo(const char* header) 
@@ -1077,12 +1162,18 @@ typedef struct TraceSwitch
     TraceSwitch(InterfaceInfo * iinfo, bool internal_reflections) 
     {
         Ray_State * rs = iinfo->rs;
-        this->refr_ind = rs->media_refractIndirect.v[iinfo->m1] > ZERO_EPSILON 
-            && rs->media_refractIndirect.v[iinfo->m2] > ZERO_EPSILON;
-        this->refr_dir = rs->media_refractDirect.v[iinfo->currentID] > ZERO_EPSILON 
+        // this->refr_ind = rs->media_refractIndirect.v[iinfo->m1] > ZERO_EPSILON 
+        //     && rs->media_refractIndirect.v[iinfo->m2] > ZERO_EPSILON;
+        // this->refr_dir = rs->media_refractDirect.v[iinfo->currentID] > ZERO_EPSILON 
+        //     && iinfo->mediaExit; // media exit is AND'd in later. 
+        // this->spec_ind = rs->media_specIndirect.v[iinfo->m_higherPriority] > ZERO_EPSILON;
+        // this->spec_dir = iinfo->mediaEntrance && rs->media_specDirect.v[iinfo->m_higherPriority] > ZERO_EPSILON;
+        this->refr_ind = rs->media[iinfo->m1].refractIndirect > ZERO_EPSILON 
+            && rs->media[iinfo->m2].refractIndirect> ZERO_EPSILON;
+        this->refr_dir = rs->media[iinfo->currentID].refractDirect > ZERO_EPSILON 
             && iinfo->mediaExit; // media exit is AND'd in later. 
-        this->spec_ind = rs->media_specIndirect.v[iinfo->m_higherPriority] > ZERO_EPSILON;
-        this->spec_dir = iinfo->mediaEntrance && rs->media_specDirect.v[iinfo->m_higherPriority] > ZERO_EPSILON;
+        this->spec_ind = rs->media[iinfo->m_higherPriority].specIndirect > ZERO_EPSILON;
+        this->spec_dir = iinfo->mediaEntrance && rs->media[iinfo->m_higherPriority].specDirect > ZERO_EPSILON;
         this->TIR = this->refr_ind || this->spec_ind;
 
         bool internal = !iinfo->mediaEntrance;
