@@ -894,7 +894,10 @@ shader_evaluate {
         bool is_photon = AiStateGetMsgRGB( "photon_energy", &photon_energy );
 
         if (is_photon) {
-            photon_type photon = {photon_energy * data->write_sampling_normalizer, sg->P, sg->Rt};
+            const float expectedDensity = AiV3Dot(sg->Nf, -sg->Rd);
+            const float density = AiV3Dot(sg->Ngf, -sg->Rd);
+            const float bentNormalFactor = expectedDensity / density;
+            photon_type photon = {photon_energy * data->write_sampling_normalizer * bentNormalFactor, sg->P, sg->Rt};
             photon_cloud_type * cloud = static_cast<photon_cloud_type*>(AiArrayGetPtr(data->write_thread_clouds, sg->tid));
             cloud->push_back(photon);
             sg->out.RGB = photon_energy;
