@@ -464,7 +464,8 @@ shader_evaluate
                             sg->Rd = cache_Rd;
                             AiMakeRay(&dispersalRay, AI_RAY_REFRACTED, &sg->P, &cache_Rd, AI_BIG, sg);
                             dispersion_sample_TIR = !AiRefractRay(&dispersalRay, &cache_N, n1_disp, n2_disp, sg);
-                            ray.dir = dispersalRay.dir; // note: must happen after AiRefractRay
+                            if (!iinfo.thinRefraction())
+                                ray.dir = dispersalRay.dir; // note: must happen after AiRefractRay
                             if (dispersion_sample_TIR)
                             {   // TIR
                                 TIR_color += monochromeColor;
