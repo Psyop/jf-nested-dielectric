@@ -289,26 +289,26 @@ void blurAnisotropicPoles(float *roughnessU, float *roughnessV, float blurAmount
 }
 
 
-AtColor transmissionColor( AtColor * transmission, float depth)
-{
-    if (*transmission != AI_RGB_WHITE)
-        return AiColorCreate(pow(transmission->r, depth), 
-                             pow(transmission->g, depth), 
-                             pow(transmission->b, depth));
-    else
-        return AI_RGB_WHITE;
-}
+// AtColor transmissionColor( AtColor * transmission, float depth)
+// {
+//     if (*transmission != AI_RGB_WHITE)
+//         return AiColorCreate(pow(transmission->r, depth), 
+//                              pow(transmission->g, depth), 
+//                              pow(transmission->b, depth));
+//     else
+//         return AI_RGB_WHITE;
+// }
 
-AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool traceHit )
-{
-    // return a color for the amount of transmission after passing through the medium. If no hit, assume infinite depth. 
-    if (traceHit)
-        return transmissionColor(transmission, (float) sample->z);
-    else
-        return AiColorCreate(transmission->r >= 1 ? 1: 0, 
-                             transmission->g >= 1 ? 1: 0,
-                             transmission->b >= 1 ? 1: 0 ); 
-}
+// AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool traceHit )
+// {
+//     // return a color for the amount of transmission after passing through the medium. If no hit, assume infinite depth. 
+//     if (traceHit)
+//         return transmissionColor(transmission, (float) sample->z);
+//     else
+//         return AiColorCreate(transmission->r >= 1 ? 1: 0, 
+//                              transmission->g >= 1 ? 1: 0,
+//                              transmission->b >= 1 ? 1: 0 ); 
+// }
 
 
 // ---------------------------------------------------//
@@ -818,8 +818,6 @@ typedef struct InterfaceInfo {
             this->m_higherPriority = this->m2;
 
         this->currentMediaMode = this->rs->media[this->currentID].mode;
-        this->t1 = this->rs->media[this->m1].transmission;
-        this->t2 = this->rs->media[this->m2].transmission;
 
         if ( this->validInterface )
         {   
@@ -865,6 +863,13 @@ typedef struct InterfaceInfo {
                     }
                 }
             }
+
+            this->t1 = this->rs->media[this->m1].transmission;
+            this->t2 = this->rs->media[this->m2].transmission;
+        } 
+        else 
+        {
+            this->t1 = this->rs->media[this->entering ? this->m2 : this->m1].transmission;
         }
     }
 
@@ -943,18 +948,45 @@ typedef struct InterfaceInfo {
         return do_disperse;
     }
 
-    AtColor getTransmissionColor(AtShaderGlobals * sg, float rayLength)
+    AtColor getEnergyUpdateTransmissionSample( float depth ) 
     {
-        if (this->t1 != AI_RGB_WHITE)
-        {       
-            return AiColorCreate( 
-                pow(this->t1.r, rayLength), 
-                pow(this->t1.g, rayLength), 
-                pow(this->t1.b, rayLength));
-        }
-        else
+        return this->getTransmissionColor(this->t1, depth, true);
+    }
+
+    AtColor getReflectionTransmissionSample( float depth, bool traceHit ) 
+    {
+        return this->getTransmissionColor(this->t1, depth, traceHit);
+    }
+
+    AtColor getRefractionTransmissionSample( float depth, bool traceHit ) 
+    {
+        return this->getTransmissionColor(this->t2, depth, traceHit);
+    }
+
+    AtColor getInvalidTraceTransmissionSample( float depth, bool traceHit ) 
+    {
+        return this->getTransmissionColor((this->m_higherPriority == this->m1) ? this->t1 : this->t2, depth, traceHit);
+    }
+
+    AtColor getTransmissionColor(AtColor t, float rayLength, bool hit)
+    {
+        if (hit) 
         {
-            return AI_RGB_WHITE;
+            if (t != AI_RGB_WHITE)
+            {       
+                return AiColorCreate( 
+                    pow(t.r, rayLength), 
+                    pow(t.g, rayLength), 
+                    pow(t.b, rayLength));
+            }
+            else
+            {
+                return AI_RGB_WHITE;
+            }
+        } else {
+            return AiColorCreate(t.r >= 1 ? 1: 0, 
+                                 t.g >= 1 ? 1: 0,
+                                 t.b >= 1 ? 1: 0 );
         }
     }
 
@@ -971,19 +1003,19 @@ typedef struct InterfaceInfo {
             case sh_black:
                 return AI_RGB_BLACK;
             case sh_transmit_only:      
-                return this->getTransmissionColor(sg, rayLength);
+                return this->getTransmissionColor(this->t1, rayLength, true);
             case sh_transmit_and_outer_fresnels:
                 if (this->validInterface && this->entering)
                 {                   
                     fresnelTerm = fresnelEquations (this->n1, this->n2, AiV3Dot(sg->Nf, -sg->Rd), this->polarizationTerm, false);
                 }
-                return this->getTransmissionColor(sg, rayLength) * (AI_RGB_WHITE - fresnelTerm);
+                return this->getTransmissionColor(this->t1, rayLength, true) * (AI_RGB_WHITE - fresnelTerm);
             case sh_transmit_and_all_fresnels:
                 if (this->validInterface)
                 {
                     fresnelTerm = fresnelEquations (this->n1, this->n2, AiV3Dot(sg->Nf, -sg->Rd), this->polarizationTerm, false);
                 }
-                return this->getTransmissionColor(sg, rayLength) * (AI_RGB_WHITE - fresnelTerm);
+                return this->getTransmissionColor(this->t1, rayLength, true) * (AI_RGB_WHITE - fresnelTerm);
         }
         return AI_RGB_WHITE;
     }

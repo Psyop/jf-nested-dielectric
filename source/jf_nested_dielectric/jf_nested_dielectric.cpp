@@ -261,7 +261,7 @@ shader_evaluate
             iinfo.updateMediaInsideLists(false);
         return;
     } else {
-        AtColor cTransmission = iinfo.getTransmissionColor(sg, (float) sg->Rl);
+        AtColor cTransmission = iinfo.getEnergyUpdateTransmissionSample((float) sg->Rl);
         rayState->ray_energy *= cTransmission;
         rayState->ray_energy_photon *= cTransmission;
     }
@@ -502,7 +502,7 @@ shader_evaluate
                             refractSamplesTaken++ ;
                             const bool tracehit = AiTrace(&ray, &sample);
                             if (tracehit || refract_skies) 
-                                acc_refract_indirect += sample.color * weight * transmissionOnSample(&iinfo.t2, &sample, tracehit );
+                                acc_refract_indirect += sample.color * weight * iinfo.getRefractionTransmissionSample(sample.z, tracehit);
 
                             rayState->resetEnergyCache(cache_energy);
                             rayState->resetPhotonEnergyCache(cache_photonEnergy);
@@ -683,9 +683,9 @@ shader_evaluate
                                 if (tracehit || reflect_skies) 
                                 {
                                     if (do_TIR) 
-                                        acc_spec_indirect += sample.color * TIR_color * transmissionOnSample(&iinfo.t1, &sample, tracehit );
+                                        acc_spec_indirect += sample.color * TIR_color * iinfo.getReflectionTransmissionSample(sample.z, tracehit);
                                     else 
-                                        acc_spec_indirect += sample.color * weight * transmissionOnSample(&iinfo.t1, &sample, tracehit );
+                                        acc_spec_indirect += sample.color * weight * iinfo.getReflectionTransmissionSample(sample.z, tracehit);
                                 }
                             }
                             if (sharp_reflection)
@@ -749,7 +749,7 @@ shader_evaluate
             ray.level--;
             const bool tracehit = AiTrace(&ray, &sample);
 
-            AiRGBtoRGBA( sample.color * transmissionOnSample(&iinfo.t2, &sample, tracehit ), validInterfaceResult );
+            AiRGBtoRGBA( sample.color * iinfo.getInvalidTraceTransmissionSample(sample.z, tracehit), validInterfaceResult ); // you rat bastard son of a bitch, what??
             validInterfaceResult.a = sample.alpha;          
         }
         else
