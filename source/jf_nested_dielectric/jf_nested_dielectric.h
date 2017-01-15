@@ -846,9 +846,11 @@ typedef struct InterfaceInfo {
                 {
                     if (this->entering)
                         this->validInterface = false; // entering but already inside. Invalid. 
-                    else if (this->rs->thin_media_inside.v[this->currentID] != 1) {
+                    else if (this->rs->thin_media_inside.v[this->currentID] != 1)
                         this->validInterface = false; // leaving but not leaving the last. Invalid. 
-                        
+                    else 
+                    {
+                        // not entering, but valid. Flip.                         
                         float n = this->n1;
                         this->n1 = this->n2;
                         this->n2 = n;

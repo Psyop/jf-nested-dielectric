@@ -868,7 +868,7 @@ Defaults
 	}
 	mediumMode
 	{
-		Name = "mediumMode";
+		Name = "Medium Mode";
 		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
 		UIType = "Combo";
 		Items
