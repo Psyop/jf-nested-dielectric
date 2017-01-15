@@ -20,6 +20,7 @@ node_parameters
 {
     AiParameterINT("mediumPriority", 0);
     AiParameterFLT("mediumIOR", 1.33f);
+    AiParameterENUM("mediumMode", mm_solid, enum_media_modes);
     AiParameterRGB("mediumTransmittance", 1.0f, 1.0f, 1.0f);
     AiParameterFLT("mediumTransmittance_scale", 1.0f);
 
@@ -161,7 +162,6 @@ shader_evaluate
     }
     AiStateSetMsgBool(JFND_MSG_VALID_BOOL, true); // Any child rays from this will find valid messages. 
 
-    MediaIntStruct * media_inside_ptr;    
     if (sg->Rt == AI_RAY_SHADOW)
     {
         /*
@@ -173,11 +173,8 @@ shader_evaluate
          *   The shadow list has never been initialzied
          */
 
-        media_inside_ptr = &rayState->shadow_media_inside;
-
         bool shadowlist_is_valid = false;
         AiStateGetMsgBool(JFND_MSG_SHADOW_VALID_BOOL, &shadowlist_is_valid);
-
 
         bool transp_index_reset = false;
         int prev_transp_index;
@@ -201,26 +198,20 @@ shader_evaluate
     }
     else
     {
-        media_inside_ptr = &rayState->media_inside;
         AiStateSetMsgBool(JFND_MSG_SHADOW_VALID_BOOL, false);
     }
 
 
-    /*
-     * --------------------------------------------------- *
-     * - shader parameters setup 
-     * --------------------------------------------------- *
-     *
-     * media_id is the medium ID of the material we're currently evaluating, regardless of
-     * whether or not the interface is valid or what media we're inside.
-     *
-     * The medium IDs all get 1 added to them. This means 0 is reserved for "no medium". This simplifies other code, but it means
-     * that if the user gives a medium an ID of 0, internally in the shader it has an ID of 1. 
-     */
-
+    // ---------------------------------------------------//
+    // - get interface info     
+    // ---------------------------------------------------//
     const int media_id = AiShaderEvalParamInt(p_mediumPriority) + 1;
+    InterfaceInfo iinfo = InterfaceInfo(rayState, media_id, sg, node);
 
-    if (media_inside_ptr->v[media_id] < -10 )
+    const bool do_blurryRefraction = iinfo.doBlurryRefraction();
+    bool do_disperse = iinfo.setupDispersion(data);
+
+    if (iinfo.currentMediaInside->v[media_id] < -10 )
     {
         /* 
          * Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
@@ -234,7 +225,7 @@ shader_evaluate
         sg->out.RGBA = AI_RGBA_BLACK;
         return; 
     }
-    if ( media_inside_ptr->v[media_id] > 30)
+    if ( iinfo.currentMediaInside->v[media_id] > 30)
     {
         /* 
          * Sometimes two pieces of geometry overlapping cause this to go crazy, with values like -60
@@ -257,17 +248,6 @@ shader_evaluate
     }
 
     // ---------------------------------------------------//
-    // - get interface info     
-    // ---------------------------------------------------//
-
-    rayState->readBasicMatParameters(sg, node, media_id);
-    InterfaceInfo iinfo = InterfaceInfo(rayState, media_id, sg);
-
-    const bool do_blurryRefraction = iinfo.doBlurryRefraction();
-    bool do_disperse = iinfo.setupDispersion(data);
-    // const bool do_multiSampleRefraction = do_disperse || do_blurryRefraction;
-
-    // ---------------------------------------------------//
     // - Shadow rays
     // ---------------------------------------------------//
     
@@ -278,7 +258,7 @@ shader_evaluate
         AtColor transparency = iinfo.getShadowTransparency(sg, depth_portion, AiShaderEvalParamEnum(p_shadow_mode));
         sg->out_opacity = AI_RGB_WHITE - transparency;
         if (sg->out_opacity != AI_RGB_WHITE)
-            updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
+            iinfo.updateMediaInsideLists(false);
         return;
     } else {
         AtColor cTransmission = iinfo.getTransmissionColor(sg, (float) sg->Rl);
@@ -360,8 +340,7 @@ shader_evaluate
             AtRay ray;
             AtScrSample sample;
             
-            float fresnelTerm = fresnelEquations(iinfo.n1, iinfo.n2,  AiV3Dot(sg->Nf, -sg->Rd), 
-                iinfo.polarizationTerm, true);
+            float fresnelTerm = iinfo.fresnelTerm(AiV3Dot(sg->Nf, -sg->Rd)); 
 
             const bool refrStronger = fresnelTerm < 0.5;
             const bool optoEnergySignificant = std::abs( rayState->ray_energy.r ) > rayState->energy_cutoff 
@@ -422,8 +401,11 @@ shader_evaluate
                     refr_roughnessV += causticDRRoughnessOffset;
                 }
 
-                AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);                 
+                AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);
                 const bool tir = !AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
+                if (!tir && iinfo.thinRefraction())
+                    ray.dir = sg->Rd; // straighten the ray since thin shell and it didn't TIR
+
                 if (tir)
                     optoAllowRefl = true;
 
@@ -502,7 +484,7 @@ shader_evaluate
 
                         if (AiV3Dot(ray.dir, cache_Nf) < 0 && !dispersion_sample_TIR)
                         {
-                            updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
+                            iinfo.updateMediaInsideLists(false);
                             const AtColor weight = (1.0f - fresnelTerm) * monochromeColor 
                                 * overallResultScale * iinfo.getIndirectRefractionWeight() * rrRefrStrength;
 
@@ -525,7 +507,7 @@ shader_evaluate
                             rayState->resetPhotonEnergyCache(cache_photonEnergy);
                             rayState->resetDRAccumRoughness(drAccumRoughness);
 
-                            updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, true);
+                            iinfo.updateMediaInsideLists(true);
                         }
 
                         if (!do_disperse && !do_blurryRefraction)
@@ -759,7 +741,7 @@ shader_evaluate
             AtRay ray;
             AtScrSample sample;
 
-            updateMediaInsideLists(media_id, iinfo.entering, media_inside_ptr, false);
+            iinfo.updateMediaInsideLists(false);
             AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);
             rayState->ray_invalidDepth++;
             ray.refr_bounces--;

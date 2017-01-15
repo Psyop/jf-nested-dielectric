@@ -30,6 +30,7 @@ enum jf_nested_dielectricParams
 {
     p_mediumPriority,
     p_mediumIOR,
+    p_mediumMode,
     p_mediumTransmittance,
     p_mediumTransmittance_scale,
 
@@ -111,6 +112,21 @@ enum jf_nested_dielectricParams
 
 // - note: there are more enumerations related to spectral stuff in spectral_distribution.h
 
+const char *  enum_media_modes[] =
+{
+    "Solid",
+    "Thin",
+    "Thin (Exclusive)",
+    NULL
+};
+
+enum media_modes
+{
+    mm_solid,
+    mm_thin,
+    mm_thin_exclusive,
+};
+
 const char *  enum_brdfs[] =
 {
     "cook_torrance",
@@ -160,7 +176,6 @@ enum specular_raytypes
 // ---------------------------------------------------//
 // - utilities  
 // ---------------------------------------------------//
-
 
 float snell (float n1, float n2, float cosThetaI)
 {
@@ -296,17 +311,6 @@ AtColor transmissionOnSample( AtColor * transmission, AtScrSample * sample, bool
 }
 
 
-void updateMediaInsideLists(int media_id, bool entering, MediaIntStruct * media_inside_list, bool reverse = false)
-{
-    // If we're entering an object, increment, if we're leaving, decrement. 
-    // Reverse reverses the behavior. 
-    if ( !reverse)
-        media_inside_list->v[media_id] = media_inside_list->v[media_id] + (entering ? 1 : -1 );
-    else
-        media_inside_list->v[media_id] = media_inside_list->v[media_id] + (entering ? -1 : 1 );
-}
-
-
 // ---------------------------------------------------//
 // - Definitions and data types  
 // ---------------------------------------------------//
@@ -405,6 +409,7 @@ struct JFND_Shader_Data{
 
 typedef struct MediaCache {
     float IOR;
+    int   mode;
     bool  disperse;
     float dispersion;
     int   BTDF;
@@ -422,6 +427,7 @@ typedef struct MediaCache {
     AtNode *shader;
     MediaCache() {
         this->IOR = 1.0f;
+        this->mode = mm_solid;
         this->disperse = false;
         this->dispersion = 0.0f;
         this->BTDF = b_cook_torrance;
@@ -447,6 +453,7 @@ typedef struct RayStateCache {
     AtColor ray_energy;
     bool caustic_behaviorSet; 
     MediaIntStruct media_inside;
+    MediaIntStruct thin_media_inside;
     float   dr_accumRoughness;
 } RayStateCache;
 
@@ -474,8 +481,10 @@ typedef struct RayState {
 
     MediaCache media[max_media_count];
 
-    MediaIntStruct   media_inside; // branching ray tree data, should be cached
-    MediaIntStruct   shadow_media_inside;
+    MediaIntStruct media_inside; // branching ray tree data, should be cached
+    MediaIntStruct shadow_media_inside;
+    MediaIntStruct thin_media_inside; // branching ray tree data, should be cached
+    MediaIntStruct thin_shadow_media_inside;
 
     spectral_LUT * spectral_LUT_ptr;
     float energy_cutoff;
@@ -491,7 +500,6 @@ typedef struct RayState {
         this->ray_energy = AI_RGB_WHITE;
         this->ray_energy_photon = AI_RGB_WHITE;
 
-        // Array initialization - possibly unnecessary except mediaInside? TO DO: investigate
         for( int i = 0; i < max_media_count; i++ )
         {
             this->media_inside.v[i] = 0;
@@ -518,17 +526,14 @@ typedef struct RayState {
         this->polarized = AiShaderEvalParamBool(p_polarize);
         this->polarizationVector = polarizationVector;
 
-        this->setEnergyCutoff( (float) AiShaderEvalParamInt(p_energy_cutoff_exponent));
+        this->energy_cutoff = pow(10.0f,  (float) AiShaderEvalParamInt(p_energy_cutoff_exponent) );
     }
 
-    void setEnergyCutoff( float energy_cutoff_exponent)
-    {
-        this->energy_cutoff = pow(10.0f, energy_cutoff_exponent );
-    }
 
     void uncacheRayState(RayStateCache * rayStateCache )
     {
         memcpy(&this->media_inside, &rayStateCache->media_inside, sizeof(MediaIntStruct) );
+        memcpy(&this->thin_media_inside, &rayStateCache->thin_media_inside, sizeof(MediaIntStruct) );
         this->ray_monochromatic     = rayStateCache->ray_monochromatic;
         this->caustic_behaviorSet   = rayStateCache->caustic_behaviorSet;
         this->ray_TIRDepth          = rayStateCache->ray_TIRDepth;
@@ -540,6 +545,7 @@ typedef struct RayState {
     void cacheRayState( RayStateCache * rayStateCache )
     {
         memcpy(&rayStateCache->media_inside, &this->media_inside, sizeof(MediaIntStruct) );
+        memcpy(&rayStateCache->thin_media_inside, &this->thin_media_inside, sizeof(MediaIntStruct) );
         rayStateCache->ray_monochromatic    = this->ray_monochromatic;
         rayStateCache->caustic_behaviorSet  = this->caustic_behaviorSet;
         rayStateCache->ray_TIRDepth         = this->ray_TIRDepth;
@@ -588,6 +594,7 @@ typedef struct RayState {
     {
         this->media[i].shader = node;
         this->media[i].IOR = AiShaderEvalParamFlt(p_mediumIOR);
+        this->media[i].mode = AiShaderEvalParamEnum(p_mediumMode);
         this->media[i].disperse = AiShaderEvalParamBool(p_disperse);
         this->media[i].dispersion = AiShaderEvalParamFlt(p_dispersion);
         this->media[i].blurAnisotropicPoles = AiShaderEvalParamFlt(p_blur_anisotropic_poles);
@@ -654,6 +661,7 @@ typedef struct InterfaceInfo {
     int8_t currentID; // the ID of the material currently being evaluated
     int8_t m1;
     int8_t m2;
+    int8_t currentMediaMode;
     int8_t m_higherPriority;
     float n1;
     float n2;
@@ -668,13 +676,16 @@ typedef struct InterfaceInfo {
     int8_t startingMedium;
     int8_t startingMediumSecondary;
 
-    RayState * rs;
+    MediaIntStruct *currentMediaInside;
+    MediaIntStruct *currentThinMediaInside;
+    RayState *rs;
 
-    InterfaceInfo(RayState * rayState, int currentID, AtShaderGlobals * sg) 
+    InterfaceInfo(RayState *rayState, int currentID, AtShaderGlobals *sg, AtNode *node) 
     {
         this->currentID = currentID;
         this->m1 = 0;
         this->m2 = 0;
+        this->currentMediaMode = mm_solid;
         this->m_higherPriority = 0;
 
         this->n1 = 0.0f;
@@ -694,6 +705,7 @@ typedef struct InterfaceInfo {
         this->startingMedium = 0;
         this->startingMediumSecondary = 0;
 
+        this->rs->readBasicMatParameters(sg, node, this->currentID);
         this->computeCurrentMediaInfo(sg);
     }
 
@@ -715,16 +727,17 @@ typedef struct InterfaceInfo {
          * This is all evaulated without any knowledge of what surface we're evaluating, this is just parsing the mediaInside arrays. 
          */
         bool shadowRay = (sg->Rt == AI_RAY_SHADOW);
-        MediaIntStruct * media_inside_ptr = shadowRay ? &this->rs->shadow_media_inside : &this->rs->media_inside;
+        this->currentMediaInside = shadowRay ? &this->rs->shadow_media_inside : &this->rs->media_inside;
+        this->currentThinMediaInside = shadowRay ? &this->rs->thin_shadow_media_inside : &this->rs->thin_media_inside;
 
         for( int i = 0; i < max_media_count; i++ )
         {   
-            if ( media_inside_ptr->v[i] > 0 ) // if we find a medium that we're inside
+            if ( this->currentMediaInside->v[i] > 0 ) // if we find a medium that we're inside
             {
                 if ( this->startingMedium == 0 ) // ..and we havent found our current medium yet
                 {
                     this->startingMedium = i;  // then we've found our medium.
-                    if (media_inside_ptr->v[i] > 1) // ...and if we're in more than one of these
+                    if (this->currentMediaInside->v[i] > 1) // ...and if we're in more than one of these
                     {
                         this->startingMediumSecondary = i; // then our second medium is the same medium.
                         break;
@@ -802,8 +815,7 @@ typedef struct InterfaceInfo {
         else if (this->m1 > this->m2) 
             this->m_higherPriority = this->m2;
 
-        // - Interface Logic
-        //      (Disperse and multisample)
+        this->currentMediaMode = this->rs->media[this->currentID].mode;
 
         if ( this->validInterface )
         {   
@@ -818,17 +830,29 @@ typedef struct InterfaceInfo {
                 this->n2 = this->rs->media[this->m2].IOR;
             }
 
-
             if (this->n1 == this->n2)
             {           
                 this->validInterface = false;
+            }
+
+            if (this->currentMediaMode == mm_thin_exclusive)
+            {
+                // our job here is to confirm validity. Rules a bit different with thin exclusive materials. 
+                if (this->rs->thin_media_inside.v[this->currentID] > 0) 
+                {
+                    if (this-entering)
+                        this->validInterface = false; // entering but already inside. Invalid. 
+                    else if (this->rs->thin_media_inside.v[this->currentID] != 1) 
+                        this->validInterface = false; // leaving but not leaving the last. Invalid. 
+                }
             }
         }
 
         this->t1 = this->rs->media[this->m1].transmission;
         this->t2 = this->rs->media[this->m2].transmission;
-    }
 
+
+    }
 
     void setPolarizationTerm(AtShaderGlobals * sg) 
     {
@@ -843,6 +867,44 @@ typedef struct InterfaceInfo {
     }
 
     public:
+
+    float fresnelTerm(float cosThetaI) 
+    {
+        float reflectionTerm = fresnelEquations(this->n1, this->n2, cosThetaI, this->polarizationTerm, true);
+        if (this->currentMediaMode == mm_solid)
+            return reflectionTerm;
+        else
+        {
+            float transmission = 1.0f - reflectionTerm;
+            float double_transmission = transmission * transmission;
+            return 1.0 - double_transmission;
+        }
+    }
+
+    bool thinRefraction()
+    {
+        // if not solid, we want the refraction IORs to be the same, meaning no refraction
+        return this->currentMediaMode != mm_solid;
+    }
+
+    void updateMediaInsideLists(bool reverse) 
+    {
+        // If we're entering an object, increment, if we're leaving, decrement. 
+        // Reverse reverses the behavior to undo the change.
+        const bool positive = reverse ? !this->entering : this->entering;
+        const int summand = positive ? 1 : -1;
+        if (this->currentMediaMode == mm_solid) 
+        {
+            this->currentMediaInside->v[this->currentID] += summand;
+        } 
+        else if (this->currentMediaMode == mm_thin_exclusive) 
+        {
+            // to do: fix shadow updating
+            this->currentThinMediaInside->v[this->currentID] += summand;
+        }
+    }
+
+
     bool doBlurryRefraction() 
     {
         return (this->rs->media[this->m1].refractRoughnessU > ZERO_EPSILON 

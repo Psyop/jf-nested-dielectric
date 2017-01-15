@@ -32,6 +32,13 @@ PropertySet "jf_nested_dielectric_pset"
 		Value = 1.33;
 		Value Minimum = 0.001;
 	}
+	Parameter "mediumMode" input
+	{
+		GUID = "{3710b429-cb9d-474b-ada2-0fc49eb37686}";
+		Type = string;
+		Texturable = on;
+		Value = "solid";
+	}
 	Parameter "mediumTransmittance" input
 	{
 		GUID = "{4601295C-CB0E-43FE-A523-75D272088AA7}";
@@ -859,6 +866,19 @@ Defaults
 			"Cook-Torrance Aniso - User Tangents" = "anisotropic_user_tangent";
 		}
 	}
+	mediumMode
+	{
+		Name = "mediumMode";
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+		UIType = "Combo";
+		Items
+		{
+			
+    		"Solid" = "Solid";
+    		"Thin" = "Thin";
+    		"Thin (exclusive)" = "Thin (Exclusive)";
+		}
+	}
 	dr_btdf
 	{
 		Name = "BTDF";
@@ -919,6 +939,7 @@ Layout "Default"
 		{
 			mediumPriority;
 			mediumIOR;
+			mediumMode;
 		}
 		Group "Transmission"
 		{

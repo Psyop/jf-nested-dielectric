@@ -27,7 +27,8 @@ class AEjf_nested_dielectricTemplate(ShaderAETemplate):
 
 		self.beginLayout("Basics", collapse=False)
 		self.addControl("mediumPriority", 					label = "Medium Priority" )
-		self.addControl("mediumIOR", 						label = "Medium IOR" )		
+		self.addControl("mediumIOR", 						label = "Medium IOR" )
+		self.addControl("mediumMode", 						label = "Medium Mode" )
 		self.endLayout()
 
 		self.beginLayout("Transmission", collapse=False)
