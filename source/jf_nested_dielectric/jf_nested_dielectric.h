@@ -503,7 +503,9 @@ typedef struct RayState {
         for( int i = 0; i < max_media_count; i++ )
         {
             this->media_inside.v[i] = 0;
-            this->shadow_media_inside.v[i] = 0;
+            this->shadow_media_inside.v[i] = 0; // to do: not necessary
+            this->thin_media_inside.v[i] = 0;
+            this->thin_shadow_media_inside.v[i] = 0; // to do: not necessary
 
             this->media[i] = MediaCache();
         }
