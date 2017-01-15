@@ -818,6 +818,8 @@ typedef struct InterfaceInfo {
             this->m_higherPriority = this->m2;
 
         this->currentMediaMode = this->rs->media[this->currentID].mode;
+        this->t1 = this->rs->media[this->m1].transmission;
+        this->t2 = this->rs->media[this->m2].transmission;
 
         if ( this->validInterface )
         {   
@@ -842,18 +844,26 @@ typedef struct InterfaceInfo {
                 // our job here is to confirm validity. Rules a bit different with thin exclusive materials. 
                 if (this->rs->thin_media_inside.v[this->currentID] > 0) 
                 {
-                    if (this-entering)
+                    if (this->entering)
                         this->validInterface = false; // entering but already inside. Invalid. 
-                    else if (this->rs->thin_media_inside.v[this->currentID] != 1) 
+                    else if (this->rs->thin_media_inside.v[this->currentID] != 1) {
                         this->validInterface = false; // leaving but not leaving the last. Invalid. 
+                        
+                        float n = this->n1;
+                        this->n1 = this->n2;
+                        this->n2 = n;
+
+                        int m = this->m1;
+                        this->m1 = this->m2;
+                        this->m2 = m;
+                        
+                        AtColor t = this->t1;
+                        this->t1 = this->t2;
+                        this->t2 = t;
+                    }
                 }
             }
         }
-
-        this->t1 = this->rs->media[this->m1].transmission;
-        this->t2 = this->rs->media[this->m2].transmission;
-
-
     }
 
     void setPolarizationTerm(AtShaderGlobals * sg) 
