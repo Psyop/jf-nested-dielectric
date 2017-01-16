@@ -854,14 +854,6 @@ typedef struct InterfaceInfo {
                         float n = this->n1;
                         this->n1 = this->n2;
                         this->n2 = n;
-
-                        int m = this->m1;
-                        this->m1 = this->m2;
-                        this->m2 = m;
-                        
-                        AtColor t = this->t1;
-                        this->t1 = this->t2;
-                        this->t2 = t;
                     }
                 }
             }
@@ -955,7 +947,8 @@ typedef struct InterfaceInfo {
 
     AtColor getRefractionTransmissionSample( float depth, bool traceHit ) 
     {
-        return this->getTransmissionColor(this->t2, depth, traceHit);
+        
+        return  this->getTransmissionColor( this->currentMediaMode == mm_solid ? this->t2 : this->t1, depth, traceHit);
     }
 
     AtColor getInvalidTraceTransmissionSample( float depth, bool traceHit ) 
@@ -965,6 +958,8 @@ typedef struct InterfaceInfo {
 
     AtColor getTransmissionColor(AtColor t, float rayLength, bool hit)
     {
+        
+
         if (hit) 
         {
             if (t != AI_RGB_WHITE)
