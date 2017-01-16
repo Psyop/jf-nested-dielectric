@@ -36,8 +36,8 @@ node_parameters
 
     AiParameterFLT("direct_refraction", 1.0f);
     AiParameterFLT("dr_roughnessOffset", 0.05f);
-    AiParameterFLT("dr_roughnessDepthMultiplier", 0.0f); // to do: rename to addOnReflect
-    AiParameterFLT("dr_roughnessDepthAdder", 0.0f); // to do: rename to addOnRefract
+    AiParameterFLT("dr_roughnessAddOnReflect", 0.0f);
+    AiParameterFLT("dr_roughnessAddOnRefract", 0.0f);
     AiParameterBOOL("dr_use_refraction_btdf", true);
     AiParameterENUM("dr_btdf", b_cook_torrance, enum_brdfs);
     AiParameterFLT("dr_roughness_u", 0.00f);
@@ -493,7 +493,7 @@ shader_evaluate
 
                             const AtColor cache_energy = rayState->updateEnergyReturnOrig(weight);
                             const AtColor cache_photonEnergy = rayState->updatePhotonEnergyReturnOrig(weight);
-                            const float drDepthAdderRefr = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthAdder ) );
+                            const float drDepthAdderRefr = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessAddOnReflect ) );
                             const float drAccumRoughness = rayState->updateDRAccumRoughnessReturnOrig(drDepthAdderRefr);
 
                             if (sg->Rt == AI_RAY_CAMERA && (do_disperse || do_blurryRefraction)) // to do: only needs to happen for photon rays
@@ -654,7 +654,7 @@ shader_evaluate
 
                         AtColor cache_energy = rayState->updateEnergyReturnOrig(do_TIR ? TIR_color : weight * AI_RGB_WHITE); 
                         AtColor cache_photonEnergy = rayState->updatePhotonEnergyReturnOrig(do_TIR ? TIR_color : weight * AI_RGB_WHITE); 
-                        const float drDepthAdderSpec = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessDepthMultiplier ) );
+                        const float drDepthAdderSpec = refractRoughnessConvert( AiShaderEvalParamFlt( p_dr_roughnessAddOnReflect ) );
                         const float drAccumRoughness = rayState->updateDRAccumRoughnessReturnOrig(drDepthAdderSpec);
 
                         if ( do_TIR && rayState->ray_TIRDepth < JFND_MAX_TIR_DEPTH && specularRay.refr_bounces > 1)

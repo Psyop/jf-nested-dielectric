@@ -62,8 +62,8 @@ class AEjf_nested_dielectricTemplate(ShaderAETemplate):
 		self.addControl("dr_use_refraction_btdf", 			label = "Use Refraction BTDF" )
 		self.addControl("dr_roughnessOffset", 				label = "Roughness Offset" )
 
-		self.addControl("dr_roughnessDepthMultiplier", 		label = "Roughness Depth Multiplier" )
-		self.addControl("dr_roughnessDepthAdder", 			label = "Roughness Depth Adder" )
+		self.addControl("dr_roughnessAddOnReflect", 		label = "Roughness Add on Reflect" )
+		self.addControl("dr_roughnessAddOnRefract", 		label = "Roughness Add on Refract" )
 
 		self.beginLayout("Direct Refraction Manual BTDF", collapse=True)
 		self.addControl("dr_btdf", 							label = "BTDF" )

@@ -46,8 +46,8 @@ enum jf_nested_dielectricParams
 
     p_direct_refraction,
     p_dr_roughnessOffset,
-    p_dr_roughnessDepthMultiplier,
-    p_dr_roughnessDepthAdder,
+    p_dr_roughnessAddOnReflect,
+    p_dr_roughnessAddOnRefract,
     p_dr_use_refraction_btdf,
     p_dr_btdf,
     p_dr_roughness_u,

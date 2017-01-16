@@ -124,17 +124,18 @@ PropertySet "jf_nested_dielectric_pset"
 		Texturable = on;
 		Value = 0.05;
 	}
-	Parameter "dr_roughnessDepthMultiplier" input
+	Parameter "dr_roughnessAddOnReflect" input
 	{
-		GUID = "{dd83cc11-9f96-4409-a665-054dfe4c51de}";
+		GUID = "{be818e13-eac9-4ad3-aa68-14fcb481fda2}";
 		Type = scalar;
 		Texturable = on;
-		Value = 1.0;
+		Value = 0.0;
 		Value Minimum = 0.0;
+		Value Maximum = 1.0;
 	}
-	Parameter "dr_roughnessDepthAdder" input
+	Parameter "dr_roughnessAddOnRefract" input
 	{
-		GUID = "{112366e4-7f89-4324-93c8-97689e6ad1c4}";
+		GUID = "{7a05aa30-1676-4922-bc01-dd240f483fef}";
 		Type = scalar;
 		Texturable = on;
 		Value = 0.0;
@@ -618,17 +619,10 @@ Defaults
 		UIRange = 0.0 to 0.3;
 		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
 	}
-
 	# roughness modifiers
 	dr_roughnessOffset
 	{
 		Name = "Roughness Offset";
-		UIRange = 0.0 to 0.1;
-		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
-	}
-	dr_roughnessDepthAdder
-	{
-		Name = "Add roughness with Ray Depth";
 		UIRange = 0.0 to 0.1;
 		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
 	}
@@ -638,11 +632,16 @@ Defaults
 		UIRange = 0.0 to 0.1;
 		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
 	}
-
-	dr_roughnessDepthMultiplier
+	dr_roughnessAddOnReflect
 	{
-		Name = "Multiply roughness with Ray Depth";
-		UIRange = 1.0 to 2.0;
+		Name = "Roughness Add on Reflect";
+		UIRange = 0.0 to 0.2;
+		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
+	}
+	dr_roughnessAddOnRefract
+	{
+		Name = "Roughness Add on Refract";
+		UIRange = 0.0 to 0.2;
 		Commands = "{F5C75F11-2F05-11D3-AA95-00AA0068D2C0}";
 	}
 	dr_second_roughnessMultiplier
@@ -977,8 +976,8 @@ Layout "Default"
 				dr_roughness_v;
 				Group "Depth Based Roughness Modification"
 				{
-					dr_roughnessDepthMultiplier;
-					dr_roughnessDepthAdder;
+					dr_roughnessAddOnReflect;
+					dr_roughnessAddOnRefract;
 				}
 			}
 			Group "Second Lobe"
@@ -1142,8 +1141,8 @@ Layout "RenderTree"
 				dr_roughness_v;
 				Group "Depth Based Roughness Modification"
 				{
-					dr_roughnessDepthMultiplier;
-					dr_roughnessDepthAdder;
+					dr_roughnessAddOnReflect;
+					dr_roughnessAddOnRefract;
 				}
 			}
 			Group "Second Lobe"
