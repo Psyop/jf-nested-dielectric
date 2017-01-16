@@ -402,9 +402,11 @@ shader_evaluate
                 }
 
                 AiMakeRay(&ray, AI_RAY_REFRACTED, &sg->P, &sg->Rd, AI_BIG, sg);
-                const bool tir = !AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg);
-                if (!tir && iinfo.thinRefraction())
-                    ray.dir = sg->Rd; // straighten the ray since thin shell and it didn't TIR
+                bool tir = false;
+                if (iinfo.thinRefraction())
+                    tir = (fresnelTerm == 1.0);
+                else
+                    tir = !AiRefractRay(&ray, &sg->Nf, iinfo.n1, iinfo.n2, sg); // avoiding calling aiRefractRay if it aint right
 
                 if (tir)
                     optoAllowRefl = true;

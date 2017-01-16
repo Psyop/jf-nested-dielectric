@@ -818,6 +818,8 @@ typedef struct InterfaceInfo {
             this->m_higherPriority = this->m2;
 
         this->currentMediaMode = this->rs->media[this->currentID].mode;
+        this->t1 = this->rs->media[this->m1].transmission;
+        this->t2 = this->rs->media[this->m2].transmission;
 
         if ( this->validInterface )
         {   
@@ -863,13 +865,6 @@ typedef struct InterfaceInfo {
                     }
                 }
             }
-
-            this->t1 = this->rs->media[this->m1].transmission;
-            this->t2 = this->rs->media[this->m2].transmission;
-        } 
-        else 
-        {
-            this->t1 = this->rs->media[this->entering ? this->m2 : this->m1].transmission;
         }
     }
 
@@ -965,7 +960,7 @@ typedef struct InterfaceInfo {
 
     AtColor getInvalidTraceTransmissionSample( float depth, bool traceHit ) 
     {
-        return this->getTransmissionColor((this->m_higherPriority == this->m1) ? this->t1 : this->t2, depth, traceHit);
+        return this->getTransmissionColor((this->currentID == this->m1) ? this->t2 : this->t1, depth, traceHit);
     }
 
     AtColor getTransmissionColor(AtColor t, float rayLength, bool hit)
@@ -1231,7 +1226,6 @@ typedef struct TraceSwitch
         {
             this->spec_ind = this->spec_ind && rs->caustic_specInternal;
         }
-
     }
 
     void setPhotonCaustic(InterfaceInfo * iinfo) 
