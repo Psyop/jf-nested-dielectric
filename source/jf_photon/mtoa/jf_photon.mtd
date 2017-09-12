@@ -1,0 +1,5 @@
+[node jf_photon]
+	desc                    STRING      "Photon mapping read write node"
+	maya.name               STRING      "jf_photon"	
+	maya.classification     STRING      "texture/3d"
+    maya.id                 INT         0xc2ce82
