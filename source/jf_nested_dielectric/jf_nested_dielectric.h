@@ -1090,13 +1090,15 @@ typedef struct InterfaceInfo {
             uTangent = AI_V3_ZERO;
             vTangent = AI_V3_ZERO;
         case b_cook_torrance_ray_tangent:
-            // Ward with refraction-derivitive tangents
+        {        
+                // Ward with refraction-derivitive tangents
             AtVector raydir = AiV3Normalize(ppsg->Rd);
             blurAnisotropicPoles(&dr_roughnessU, &dr_roughnessV, this->rs->media[this->m_higherPriority].blurAnisotropicPoles, ppsg->Nf, raydir);
             blurAnisotropicPoles(&drs_roughnessU, &drs_roughnessV, this->rs->media[this->m_higherPriority].blurAnisotropicPoles, ppsg->Nf, raydir);
             uTangent = AiV3Cross(ppsg->Nf, raydir); 
             vTangent = AiV3Cross(ppsg->Nf, uTangent);
             break;
+        }
         case b_cook_torrance_user_tangent:
             // Ward with user tangents
             AtVector customTan = AiV3Normalize( customTangentVector );

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <vector>
 #include <ctime>
+#include <cstring>
 
 AI_SHADER_NODE_EXPORT_METHODS(jf_photon_methods);
 
