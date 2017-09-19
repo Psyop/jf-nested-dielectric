@@ -524,7 +524,6 @@ typedef struct RayState {
         this->dr_accumRoughness = 0.0;
 
         // Set once values - values set at initialization for all descendent rays
-        this->energy_cutoff = pow(10.0f, 16);
         this->polarized = AiShaderEvalParamBool(p_polarize);
         this->polarizationVector = polarizationVector;
 
