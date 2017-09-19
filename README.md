@@ -92,3 +92,7 @@ make install
 
 - Fixed issue reported by Vahan Sosoyan where a glass of liquid could look wrong in reflection. 
 - Added Cinema 4D helper files by Daniel Hennies
+
+To build on Linux:
+Make sure you've added $ARNOLD_PATH to your environment variables
+Make sure $ARNOLD_PATH/bin is in your PATH:
