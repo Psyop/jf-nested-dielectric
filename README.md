@@ -56,7 +56,6 @@ make install
 
  - Andy Jones
  - Tony Barbieri
- - Andy Gilbert
  - Todd Akita
  - Nisa Foster
 
